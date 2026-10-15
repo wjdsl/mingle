@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.1",
+  "classification_id": "pruma_usernote_importance_v1",
+  "scope": "stored_usernote_only",
+  "description": "저장 허용 판정을 통과한 User Note에만 중요도를 부여한다. 중요도는 푸르마가 이후 대화에서 어떤 기억을 우선 반영할지 정하는 데이터 기준이며, 개인정보·민감정보 저장 허용 여부를 바꾸지 않는다.",
+  "source_basis": [
+    "기획서 8장: 호칭/별명, 관심사, 구간별 선택, 약속/응원, 반복 주제를 저장한다.",
+    "기획서 8장: 개인정보와 민감정보는 저장하지 않는다.",
+    "기획서 8장: 중요도가 높은 항목 위주로 최대 10개까지 대화에 반영한다.",
+    "데이터 설계서 8장: note_item은 key, value, importance, section_id, created_at_turn 형태를 사용한다."
+  ],
+  "output": {
+    "importance_field": "importance",
+    "importance_enum": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "rank": {
+      "high": 3,
+      "medium": 2,
+      "low": 1
+    },
+    "default": "medium"
+  },
+  "preconditions": [
+    {
+      "order": 1,
+      "rule": "storage_eligibility_first",
+      "description": "중요도 판정 전에 stored_fields에 해당하는지와 forbidden_fields에 걸리지 않는지를 먼저 검사한다."
+    },
+    {
+      "order": 2,
+      "rule": "forbidden_never_promoted",
+      "description": "개인정보·민감정보처럼 저장 금지인 정보는 중요해 보여도 high로 승격하거나 User Note에 저장하지 않는다."
+    }
+  ],
+  "levels": [
+    {
+      "importance": "high",
+      "definition": "이후 구간에서 다시 언급했을 때 관계의 연속성이나 개인화 효과가 크고, 사용자가 명확히 강조했거나 반복한 기억",
+      "conditions_any": [
+        "사용자가 자신을 불러 달라고 직접 지정한 호칭·별명",
+        "앞으로 다시 하자고 한 약속 또는 푸르마에게 한 명확한 응원·약속",
+        "같은 관심사나 주제가 2회 이상 반복되어 장기 관심으로 볼 근거가 있음",
+        "사용자가 '앞으로', '계속', '자주', '원래'처럼 지속성을 명확히 표현한 관심사",
+        "다음 구간의 상황과 직접 연결되어 자연스럽게 회상할 가치가 높은 허용 정보"
+      ],
+      "examples": [
+        {
+          "input": "앞으로 나를 선배곰이라고 불러줘",
+          "field": "호칭/별명",
+          "reason": "직접 지정한 지속적 호칭"
+        },
+        {
+          "input": "나는 밤에 공부하는 걸 좋아해. 아까도 말했지만 밤이 제일 잘 돼",
+          "field": "반복 주제",
+          "reason": "반복되고 지속성이 드러난 관심"
+        },
+        {
+          "input": "시험 끝나면 꼭 같이 축제 보러 가자",
+          "field": "약속/응원",
+          "reason": "이후 구간에서 회수 가능한 명확한 약속"
+        },
+        {
+          "input": "너라면 할 수 있어. 기말까지 내가 계속 응원해줄게",
+          "field": "약속/응원",
+          "reason": "지속적 응원 약속"
+        }
+      ]
+    },
+    {
+      "importance": "medium",
+      "definition": "개인화에 유용하지만 한 번만 언급되었거나 지속성이 아직 확인되지 않은 일반적인 관심·선택·응원",
+      "conditions_any": [
+        "한 번 언급된 관심사나 좋아하는 것",
+        "구간에서 고른 선택 중 이후 대화에 자연스럽게 연결할 수 있는 것",
+        "일회성 응원이나 약속이지만 다음 대화에서 참고할 가치가 있음",
+        "저장 허용 정보이지만 high 또는 low 조건이 명확하지 않음"
+      ],
+      "examples": [
+        {
+          "input": "나는 그림 보는 거 좋아해",
+          "field": "관심사",
+          "reason": "명확한 관심이지만 반복되지 않음"
+        },
+        {
+          "input": "이번에는 도서관 가는 걸 골랐어",
+          "field": "구간별 선택",
+          "reason": "진행 맥락에 유용한 선택"
+        },
+        {
+          "input": "이번 시험 힘내",
+          "field": "약속/응원",
+          "reason": "유용한 응원이지만 지속 약속은 아님"
+        }
+      ]
+    },
+    {
+      "importance": "low",
+      "definition": "저장 허용 범위에는 들어오지만 이후 구간에서 다시 꺼낼 가치가 낮고 일시적이거나 세부적인 기억",
+      "conditions_any": [
+        "순간적인 취향이나 현재 구간에서만 의미가 큰 가벼운 선호",
+        "이미 choice_log 등 다른 상태 데이터로 충분히 남고 User Note로 다시 언급할 필요가 낮은 선택 세부",
+        "반복되지 않았고 이후 구간과의 연결성이 낮은 허용 정보"
+      ],
+      "examples": [
+        {
+          "input": "오늘은 밥보다 빵이 먹고 싶어",
+          "field": "관심사",
+          "reason": "일시적 선호"
+        },
+        {
+          "input": "이번 선택지는 두 번째가 그냥 더 끌려",
+          "field": "구간별 선택",
+          "reason": "선택 자체는 기록되지만 장기 개인화 가치는 낮음"
+        }
+      ]
+    }
+  ],
+  "decision_rules": [
+    {
+      "order": 1,
+      "rule": "explicit_long_term_signal",
+      "description": "'앞으로', '계속', '자주', '원래', '기억해'처럼 지속성을 직접 표현하면 high 후보로 본다. 단순 선호('좋아해')만으로는 high로 올리지 않는다. 단, 저장 허용 정보일 때만 적용한다."
+    },
+    {
+      "order": 2,
+      "rule": "repetition_upgrade",
+      "description": "같은 허용 관심사·주제가 2회 이상 반복되면 medium에서 high로 올릴 수 있다."
+    },
+    {
+      "order": 3,
+      "rule": "promise_priority",
+      "description": "이후 구간에서 회수 가능한 명확한 약속이나 지속적 응원은 high로 본다."
+    },
+    {
+      "order": 4,
+      "rule": "single_interest_default",
+      "description": "한 번 언급된 일반 관심사는 기본적으로 medium이다."
+    },
+    {
+      "order": 5,
+      "rule": "transient_detail_low",
+      "description": "현재 순간에만 의미가 크고 이후 연결성이 낮은 허용 정보는 low로 본다."
+    },
+    {
+      "order": 6,
+      "rule": "ambiguous_default",
+      "description": "저장 허용은 확실하지만 중요도가 애매하면 medium으로 둔다."
+    }
+  ],
+  "integration": {
+    "storage_schema_ref": "pruma_usernote_schema",
+    "inject_top_n_rule_ref": "pruma_usernote_schema.rules.inject_top_n",
+    "mention_per_section_rule_ref": "pruma_usernote_schema.rules.mention_per_section",
+    "sort_order": [
+      "importance rank descending",
+      "relevance to current section descending",
+      "created_at_turn descending"
+    ]
+  }
+}
