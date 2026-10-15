@@ -6,6 +6,7 @@
 |---|---|---|---|
 | 0.1 | 2026-10-15 | 푸르마 데이터 작업 | 10개 데이터 파일의 필드 정의 초안 |
 | 0.2 | 2026-10-15 | 푸르마 데이터 작업 | 데이터 흐름·검증·미확정 항목 보강 및 서식을 파일별 필드 표 중심으로 정리. 목차·요구사항 대응표 등 서술 제거 |
+| 0.3 | 2026-10-15 | 푸르마 데이터 작업 | MVP RAG 7건 공식 데이터 보강, 자유 입력 주제·태도 분류 체계, User Note 중요도 기준, 분류 테스트와 필드 정의를 통합. 검토 결과에 따라 User Note 지속성 기준 충돌, RAG ID, 테스트 ID 규칙, 출력 필드·연동 참조 및 문서-JSON 정합성을 보정 |
 
 ---
 
@@ -19,6 +20,10 @@
 
 ## 2. 파일 구조
 
+### 1) 전체 데이터 설계 기준
+
+아래는 프로젝트 전체 데이터 계약에서 사용하는 파일이다. 일부 파일은 다른 담당 또는 후속 작업에서 작성될 수 있으며, 현재 v0.3 데이터 담당 업로드 대상은 §2.2에 별도로 적는다.
+
 | 경로 | 루트 타입 | 정의 |
 |---|---|---|
 | `data/persona/pruma_profile.json` | object | §4 |
@@ -31,6 +36,29 @@
 | `data/ending/pruma_ending_top.json` | object | §10 |
 | `data/ending/pruma_endings_overview.json` | object | §10 |
 | `data/tests/pruma_data_tests.json` | object | §11 |
+| `data/rules/pruma_topic_classification.json` | object | §7 |
+| `data/tests/pruma_topic_classification_tests.json` | object | §11 |
+| `data/rules/pruma_attitude_classification.json` | object | §7 |
+| `data/tests/pruma_attitude_classification_tests.json` | object | §11 |
+| `data/usernote/pruma_usernote_importance.json` | object | §8 |
+| `data/tests/pruma_usernote_importance_tests.json` | object | §11 |
+
+### 2) 현재 v0.3 데이터 담당 업로드 대상
+
+이번 `data` 브랜치에 올릴 데이터 담당 산출물은 아래 8개이다. 설계 문서의 파일명에는 버전을 붙이지 않고 개정 이력에서 버전을 관리한다.
+
+| 경로 | 상태 |
+|---|---|
+| `docs/Pruma_Data_Design.md` | 작성 |
+| `data/rag/pruma_rag_mvp.json` | 작성 |
+| `data/rules/pruma_topic_classification.json` | 작성 |
+| `data/rules/pruma_attitude_classification.json` | 작성 |
+| `data/usernote/pruma_usernote_importance.json` | 작성 |
+| `data/tests/pruma_topic_classification_tests.json` | 작성 |
+| `data/tests/pruma_attitude_classification_tests.json` | 작성 |
+| `data/tests/pruma_usernote_importance_tests.json` | 작성 |
+
+전체 설계 파일 중 위 목록에 없는 파일은 이번 8개 첨부만으로 실제 저장소 존재 여부를 검증할 수 없으므로 **확인 필요**로 둔다.
 
 미작성 후보(§12): 취업박람회, 이종우과학도서관, 박물관, 민속촌, 장학제도, 교육개발센터, 학교 역사.
 
@@ -288,6 +316,8 @@
 
 ### 1) `pruma_rules.json`
 
+스탯·친밀도 증가량과 턴당 상한의 **단일 출처**는 `pruma_rules.json`으로 둔다. 분류 JSON은 어떤 라벨을 선택할지만 정의하고, 증가량 숫자를 중복 저장하지 않는다.
+
 | 필드 | 설명 |
 |---|---|
 | `gain.choice_button: object` | 선택지: 스탯 +6, 친밀도 +2 |
@@ -302,7 +332,81 @@
 | `classification_fallback: object` | 분류 실패 시 주제 `일상`, 태도 `중립`, 스탯 변화 0 |
 | `deprecated_fields: string[]` | 정본에 넣지 않는 과거 임시안 필드 |
 
+### 2) `pruma_topic_classification.json`
+
+자유 입력에서 스탯 계산에 사용할 대표 주제 하나를 결정한다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `schema_version` | string | 분류 JSON 구조 버전. 현재 `1.1` |
+| `classification_id` | string | 분류기 식별자. `pruma_free_input_topic_v1` |
+| `scope` | string | 적용 범위. `free_input_only` |
+| `description` | string | 분류 목적 설명 |
+| `source_basis` | string[] | 기획·설계 근거 |
+| `output.primary_topic_field` | string | 실제 결과 필드명. `primary_topic` |
+| `output.primary_topic_enum` | string[] | `탐구`, `기술`, `예술`, `소통`, `글로벌`, `일상` |
+| `output.stat_tag_map` | object | 주제 → 스탯 태그 대응. `일상`은 `null` |
+| `output.fallback_topic` | string | 분류 실패 시 `일상` |
+| `labels` | object[] | 주제별 정의·단서·예외·예시 |
+| `labels[].topic` | string | 주제 이름 |
+| `labels[].definition` | string | 주제 정의 |
+| `labels[].positive_cues` | string[] | 해당 주제를 뒷받침하는 단서 |
+| `labels[].caveats` | string[] | 다른 주제로 판정해야 하는 예외·주의 조건 |
+| `labels[].examples` | string[] | 대표 문장 |
+| `decision_rules` | object[] | 판정 순서. 각 항목 `order`, `rule`, `description` |
+| `integration.stat_gain_rule_ref` | string | 증가량 단일 출처 `pruma_rules.gain.free_input_topic` 참조 |
+| `integration.classification_fallback_rule_ref` | string | fallback 단일 출처 참조 |
+| `integration.repeat_topic` | object | `comparison_key`, `exclude_topic`, `repeat_rule_ref` |
+
+판정 원칙:
+
+- 대표 주제는 6개 중 **1개**만 선택한다.
+- 장소나 동행자보다 **핵심 행동**을 우선한다.
+- 공부·연구→`탐구`, 만들기·코딩·창업→`기술`, 공연·창작→`예술`, 취업·진로·비교과→`소통`, 외국어·교환학생→`글로벌`의 프로젝트 매핑을 우선한다.
+- 코딩 **실습·제작·구현**이 핵심이면 `기술`, 기술 이론이나 자료를 읽고 정리하는 학습이 핵심이면 `탐구`로 본다.
+- 동아리·모임은 **가입 자체가 핵심이면 `소통`**으로 본다. 다만 `영어 회화`, `코딩`, `공연`처럼 구체 활동이 명확히 드러나면 해당 활동의 주제를 우선한다.
+- 두 개 이상 서로 다른 주제가 함께 제시되고 우선할 핵심 행동을 하나로 정하기 어렵거나 신뢰도가 낮으면 `일상`으로 처리한다.
+- 고정 선택지 버튼은 분류하지 않고 시나리오의 `stat_tag`를 사용한다.
+- 반복 주제 비교 키는 `primary_topic`이며 `일상`은 반복 스탯 페널티 집계에서 제외한다.
+
+### 3) `pruma_attitude_classification.json`
+
+자유 입력에서 푸르마를 대하는 대표 태도 하나를 결정한다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `schema_version` | string | 분류 JSON 구조 버전. 현재 `1.1` |
+| `classification_id` | string | `pruma_free_input_attitude_v1` |
+| `scope` | string | `free_input_only` |
+| `description` | string | 태도 분류 목적 |
+| `output.primary_attitude_field` | string | 실제 결과 필드명. `primary_attitude` |
+| `output.primary_attitude_enum` | string[] | `응원·도움`, `중립`, `퉁명·부정` |
+| `output.fallback_attitude` | string | 판정이 애매하면 `중립` |
+| `labels` | object[] | 태도별 정의·단서·예외·예시 |
+| `labels[].attitude` | string | 태도 이름 |
+| `labels[].definition` | string | 태도 정의 |
+| `labels[].positive_cues` | string[] | 해당 태도의 단서 |
+| `labels[].caveats` | string[] | 예외·주의 조건 |
+| `labels[].examples` | string[] | 대표 문장 |
+| `decision_rules` | object[] | 판정 순서 |
+| `integration.affinity_gain_rule_ref` | string | 친밀도 변화 단일 출처 참조 |
+| `integration.affinity_cap_rule_ref` | string | 턴당 친밀도 상한 단일 출처 참조 |
+| `integration.safety_rule_ref` | string | 안전 응답 우선 규칙 참조 |
+
+| 태도 | 판정 기준 |
+|---|---|
+| `응원·도움` | 격려, 공동 행동 제안, 정보·방법·대안 등 실제 도움 의도가 명확함 |
+| `중립` | 도움이나 거절이 뚜렷하지 않은 일반 답변·질문·사실 전달·자기 상태 표현 |
+| `퉁명·부정` | 푸르마의 요청을 명확히 귀찮아하거나 거절·무시하고 내침 |
+
+- 문장 전체의 감정이 아니라 **푸르마를 대하는 태도**를 본다.
+- `"시험 싫지만 같이 공부해줄게"`처럼 도움 의도가 분명하면 `응원·도움`이다.
+- `"시험 너무 싫다"`처럼 상황에 대한 부정 감정만 있으면 `퉁명·부정`으로 단정하지 않는다.
+- `"싫어"`처럼 대상이 불명확한 짧은 부정 표현은 `중립` fallback을 적용한다.
+- 위기 신호·개인정보 등 안전 규칙이 태도 보상보다 우선한다.
+
 `deprecated_fields` 대체: `study_score`→스탯 5종, `current_chapter`→`progress`, `event_flags`→`choice_log`, `ending_condition_met`→엔딩 조건 데이터.
+
 
 ---
 
@@ -319,9 +423,59 @@
 | `rules.inject_top_n: integer` | 반영 항목 최대 10 |
 | `note_item: object` | 저장 1건의 형태. `key`, `value`, `importance`, `section_id`, `created_at_turn` |
 
-`note_item.importance`는 §12에서 기준 확정 전까지 `null`.
+### 2) `pruma_usernote_importance.json`
 
-기억 언급 예: 2구간 "나는 밤에 공부가 잘 돼" → 3구간 시험 장면에서 "선배는 밤에 잘 된다고 하셨죠? 저도 밤에 해 볼까요?" 1회.
+저장 허용 판정을 통과한 User Note에만 중요도를 부여한다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `schema_version` | string | 중요도 JSON 구조 버전. 현재 `1.1` |
+| `classification_id` | string | `pruma_usernote_importance_v1` |
+| `scope` | string | `stored_usernote_only` |
+| `description` | string | 중요도 판정 목적 |
+| `source_basis` | string[] | 기획·설계 근거 |
+| `output.importance_field` | string | 실제 결과 필드명. `importance` |
+| `output.importance_enum` | string[] | `high`, `medium`, `low` |
+| `output.rank` | object | 우선순위 숫자. high=3, medium=2, low=1 |
+| `output.default` | string | 애매할 때 `medium` |
+| `preconditions` | object[] | 중요도 판정 전에 적용할 저장 허용/금지 조건 |
+| `levels` | object[] | 중요도별 정의·조건·예시 |
+| `levels[].importance` | string | `high`/`medium`/`low` |
+| `levels[].definition` | string | 중요도 정의 |
+| `levels[].conditions_any` | string[] | 해당 중요도로 볼 수 있는 조건 |
+| `levels[].examples` | object[] | 예시 입력과 필드·이유 |
+| `decision_rules` | object[] | 중요도 판정 순서 |
+| `integration.storage_schema_ref` | string | 저장 가능 여부 스키마 참조 |
+| `integration.inject_top_n_rule_ref` | string | 반영 개수 단일 출처 참조 |
+| `integration.mention_per_section_rule_ref` | string | 언급 횟수 단일 출처 참조 |
+| `integration.sort_order` | string[] | 반영 우선순위 |
+
+| 값 | 기준 | 대표 예 |
+|---|---|---|
+| `high` | 지속성이 명확하거나 같은 관심·주제가 반복되어 이후 회상 가치가 큼 | 직접 지정한 별명, 미래 약속, 지속적 응원, 반복 관심사 |
+| `medium` | 개인화에 유용하지만 한 번만 언급되어 지속성이 아직 확인되지 않음 | `"나는 그림 보는 걸 좋아해"`, 일반 선택, 일회성 응원 |
+| `low` | 저장 가능하지만 순간적이고 이후 연결성이 낮음 | `"오늘은 빵이 먹고 싶어"`, 장기 회상 가치가 낮은 세부 선택 |
+
+판정 원칙:
+
+- 중요도보다 **저장 가능 여부를 먼저 검사**한다.
+- 단순한 `"좋아해"` 표현만으로 `high`로 올리지 않는다. 한 번 언급된 일반 선호는 기본 `medium`이다.
+- `"앞으로"`, `"계속"`, `"자주"`, `"원래"` 같은 지속 신호가 있거나 같은 관심사가 2회 이상 반복되면 `high` 후보가 된다.
+- 미래에 회수 가능한 명확한 약속·지속적 응원은 `high`이다.
+- 순간적 선호는 `low`이다.
+- 저장 가능하지만 애매하면 `medium`이다.
+- 개인정보·민감정보는 `"꼭 기억해"` 같은 강한 신호가 있어도 중요도 판정 전에 제외한다.
+
+### 3) 대화 반영 우선순위
+
+반영 순서는 다음과 같다.
+
+1. `importance`: `high` → `medium` → `low`
+2. 같은 중요도면 현재 구간 관련성이 높은 기억
+3. 그래도 같으면 `created_at_turn`이 큰 최근 기억
+
+최대 반영 개수와 구간당 언급 횟수는 `pruma_usernote_schema.json`의 규칙을 단일 출처로 사용한다.
+
 
 ---
 
@@ -333,7 +487,7 @@
 |---|---|
 | `id: string` | `rag_` 접두사 |
 | `category: string` | §3.2 |
-| `subcategory: string` | 세부 분류 |
+| `subcategory: string` | 세부 분류. 현재는 자유 문자열이며 별도 enum은 두지 않음 |
 | `title: string` | 항목 제목 |
 | `content: string` | 공식 공개 페이지 요약. 원문 장문 복사 금지 |
 | `source_name: string` | 출처 명칭 |
@@ -343,7 +497,7 @@
 | `usage: string` | §3.2 (`mvp`/`candidate`/`archive`) |
 | `allowed_section: string\|null` | 선택. 시나리오 `section_id` 참조 |
 | `trigger_keywords: string[]` | 선택. 노출 트리거 키워드 |
-| `promotion_target: string\|null` | 선택. 노출 대상 |
+| `promotion_target: string\|null` | 선택. 사용자에게 보여 줄 홍보 대상의 표시용 라벨. 실제 이동 URL은 `source_url` 사용 |
 
 수집은 공식 공개 페이지만 사용하고(로그인 필요 페이지 제외) 원문 복사 대신 요약과 출처를 둔다. 확인일을 기록하고 발표 직전 재확인한다. 학교 공식 SNS와 별도 학교 상징 항목은 제외한다. 프로그램 이름은 공개 페이지 기준 후보이며 확인되지 않으면 쓰지 않는다.
 
@@ -358,10 +512,10 @@
 | `rag_library_central` | library | 중앙도서관 | `s3_midterm` |
 | `rag_career_center` | career | 취업처 | `s6_vacation_plan` |
 | `rag_international_office` | international | 국제처 | `s6_vacation_plan` |
-| `rag_yutopia` | student_life | YuTopia | `s6_vacation_plan` |
+| `rag_student_life_yutopia` | student_life | YuTopia | `s6_vacation_plan` |
 | `rag_startup_incubation` | startup | 창업보육센터 | `s6_vacation_plan` |
 
-`source_url`과 `checked_at`은 위 전부 `null`. §12 URL 유효성 확인 후 채운다.
+MVP 7건은 2026-10-15 기준 영남대학교 공식 공개 페이지를 확인해 `source_url`, `checked_at`, `content`, `trigger_keywords`, `promotion_target`을 채웠다. 실제 값은 `data/rag/pruma_rag_mvp.json`을 따른다. 식단·취업·창업처럼 변동성이 높은 정보는 발표 직전에 다시 확인한다.
 
 ### 3) 노출 규칙
 
@@ -466,40 +620,46 @@ MVP에서 실제로 쓰는 유일한 엔딩. 과탑.
 
 ## 11. 검증 데이터
 
-### 1) `pruma_data_tests.json`
+### 1) 기본 검증 `pruma_data_tests.json`
 
-정합성 검증 케이스 28건.
+전체 프로젝트 파일을 대상으로 하는 기본 정합성 테스트이다. 현재 첨부된 8개 파일만으로는 persona/scenario/state/ending 관련 항목을 실제 대조할 수 없으므로 해당 교차 검증은 **확인 필요**이다.
 
-| `test_id` | `target` | `expect` |
-|---|---|---|
-| `t_json_parse` | all | 모든 파일이 오류 없이 파싱됨 |
-| `t_structure_6sections_12turns` | scenario | sections 6개, turns 합계 12개, turn_index 1~12 |
-| `t_scenario_first_turn_sos` | scenario | 각 구간 첫 턴 `type` = `sos_fixed`, `sos_text` 존재 |
-| `t_scenario_choice_stat_tags` | scenario | 선택지 `stat_tag`가 §5.6와 일치 |
-| `t_persona_start_affinity` | persona | `relationship_with_user.starting_affinity` = 10 |
-| `t_persona_affinity_levels` | persona | `speech_style.affinity_levels`가 `0-24` / `25-49` / `50-100` 3단계 |
-| `t_persona_habit` | persona | `speech_style.habit.happy`, `embarrassed` 존재 (히히힝·말줄임표) |
-| `t_persona_prohibited_relationship` | persona | `prohibited_behavior`에 연애 연기 금지 포함 |
-| `t_persona_prohibited_real_person` | persona | 실존 총장·교수·학생 실명·특징 금지 포함 |
-| `t_persona_refuse_role_change` | persona | 설정 변경·지침 공개 요구 거부 포함 |
-| `t_persona_prohibited_count` | persona | `prohibited_behavior` 6항목 (기획서 2.3) |
-| `t_safety_responses` | persona | 안전 응답 7개 상황 존재, `final_text` = `null` |
-| `t_state_stat_bounds` | state | 스탯·친밀도 `min` 0, `max` 100 |
-| `t_rules_limits` | rules | `stat_per_turn` 6, `affinity_per_turn` 5, `affinity_floor` 0 |
-| `t_rules_classification_fallback` | rules | 분류 실패 시 주제 `일상`, 태도 `중립`, 스탯 변화 0 |
-| `t_usernote_allowed` | usernote | `stored_fields`에 호칭·관심사·선택·약속·반복 주제 5항목 |
-| `t_usernote_forbidden` | usernote | 학번·실명·연락처·주소 포함 |
-| `t_usernote_mention_limit` | usernote | `rules.mention_per_section` = 1 |
-| `t_rag_item_fields` | rag | 각 항목에 `source_url`, `checked_at` 필드 존재 |
-| `t_rag_content_summary` | rag | `content`가 요약형이고 원문 복사가 아님 |
-| `t_rag_ref_integrity` | rag+scenario | `allowed_section`과 `promo_candidates` 참조가 유효 |
-| `t_promo_closed_sections` | scenario | s1·s4·s5 `promo_policy.allowed` = false, `promo_candidates` 비어 있음 |
-| `t_promo_library_conditional` | rag | `rag_library_central`.`allowed_section` = `s3_midterm` |
-| `t_promo_candidates_match_section` | rag+scenario | 각 구간 `promo_candidates`가 그 구간을 `allowed_section`으로 둔 RAG `id`와 일치 |
-| `t_ending_top_condition` | ending | 과탑 조건 탐구 ≥ 40, `exclusion` 명시 |
-| `t_ending_single_mvp` | ending | `mvp` true가 과탑 1건뿐 |
-| `t_no_deprecated_fields` | state+rules | §7 `deprecated_fields`가 정본에 없음 |
-| `t_todo_preserved` | all | §12 미확정 항목이 `null`/`temp`로 남아 있음 |
+### 2) 분류·중요도 테스트 파일 구조
+
+전용 테스트 파일은 한 파일이 한 분류기만 대상으로 하므로 최상위 `target`을 한 번 두고 `cases` 배열을 사용한다. 테스트 ID는 공통 규칙 `t_{영역}_{내용}`을 따른다.
+
+| 필드 | 설명 |
+|---|---|
+| `schema_version` | 테스트 JSON 구조 버전. 현재 `1.1` |
+| `target` | 대상 `classification_id` |
+| `cases` | 일반 판정 테스트 배열 |
+| `cases[].id` | `t_topic_01`, `t_attitude_01`, `t_usernote_importance_01` 형태 |
+| `cases[].input` | 사용자 입력 |
+| `cases[].expected` | 예상 분류값 |
+| `cases[].reason` | 예상 결과 근거 |
+| `cases[].field` | User Note 테스트에서만 사용. 저장 필드 종류 |
+| `override_cases` | 태도 테스트에서 안전 규칙이 우선하는 사례 |
+| `excluded_examples` | User Note에서 중요도 판정 전에 저장하지 않는 사례. 금지 정보뿐 아니라 저장 허용 5항목에 해당하지 않는 비개인화 입력도 포함 |
+
+### 3) 현재 v0.3 전용 테스트 수
+
+| 파일 | 일반 테스트 | 추가 검증 |
+|---|---:|---|
+| `pruma_topic_classification_tests.json` | 35건 | 코딩↔탐구, 영어 논문/영어 표현 학습, 미술 동아리, 복합 행동 경계 포함 |
+| `pruma_attitude_classification_tests.json` | 32건 | 안전 우선 `override_cases` 1건 별도 |
+| `pruma_usernote_importance_tests.json` | 30건 | `excluded_examples` 4건 별도 |
+
+### 4) 주요 정합성 기준
+
+- 모든 JSON은 파싱 가능해야 한다.
+- RAG 7건의 `id`는 중복되지 않고 §3.1 패턴을 따른다.
+- `rag_student_life_yutopia`를 포함한 RAG ID를 다른 파일에서 참조한다면 동일 ID로 동기화해야 한다.
+- 테스트의 `target`은 대상 JSON의 `classification_id`와 같아야 한다.
+- 모든 `expected` 값은 대상 enum 안에 있어야 한다.
+- `primary_topic`, `primary_attitude`, `importance`의 실제 결과 필드명이 각 JSON `output`에 명시되어 있어야 한다.
+- 증가량·상한 수치는 분류 JSON에 중복 저장하지 않고 `pruma_rules.json`을 참조한다.
+- User Note는 저장 금지 판정이 중요도 판정보다 우선한다.
+
 
 ---
 
@@ -517,17 +677,15 @@ MVP에서 실제로 쓰는 유일한 엔딩. 과탑.
 | `state` | `stat` 최대 도달 | 미확정 | 글로벌 도달 가능성 |
 | `ending_top` | `timepoint` | 미정 | 시점 미확정 |
 | `endings_overview` | `timepoint` | 미정 | 9건 시점 미확정 |
-| `rag_mvp` | `rag_yutopia`.`category` | 임시 | `student_life`/`extension` 중 확정 필요 |
 | `endings_overview` | `mvp` | 과탑 1건 | 나머지 후보 처리 방식 |
-| `rag_mvp` | `source_url`, `checked_at` | 미검증 | 공식 페이지 존재·공개 여부 재확인 |
-| `usernote` | `note_item.importance` | 미확정 | 중요도 분류 기준 |
 | `usernote` | `forbidden_fields` 필터 | 미확정 | 개인정보·민감정보 걸러내는 기준 |
 | `persona` | `safety_responses.final_text` | 미확정 | 학교 공식 안내 확인 후 문구 |
-| `rules` | `limits.repeat_topic` | 미확정 | 주제 판별·연속 집계 방법 |
-| `rules` | 분류 룰셋 | 미확정 | 주제·태도 분류 기준 |
+| `rules` | `limits.repeat_topic` | 일부 확정 | 동일 주제=`primary_topic` 일치로 확정. 실제 턴 연속 집계 구현 방식은 별도 |
 | `scenario` | 판 길이 | 미확정 | 직접 플레이 시간 측정 |
 | `state` | 로컬 저장 형식 | 미확정 | 저장 스키마·복원 기준 |
 | 공통 | 협업 규칙 | 미확정 | 브랜치, PR, 리뷰, 테스트·빌드 명령 |
+| `scenario` / RAG 참조 | YuTopia RAG ID 동기화 | 확인 필요 | 기존 `rag_yutopia` 참조가 있다면 `rag_student_life_yutopia`로 수정 |
+| 미첨부 전체 데이터 파일 | 저장소 존재·정합성 | 확인 필요 | persona/scenario/state/rules/schema/ending/pruma_data_tests 실제 파일과 본 설계서 대조 |
 
 ---
 
