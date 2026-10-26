@@ -1,0 +1,242 @@
+{
+  "schema_version": "1.1",
+  "target": "pruma_usernote_importance_v1",
+  "cases": [
+    {
+      "id": "t_usernote_importance_01",
+      "field": "호칭/별명",
+      "input": "앞으로 나를 선배곰이라고 불러줘",
+      "expected": "high",
+      "reason": "직접 지정한 지속적 호칭"
+    },
+    {
+      "id": "t_usernote_importance_02",
+      "field": "호칭/별명",
+      "input": "내 별명은 콩이야. 그렇게 불러도 돼",
+      "expected": "high",
+      "reason": "대화에서 지속적으로 사용할 호칭"
+    },
+    {
+      "id": "t_usernote_importance_03",
+      "field": "관심사",
+      "input": "나는 그림 보는 걸 좋아해",
+      "expected": "medium",
+      "reason": "한 번 언급된 일반 관심사"
+    },
+    {
+      "id": "t_usernote_importance_04",
+      "field": "관심사",
+      "input": "나는 원래 공연 보는 걸 정말 좋아해",
+      "expected": "high",
+      "reason": "지속적인 취향을 명확히 표현"
+    },
+    {
+      "id": "t_usernote_importance_05",
+      "field": "관심사",
+      "input": "요즘 코딩에 관심 있어",
+      "expected": "medium",
+      "reason": "관심은 명확하지만 지속성은 아직 불명확"
+    },
+    {
+      "id": "t_usernote_importance_06",
+      "field": "반복 주제",
+      "input": "아까도 말했지만 난 밤에 공부가 제일 잘 돼",
+      "expected": "high",
+      "reason": "반복된 허용 주제"
+    },
+    {
+      "id": "t_usernote_importance_07",
+      "field": "반복 주제",
+      "input": "또 도서관 얘기하게 되네. 나는 도서관 공부를 좋아해",
+      "expected": "high",
+      "reason": "반복과 선호가 함께 확인됨"
+    },
+    {
+      "id": "t_usernote_importance_08",
+      "field": "약속/응원",
+      "input": "시험 끝나면 꼭 같이 축제 보러 가자",
+      "expected": "high",
+      "reason": "이후 구간에서 회수 가능한 약속"
+    },
+    {
+      "id": "t_usernote_importance_09",
+      "field": "약속/응원",
+      "input": "기말까지 내가 계속 응원해줄게",
+      "expected": "high",
+      "reason": "지속적 응원 약속"
+    },
+    {
+      "id": "t_usernote_importance_10",
+      "field": "약속/응원",
+      "input": "이번 시험 힘내",
+      "expected": "medium",
+      "reason": "일회성 응원"
+    },
+    {
+      "id": "t_usernote_importance_11",
+      "field": "약속/응원",
+      "input": "잘할 수 있어",
+      "expected": "medium",
+      "reason": "격려지만 장기 약속은 아님"
+    },
+    {
+      "id": "t_usernote_importance_12",
+      "field": "구간별 선택",
+      "input": "이번에는 도서관 가는 걸 골랐어",
+      "expected": "medium",
+      "reason": "진행 맥락에 유용한 선택"
+    },
+    {
+      "id": "t_usernote_importance_13",
+      "field": "구간별 선택",
+      "input": "이번 선택지는 두 번째가 그냥 더 끌려",
+      "expected": "low",
+      "reason": "선택 기록 외 장기 개인화 가치가 낮음"
+    },
+    {
+      "id": "t_usernote_importance_14",
+      "field": "관심사",
+      "input": "오늘은 밥보다 빵이 먹고 싶어",
+      "expected": "low",
+      "reason": "순간적인 취향"
+    },
+    {
+      "id": "t_usernote_importance_15",
+      "field": "관심사",
+      "input": "오늘만은 조용한 곳이 좋아",
+      "expected": "low",
+      "reason": "현재 순간에 한정된 선호"
+    },
+    {
+      "id": "t_usernote_importance_16",
+      "field": "관심사",
+      "input": "나는 외국어 배우는 걸 자주 해",
+      "expected": "high",
+      "reason": "반복적 행동을 직접 표현"
+    },
+    {
+      "id": "t_usernote_importance_17",
+      "field": "관심사",
+      "input": "교환학생에 관심 있어",
+      "expected": "medium",
+      "reason": "한 번 언급된 관심"
+    },
+    {
+      "id": "t_usernote_importance_18",
+      "field": "관심사",
+      "input": "계속 교환학생을 알아보고 싶어",
+      "expected": "high",
+      "reason": "지속 의도 명확"
+    },
+    {
+      "id": "t_usernote_importance_19",
+      "field": "관심사",
+      "input": "동아리 구경은 재밌더라",
+      "expected": "medium",
+      "reason": "허용 관심사이나 지속성 불명확"
+    },
+    {
+      "id": "t_usernote_importance_20",
+      "field": "반복 주제",
+      "input": "또 동아리 얘기인데 나는 사람 만나는 활동이 좋아",
+      "expected": "high",
+      "reason": "반복 주제와 지속 취향"
+    },
+    {
+      "id": "t_usernote_importance_21",
+      "field": "구간별 선택",
+      "input": "공연부터 보는 선택을 했어",
+      "expected": "medium",
+      "reason": "다음 대화에서 활용할 수 있는 선택"
+    },
+    {
+      "id": "t_usernote_importance_22",
+      "field": "구간별 선택",
+      "input": "푸드트럭 2번 메뉴를 잠깐 골랐어",
+      "expected": "low",
+      "reason": "세부 선택이며 장기 회상 가치 낮음"
+    },
+    {
+      "id": "t_usernote_importance_23",
+      "field": "약속/응원",
+      "input": "다음에도 힘들면 내가 도와줄게",
+      "expected": "high",
+      "reason": "미래 행동 약속"
+    },
+    {
+      "id": "t_usernote_importance_24",
+      "field": "약속/응원",
+      "input": "응원할게",
+      "expected": "medium",
+      "reason": "응원이지만 기간·미래 회수 지점이 불명확"
+    },
+    {
+      "id": "t_usernote_importance_25",
+      "field": "관심사",
+      "input": "난 음악 좋아해",
+      "expected": "medium",
+      "reason": "기본 관심사"
+    },
+    {
+      "id": "t_usernote_importance_26",
+      "field": "관심사",
+      "input": "난 음악을 자주 듣고 공연도 계속 보러 다녀",
+      "expected": "high",
+      "reason": "반복·지속성 명확"
+    },
+    {
+      "id": "t_usernote_importance_27",
+      "field": "관심사",
+      "input": "지금은 아이스크림이 먹고 싶어",
+      "expected": "low",
+      "reason": "일시적 선호"
+    },
+    {
+      "id": "t_usernote_importance_28",
+      "field": "반복 주제",
+      "input": "공부 얘기를 또 했네",
+      "expected": "high",
+      "reason": "동일 주제 반복 근거"
+    },
+    {
+      "id": "t_usernote_importance_29",
+      "field": "관심사",
+      "input": "창업이 조금 궁금해",
+      "expected": "medium",
+      "reason": "허용된 관심이지만 강한 지속 신호 없음"
+    },
+    {
+      "id": "t_usernote_importance_30",
+      "field": "관심사",
+      "input": "앞으로 창업 쪽을 계속 알아보고 싶어",
+      "expected": "high",
+      "reason": "장기 관심 명확"
+    }
+  ],
+  "excluded_examples": [
+    {
+      "input": "내 학번은 20XXXXXX이야, 꼭 기억해",
+      "result": "do_not_store",
+      "reason": "중요도 판정 대상이 아니라 forbidden_fields 필터에서 먼저 제외",
+      "id": "t_usernote_excluded_01"
+    },
+    {
+      "input": "내 건강 문제를 꼭 기억해줘",
+      "result": "do_not_store",
+      "reason": "민감정보는 중요도와 무관하게 저장하지 않음",
+      "id": "t_usernote_excluded_02"
+    },
+    {
+      "id": "t_usernote_excluded_03",
+      "input": "몰라",
+      "result": "do_not_store",
+      "reason": "저장 허용 5항목에 해당하는 개인화 정보가 아님"
+    },
+    {
+      "id": "t_usernote_excluded_04",
+      "input": "앞으로 내 학번 20123456 꼭 기억해",
+      "result": "do_not_store",
+      "reason": "강한 지속성 신호가 있어도 학번은 금지 정보이므로 중요도 판정 전에 제외"
+    }
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.1",
+  "target": "pruma_free_input_topic_v1",
+  "cases": [
+    {
+      "id": "t_topic_01",
+      "input": "시험공부부터 하자",
+      "expected": "탐구",
+      "reason": "학업 활동이 핵심"
+    },
+    {
+      "id": "t_topic_02",
+      "input": "도서관에서 같이 공부하자",
+      "expected": "탐구",
+      "reason": "장소보다 공부가 핵심"
+    },
+    {
+      "id": "t_topic_03",
+      "input": "논문 자료를 찾아보자",
+      "expected": "탐구",
+      "reason": "연구·자료 탐색"
+    },
+    {
+      "id": "t_topic_04",
+      "input": "전공 복습부터 해",
+      "expected": "탐구",
+      "reason": "학업·복습"
+    },
+    {
+      "id": "t_topic_05",
+      "input": "코딩해서 앱 만들어 보자",
+      "expected": "기술",
+      "reason": "개발·제작"
+    },
+    {
+      "id": "t_topic_06",
+      "input": "도서관에서 코딩하면 어때?",
+      "expected": "기술",
+      "reason": "도서관은 장소이고 핵심 행동은 코딩"
+    },
+    {
+      "id": "t_topic_07",
+      "input": "창업 아이디어를 서비스로 만들어 보자",
+      "expected": "기술",
+      "reason": "기획서의 창업→기술 매핑"
+    },
+    {
+      "id": "t_topic_08",
+      "input": "로봇 프로젝트 해 보고 싶어",
+      "expected": "기술",
+      "reason": "공학적 제작"
+    },
+    {
+      "id": "t_topic_09",
+      "input": "공연부터 보러 가자",
+      "expected": "예술",
+      "reason": "공연·문화"
+    },
+    {
+      "id": "t_topic_10",
+      "input": "그림 그리는 건 어때?",
+      "expected": "예술",
+      "reason": "창작"
+    },
+    {
+      "id": "t_topic_11",
+      "input": "사진 찍으러 다니자",
+      "expected": "예술",
+      "reason": "사진 창작 활동"
+    },
+    {
+      "id": "t_topic_12",
+      "input": "축제에서 노래 공연 보자",
+      "expected": "예술",
+      "reason": "축제보다 공연 활동이 핵심"
+    },
+    {
+      "id": "t_topic_13",
+      "input": "동아리 들어가서 친구 사귀자",
+      "expected": "소통",
+      "reason": "동아리·사람 만나기"
+    },
+    {
+      "id": "t_topic_14",
+      "input": "스터디를 만들어서 같이 하자",
+      "expected": "소통",
+      "reason": "기획서 선택지와 동일하게 그룹 구성은 소통"
+    },
+    {
+      "id": "t_topic_15",
+      "input": "취업 준비를 시작해 보자",
+      "expected": "소통",
+      "reason": "기획서의 취업→소통 매핑"
+    },
+    {
+      "id": "t_topic_16",
+      "input": "비교과 활동 하나 해 보자",
+      "expected": "소통",
+      "reason": "기획서의 비교과→소통 매핑"
+    },
+    {
+      "id": "t_topic_17",
+      "input": "영어 회화 연습해 보자",
+      "expected": "글로벌",
+      "reason": "외국어"
+    },
+    {
+      "id": "t_topic_18",
+      "input": "교환학생 알아보자",
+      "expected": "글로벌",
+      "reason": "기획서의 교환학생→글로벌 매핑"
+    },
+    {
+      "id": "t_topic_19",
+      "input": "외국인 친구랑 언어 교환해 봐",
+      "expected": "글로벌",
+      "reason": "사람보다 언어 활동이 핵심"
+    },
+    {
+      "id": "t_topic_20",
+      "input": "영어 회화 동아리 들어가자",
+      "expected": "글로벌",
+      "reason": "동아리라는 형식보다 영어 회화가 구체적 핵심 활동"
+    },
+    {
+      "id": "t_topic_21",
+      "input": "외국인 친구랑 코딩 프로젝트 하자",
+      "expected": "기술",
+      "reason": "동행자의 국적보다 코딩 프로젝트가 핵심"
+    },
+    {
+      "id": "t_topic_22",
+      "input": "맛있는 밥 먹으러 가자",
+      "expected": "일상",
+      "reason": "식사는 스탯 주제가 아님"
+    },
+    {
+      "id": "t_topic_23",
+      "input": "오늘은 그냥 쉬자",
+      "expected": "일상",
+      "reason": "휴식"
+    },
+    {
+      "id": "t_topic_24",
+      "input": "나도 잘 모르겠어",
+      "expected": "일상",
+      "reason": "명확한 주제 없음"
+    },
+    {
+      "id": "t_topic_25",
+      "input": "배고픈데 뭐 먹지?",
+      "expected": "일상",
+      "reason": "식사·잡담"
+    },
+    {
+      "id": "t_topic_26",
+      "input": "공부도 하고 코딩도 하자",
+      "expected": "일상",
+      "reason": "탐구와 기술이 동등하게 제시되어 대표 주제를 안정적으로 하나 고르기 어려움"
+    },
+    {
+      "id": "t_topic_27",
+      "input": "친구도 만나고 영어 공부도 하고 싶어",
+      "expected": "일상",
+      "reason": "소통과 글로벌이 동등하게 핵심"
+    },
+    {
+      "id": "t_topic_28",
+      "input": "스터디에서 혼자 시험공부만 할래",
+      "expected": "탐구",
+      "reason": "스터디라는 장소·형식보다 혼자 시험공부가 핵심"
+    },
+    {
+      "id": "t_topic_29",
+      "input": "축제 가서 친구들이랑 놀자",
+      "expected": "소통",
+      "reason": "공연·창작이 아니라 사람들과 어울리는 것이 핵심"
+    },
+    {
+      "id": "t_topic_30",
+      "input": "학교 식당 메뉴부터 보자",
+      "expected": "일상",
+      "reason": "식사 정보는 홍보 트리거가 될 수 있지만 스탯 주제는 아님"
+    },
+    {
+      "id": "t_topic_31",
+      "input": "코딩 공부하자",
+      "expected": "기술",
+      "reason": "코딩은 프로젝트 전용 매핑에서 기술을 우선"
+    },
+    {
+      "id": "t_topic_32",
+      "input": "영어 논문 읽자",
+      "expected": "탐구",
+      "reason": "영어는 수식 정보이고 핵심 행동은 논문을 읽으며 학습하는 것"
+    },
+    {
+      "id": "t_topic_33",
+      "input": "미술 동아리 가입하자",
+      "expected": "소통",
+      "reason": "미술 분야보다 동아리에 가입해 사람들과 활동하는 행동이 핵심"
+    },
+    {
+      "id": "t_topic_34",
+      "input": "친구랑 밥 먹고 공부하자",
+      "expected": "일상",
+      "reason": "일상과 탐구 행동이 함께 제시되어 대표 주제를 안정적으로 하나 고르기 어려움"
+    },
+    {
+      "id": "t_topic_35",
+      "input": "영어 원서 읽으면서 영어 표현을 익히자",
+      "expected": "글로벌",
+      "reason": "읽기 행위보다 외국어 표현 학습이 핵심이므로 글로벌"
+    }
+  ]
+}

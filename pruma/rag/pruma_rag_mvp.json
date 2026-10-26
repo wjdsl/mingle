@@ -1,0 +1,161 @@
+[
+  {
+    "id": "rag_dining_cafeteria_menu",
+    "category": "dining",
+    "subcategory": "weekly_cafeteria_menu",
+    "title": "영남대학교 구내식당 메뉴",
+    "content": "영남대학교는 구내식당메뉴 게시판에서 교직원 및 학생식당의 주간 식단표를 안내한다. 식단은 주별로 바뀌므로 특정 메뉴를 고정 정보로 답하지 않고, 최신 게시물을 확인하도록 안내한다.",
+    "source_name": "영남대학교 구내식당메뉴",
+    "source_url": "https://www.yu.ac.kr/main/life/cafeteria-menu.do",
+    "checked_at": "2026-10-15",
+    "volatility": "high",
+    "usage": "mvp",
+    "allowed_section": "s2_adaptation",
+    "trigger_keywords": [
+      "밥",
+      "학식",
+      "점심",
+      "저녁",
+      "학생식당",
+      "구내식당",
+      "메뉴",
+      "뭐 먹지"
+    ],
+    "promotion_target": "영남대학교 구내식당메뉴 게시판"
+  },
+  {
+    "id": "rag_clubs_yu_general_union",
+    "category": "clubs",
+    "subcategory": "central_clubs",
+    "title": "총동아리연합회·중앙동아리",
+    "content": "영남대학교 학생활동 페이지에서 총동아리연합회와 중앙동아리 정보를 확인할 수 있다. 중앙동아리는 교양, 어학, 봉사, 응용학술, 예술, 종교, 학술, 체육 등 여러 분야로 나뉘어 안내된다.",
+    "source_name": "영남대학교 학생활동",
+    "source_url": "https://www.yu.ac.kr/main/life/campus-activities.do",
+    "checked_at": "2026-10-15",
+    "volatility": "medium",
+    "usage": "mvp",
+    "allowed_section": "s2_adaptation",
+    "trigger_keywords": [
+      "동아리",
+      "중앙동아리",
+      "총동아리연합회",
+      "모임",
+      "취미",
+      "친구 사귀기"
+    ],
+    "promotion_target": "총동아리연합회·중앙동아리 안내"
+  },
+  {
+    "id": "rag_library_central",
+    "category": "library",
+    "subcategory": "central_library",
+    "title": "중앙도서관",
+    "content": "영남대학교 중앙도서관은 인문·사회과학 분야 장서를 중심으로 운영되며 과학도서관, 법학전문도서관, 의학도서관과 함께 도서관 서비스를 제공한다. 학술정보, 전자저널, 온라인 DB 등도 제공하므로 이용 방법이나 세부 서비스는 공식 안내에서 최신 내용을 확인하도록 한다.",
+    "source_name": "영남대학교 중앙도서관 기관소개",
+    "source_url": "https://www.yu.ac.kr/main/intro/slima.do",
+    "checked_at": "2026-10-15",
+    "volatility": "medium",
+    "usage": "mvp",
+    "allowed_section": "s3_midterm",
+    "trigger_keywords": [
+      "도서관",
+      "중앙도서관",
+      "공부할 곳",
+      "공부할 자리",
+      "열람실",
+      "좌석",
+      "시험공부"
+    ],
+    "promotion_target": "영남대학교 중앙도서관 안내"
+  },
+  {
+    "id": "rag_career_center",
+    "category": "career",
+    "subcategory": "career_support",
+    "title": "취업처·진로취업지원",
+    "content": "영남대학교 취업정보 홈페이지에서는 교내 추천채용과 기업 채용정보를 확인할 수 있고, 진로·취업지원 프로그램과 상담, 취업선배 멘토링 등 취업 준비 서비스를 안내한다. 채용과 프로그램 정보는 수시로 바뀌므로 최신 공지를 확인하도록 한다.",
+    "source_name": "영남대학교 취업정보 홈페이지",
+    "source_url": "https://join.yu.ac.kr/front_new/",
+    "checked_at": "2026-10-15",
+    "volatility": "high",
+    "usage": "mvp",
+    "allowed_section": "s6_vacation_plan",
+    "trigger_keywords": [
+      "취업",
+      "취업 준비",
+      "채용",
+      "진로",
+      "자소서",
+      "면접",
+      "직무"
+    ],
+    "promotion_target": "영남대학교 취업정보·진로취업지원"
+  },
+  {
+    "id": "rag_international_office",
+    "category": "international",
+    "subcategory": "exchange_student",
+    "title": "국제처·교환학생",
+    "content": "영남대학교 국제처는 해외 대학과의 국제교류와 학생 파견을 지원하며, 국제협력팀에서 지역별 교환학생 프로그램을 운영한다. 모집 시기와 대상 대학은 공지에 따라 달라지므로 국제처의 최신 교환학생 공지를 확인하도록 한다.",
+    "source_name": "영남대학교 국제처",
+    "source_url": "https://oia.yu.ac.kr/oia/index.do",
+    "checked_at": "2026-10-15",
+    "volatility": "medium",
+    "usage": "mvp",
+    "allowed_section": "s6_vacation_plan",
+    "trigger_keywords": [
+      "교환학생",
+      "해외파견",
+      "해외 대학",
+      "국제교류",
+      "유학",
+      "외국어"
+    ],
+    "promotion_target": "영남대학교 국제처 교환학생 안내"
+  },
+  {
+    "id": "rag_student_life_yutopia",
+    "category": "student_life",
+    "subcategory": "extracurricular_portal",
+    "title": "YuTopia",
+    "content": "YuTopia는 영남대학교의 비교과통합관리 서비스로, 교내 비교과 프로그램과 전문 상담, 각종 진단 및 검사 등을 한곳에서 신청할 수 있도록 운영된다. 실제 프로그램은 시기마다 달라질 수 있으므로 최신 모집 내용은 YuTopia에서 확인하도록 한다.",
+    "source_name": "영남대학교 영대소식 - YuTopia 오픈 안내",
+    "source_url": "https://www.yu.ac.kr/main/intro/yu-news.do?article.offset=0&articleLimit=10&articleNo=5993855&mode=view",
+    "checked_at": "2026-10-15",
+    "volatility": "medium",
+    "usage": "mvp",
+    "allowed_section": "s6_vacation_plan",
+    "trigger_keywords": [
+      "비교과",
+      "유토피아",
+      "YuTopia",
+      "학생활동",
+      "상담",
+      "진단",
+      "검사"
+    ],
+    "promotion_target": "YuTopia 비교과통합관리 서비스"
+  },
+  {
+    "id": "rag_startup_incubation",
+    "category": "startup",
+    "subcategory": "startup_incubation",
+    "title": "창업보육센터",
+    "content": "영남대학교 창업보육센터는 예비창업자, 초기창업자, 학생·교원 창업자를 대상으로 입주·보육, 창업 컨설팅, 연구·개발 지원, 기술지원과 기술이전, 사업·연구협력 등을 지원한다. 모집이나 지원사업 내용은 시기별로 달라질 수 있으므로 최신 공지를 확인하도록 한다.",
+    "source_name": "영남대학교 산학협력단 창업보육센터",
+    "source_url": "https://www.yu.ac.kr/rnd/support/entrepreneurship-care-center.do",
+    "checked_at": "2026-10-15",
+    "volatility": "high",
+    "usage": "mvp",
+    "allowed_section": "s6_vacation_plan",
+    "trigger_keywords": [
+      "창업",
+      "창업 준비",
+      "사업 아이디어",
+      "예비창업",
+      "창업보육",
+      "스타트업"
+    ],
+    "promotion_target": "영남대학교 창업보육센터"
+  }
+]
