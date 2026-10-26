@@ -1,0 +1,25 @@
+:root {
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  color: var(--ink);
+  background: #deddd5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --blue: #153974;
+  --sky: #00aaca;
+  --ink: #293b79;
+  --paper: #f8f5ec;
+  --beige: #e8e4d5;
+  --yellow: #f2ef9c;
+  --pink: #e8a1b3;
+  --character-blue: #8cbacd;
+  --muted: #53617c;
+  --rule: #293b7929;
+  --display-font: 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --text-size: 14px;
+  --label-size: 12px;
+  --border-fine: 1px solid #293b7970;
+  --green: #0b612d;
+  --frame-width: 430px;
+  --border: 2px solid var(--blue);
+  --shadow: 3px 4px 0 #293b7938;
+}
