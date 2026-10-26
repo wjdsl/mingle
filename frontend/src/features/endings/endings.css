@@ -1,0 +1,78 @@
+.ending-collection, .ending-preview { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 8px; }
+.ending-collection > *, .ending-preview > * { flex-shrink: 0; }
+.album-introduction { margin: 0; font-size: 14px; line-height: 1.6; }
+.album-modes { display: flex; gap: 8px; margin: 0; }
+.album-modes button { min-height: 44px; padding: 8px 14px; border: 1px solid #293b7970; border-radius: 3px; background: var(--paper); font-size: 14px; font-weight: 700; }
+.album-modes button[aria-pressed='true'] { background: var(--ink); color: white; box-shadow: 2px 3px 0 var(--pink); }
+.album-modes button[aria-pressed='false']:hover { background: var(--yellow); }
+.sample-notice { border-left: 3px solid var(--character-blue); padding: 5px 8px; background: #e5ecea; font-size: 12px; line-height: 1.5; margin: 0; }
+.album-book { position: relative; flex: 1; min-height: 0; display: flex; background: var(--ink); border: 1px solid var(--ink); border-radius: 2px 5px 5px 2px; padding: 7px 7px 7px 22px; box-shadow: 3px 4px 0 #293b7930, 5px 6px 0 #fff9; margin: 0 5px 4px 0; }
+.album-binding { position: absolute; inset: 32px auto 32px 6px; width: 14px; display: flex; flex-direction: column; justify-content: space-between; z-index: 1; }
+.album-binding i { width: 21px; height: 9px; border: 2px solid var(--blue); background: #a6c2cf; border-radius: 5px; box-shadow: 0 2px 0 #fff7; }
+.album-page { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; padding: 8px 10px; background-color: #eee9d9; background-image: repeating-linear-gradient(0deg, transparent, transparent 23px, #293b7909 23px, #293b7909 24px), radial-gradient(#293b7915 .6px, transparent .6px); background-size: auto, 4px 4px; border-left: 1px solid #293b7930; }
+.album-page-header, .album-page-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.album-page-header { font-size: 11px; font-weight: 700; padding-bottom: 5px; border-bottom: 1px solid #293b7929; }
+.album-page-header > span:last-child { white-space: nowrap; font-size: 10px; letter-spacing: .6px; }
+.album-grid { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 15px 12px; padding: 15px 2px 10px; }
+.album-slot { min-width: 0; min-height: 0; }
+.slot-1 { transform: rotate(-3deg); }
+.slot-2 { transform: rotate(3deg); }
+.slot-3 { transform: rotate(2deg); }
+.slot-4 { transform: rotate(-2deg); }
+.album-photo { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; border: 1px solid #293b7945; background: #fffdf7; padding: 5px; box-shadow: 1px 3px 2px #293b7926, 3px 5px 0 #293b7912; text-align: center; }
+.photo-tape { position: absolute; height: 13px; width: 45%; background: #f0ec8fc9; border: 1px solid #b6b15e55; top: -8px; left: 27%; transform: rotate(-5deg); z-index: 1; }
+.slot-2 .photo-tape, .slot-3 .photo-tape { background: #b3d9e5b3; transform: rotate(5deg); }
+.slot-2 .photo-tape { left: 8%; transform: rotate(-9deg); }
+.slot-3 .photo-tape { left: 45%; transform: rotate(8deg); }
+.slot-4 .photo-tape { background: #e8a1b3a0; left: 18%; transform: rotate(-3deg); }
+.photo-area { position: relative; display: grid; place-items: center; width: 100%; flex: 1; min-height: 0; background: #e9e6db; overflow: hidden; }
+.photo-area img { width: 95%; height: 95%; object-fit: contain; position: absolute; }
+.photo-area svg { position: absolute; top: 7px; right: 5px; width: 17px; height: 17px; color: #65728a; }
+.locked-stars { color: #6b7487; font-size: 22px; font-family: Georgia,serif; font-weight: 800; letter-spacing: 2px; transform: rotate(-7deg); }
+.photo-title { font-size: 12px; line-height: 1.5; margin-top: 4px; font-weight: 800; overflow-wrap: anywhere; }
+.photo-caption { font-size: 11px; line-height: 1.5; color: var(--muted); margin-top: 2px; }
+.unlocked .photo-area { background: #dfeef0; }
+.unlocked:hover { outline: 2px solid var(--sky); outline-offset: 3px; }
+.sample-photo-label { position: absolute; bottom: 4px; right: 4px; padding: 2px 4px; background: var(--yellow); border: 1px solid #293b7970; font-size: 10px; }
+.album-page-footer { border-top: 1px solid #15397440; padding-top: 5px; font-size: 8px; letter-spacing: 1px; }
+.album-empty-note { font-size: 12px; line-height: 1.5; margin: 0; }
+.card-preview-button { width: 100%; min-height: 48px; background: var(--yellow); border: 2px solid var(--ink); border-radius: 3px; padding: 10px 12px; font-size: 14px; font-weight: 700; text-align: left; box-shadow: var(--shadow); }
+.card-preview-button span { float: right; }
+.ending-preview .primary-action { margin: 3px 0 0; font-size: 14px; }
+.graduation-card { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; isolation: isolate; border: 2px solid var(--ink); padding: 15px 18px 12px; background-color: #f5eedc; background-image: radial-gradient(#293b7912 .5px, transparent .5px); background-size: 5px 5px; box-shadow: 3px 4px 0 #293b7930; text-align: center; margin-right: 4px; }
+.graduation-card > * { flex-shrink: 0; }
+.graduation-card::before { content: ''; position: absolute; inset: 5px; border: 1px solid #293b7960; pointer-events: none; z-index: -1; }
+.card-corners { position: absolute; top: 11px; left: 11px; width: 10px; height: 10px; border-top: 2px solid var(--blue); border-left: 2px solid var(--blue); }
+.card-serial { font-size: 7px; letter-spacing: 1.2px; margin: 0; }
+.card-heading { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.card-heading h3 { font-size: 24px; font-family: 'Batang', 'Noto Serif KR', serif; letter-spacing: 2px; margin: 0; }
+.card-heading > span { font-size: 14px; }
+.card-subtitle { font-size: 12px; margin: 0; }
+.graduation-portrait { position: relative; flex: 1; min-height: 0; border: 1px solid var(--blue); padding: 6px 6px 20px; background: #e5f0ef; margin: 3px 4px 6px; transform: rotate(-1deg); box-shadow: 2px 2px 0 #15397430; }
+.graduation-portrait img { position: absolute; inset: 5px 5px 20px; display: block; width: calc(100% - 10px); height: calc(100% - 25px); object-fit: contain; }
+.portrait-caption { position: absolute; bottom: 5px; left: 0; right: 0; font-size: 11px; }
+.ending-category { font-size: 11px; border-block: 1px solid var(--rule); padding: 4px 8px; }
+.graduation-card h4 { font-size: 21px; letter-spacing: -1px; margin: 0; }
+.ending-description { font-size: 14px; line-height: 1.7; margin: 0; word-break: keep-all; }
+.card-signature { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font-size: 12px; line-height: 1.8; }
+.memory-seal { display: grid; align-content: center; width: 48px; height: 48px; flex-shrink: 0; border: 2px dashed var(--blue); border-radius: 50%; text-align: center; font-size: 6px; line-height: 1; transform: rotate(-12deg); }
+.memory-seal strong { font-size: 22px; line-height: 1; }
+.card-footer { border-top: 1px solid var(--rule); padding-top: 6px; font-size: 10px; margin: 0; }
+.card-footer span { padding: 0 7px; }
+@media (max-width: 380px) {
+  .album-book { padding-left: 20px; }
+  .album-page { padding-inline: 10px; }
+  .album-grid { column-gap: 10px; }
+  .photo-title { font-size: 11px; }
+  .graduation-card { padding-inline: 14px; }
+  .card-heading h3 { font-size: 21px; }
+}
+@media (max-height: 760px) {
+  .ending-collection, .ending-preview { gap: 6px; }
+  .ending-collection > .eyebrow, .ending-preview > .eyebrow, .album-introduction, .album-empty-note { display: none; }
+  .card-serial, .card-subtitle, .card-signature { display: none; }
+  .card-heading h3 { font-size: 20px; }
+  .graduation-card { padding-block: 12px; }
+  .graduation-card h4 { font-size: 18px; }
+  .photo-caption { display: none; }
+}
