@@ -18,15 +18,15 @@ AI 담당의 책임은 입력 해석, 캐릭터 응답 생성, 근거 활용, �
 | `main` / `f3a2c407e01121d457cbc9263dc15df2edaa6f2f` | `AGENTS.md`, `README.md` | 개발 규칙·작업 범위 |
 | `docs/planning` / `aa8da06a805859205509ea33bb6adbeb00bb3292` | `docs/mingle-srs.md` | 공통 기능·개인정보·안전 요구사항 |
 | 위와 같음 | `docs/푸르마_프로젝트_기획서.md` v0.2 | 캐릭터·6구간/12턴·성장·홍보·기억 |
-| `data` / `20e23c8d1e2cabd07b9eab6dd6592e37ad535c5b` | `pruma/Pruma_Data_Design.md` v0.3 | 데이터 구조·참조 관계 |
-| 위와 같음 | `pruma/rules/pruma_topic_classification.json` | 자유 입력 대표 주제 기준 |
-| 위와 같음 | `pruma/rules/pruma_attitude_classification.json` | 자유 입력 대표 태도 기준 |
-| 위와 같음 | `pruma/rag/pruma_rag_mvp.json` | 출처·확인일을 포함한 학교 정보 7건 |
-| 위와 같음 | `pruma/usernote/pruma_usernote_importance.json` | 저장 허용 기억의 중요도 기준 |
-| 위와 같음 | `pruma/test/pruma_topic_classification_test.json` | 향후 주제 검증 기준 |
-| 위와 같음 | `pruma/test/pruma_attitude_classification_test.json` | 향후 태도·안전 우선 검증 기준 |
-| 위와 같음 | `pruma/test/pruma_usernote_importance_test.json` | 향후 중요도·저장 제외 검증 기준 |
-| `feature/frontend-ui` / `ff24b94c2a29cf8ac7bbefd4a5858b9eda3822c0` | `FRONTEND_DESIGN.md` v0.2 | 화면 상태·Mock·연동 고려사항 |
+| `data` / `20e23c8d1e2cabd07b9eab6dd6592e37ad535c5b` | `docs/Pruma_Data_Design.md` v0.3 | 데이터 구조·참조 관계 |
+| 위와 같음 | `data/rules/pruma_topic_classification.json` | 자유 입력 대표 주제 기준 |
+| 위와 같음 | `data/rules/pruma_attitude_classification.json` | 자유 입력 대표 태도 기준 |
+| 위와 같음 | `data/rag/pruma_rag_mvp.json` | 출처·확인일을 포함한 학교 정보 7건 |
+| 위와 같음 | `data/usernote/pruma_usernote_importance.json` | 저장 허용 기억의 중요도 기준 |
+| 위와 같음 | `data/tests/pruma_topic_classification_tests.json` | 향후 주제 검증 기준 |
+| 위와 같음 | `data/tests/pruma_attitude_classification_tests.json` | 향후 태도·안전 우선 검증 기준 |
+| 위와 같음 | `data/tests/pruma_usernote_importance_tests.json` | 향후 중요도·저장 제외 검증 기준 |
+| `feature/frontend-ui` / `ff24b94c2a29cf8ac7bbefd4a5858b9eda3822c0` | `docs/FRONTEND_DESIGN.md` v0.2 | 화면 상태·Mock·연동 고려사항 |
 
 `main`에는 실행 코드와 테스트·빌드 명령이 없다. 데이터 설계서의 `data/...`, `docs/Pruma_Data_Design.md`, `data/tests/*_tests.json`은 예정 경로이며 실제 `pruma/...`, `pruma/test/*_test.json`과 다르다. AI 문서는 파일 이동을 요구하지 않는다.
 
