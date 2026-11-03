@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { project } from '../../projects/puruma/config'
 import { choices } from '../../projects/puruma/mockConversation'
+import { mockConversationClient } from '../../services/mockConversationClient'
+import { geminiConversationClient } from '../../services/geminiConversationClient'
 import { useChat } from './useChat'
 import type { ChatState, Choice, Emotion, Message } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
@@ -9,9 +11,9 @@ import { useViewportHeight } from './useViewportHeight'
 
 type View = 'start' | 'episode' | 'chat' | 'notes' | 'endings'
 
-function DiaryTitle() {
+function DiaryTitle({ mode }: { mode: 'mock' | 'gemini' }) {
   return <>
-    <div className="brand-row"><span className="brand">mingle<span className="brand-dot">✳</span></span><span className="mock-label">MOCK DEMO</span></div>
+    <div className="brand-row"><span className="brand">mingle<span className="brand-dot">✳</span></span><span className="mock-label">{mode === 'mock' ? 'MOCK DEMO' : 'GEMINI AI'}</span></div>
     <div className="heading-row"><div><p className="eyebrow">PURUMA’S CAMPUS DIARY</p><h1>푸르마와<br />학교 다니기<span className="title-star" aria-hidden="true">✳</span></h1></div><span className="semester-stamp" aria-hidden="true">나의 첫<br /><strong>캠퍼스</strong><br />기록장</span></div>
   </>
 }
@@ -84,8 +86,9 @@ function ChoiceList({ items, disabled, selectedId, onChoose }: { items: Choice[]
 }
 
 export function ChatScene() {
+  const [mode, setMode] = useState<'mock' | 'gemini'>('mock')
   const viewportHeight = useViewportHeight()
-  const { state, draft, setDraft, validation, send, retry, reset } = useChat()
+  const { state, draft, setDraft, validation, send, retry, reset } = useChat(mode === 'mock' ? mockConversationClient : geminiConversationClient)
   const [view, setView] = useState<View>('start')
   const returnView = useRef<View>('start')
   const pageHeading = useRef<HTMLHeadingElement>(null)
@@ -102,11 +105,12 @@ export function ChatScene() {
     <div className="diary-shell">
       {view !== 'chat' && <div className="screen-toolbar"><span className="screen-caption">{view === 'episode' ? '새로운 에피소드' : 'CAMPUS DIARY'}</span><UtilityNavigation onNavigate={openUtility} /></div>}
       {view === 'start' && <section className="start-screen" aria-label="게임 시작 화면">
-        <DiaryTitle />
+        <DiaryTitle mode={mode} />
         <div className="cover-art"><img src={project.images.happy} alt="반갑게 맞이하는 푸르마" /><span className="cover-sticker">선배, 같이 가요! ✦</span></div>
         <p className="cover-description">낯선 캠퍼스, 새로운 하루.<br />신입생 푸르마의 첫 학기를 함께 기록해요.</p>
         <button className="primary-action" onClick={() => setView('episode')}>게임 시작 <span aria-hidden="true">↗</span></button>
-        <p className="demo-note">개강 2턴 Mock 시연 · 새로고침하면 초기화</p>
+        <label className="demo-note">대화 모드 <select value={mode} onChange={event => { reset(); setMode(event.target.value as 'mock' | 'gemini') }}><option value="mock">Mock 시연</option><option value="gemini">Gemini 실제 AI</option></select></label>
+        <p className="demo-note">{mode === 'mock' ? '개강 2턴 Mock 시연' : '개강 2턴 Gemini · 대화가 Google로 전송됩니다'} · 새로고침하면 초기화</p>
       </section>}
       {view === 'episode' && <section className="episode-screen" aria-label="에피소드 소개">
         <p className="eyebrow">EPISODE 01</p>
@@ -130,8 +134,8 @@ export function ChatScene() {
       <ProgressHeader state={state} onNavigate={openUtility} />
       <MessageList state={state} />
       <section className="composer" aria-label="메시지 보내기">
-        {state.status === 'complete' ? <div className="completion" role="status"><b>첫 번째 기록, 여기까지!</b><p>개강 2턴 시연이 끝났어요. 전체 스토리와 엔딩은 이후에 만나요.</p><button className="restart" onClick={restart}>처음부터 다시 대화하기 ↻</button></div> : <>
-          {state.status === 'error' && <div className="error-notice" role="alert">Mock 응답을 불러오지 못했어요. 진행은 그대로예요.<button onClick={retry}>다시 시도 ↻</button></div>}
+        {state.status === 'complete' ? <div className="completion" role="status"><b>첫 번째 기록, 여기까지!</b><p>개강 2턴 시연이 끝났어요. 전체 스토리와 엔딩은 이후에 만나요.</p><button className="restart" onClick={restart}>처음부터 다시 대화하기 ↻</button><button className="restart" onClick={() => { reset(); setView('start') }}>모드 선택으로 돌아가기</button></div> : <>
+          {state.status === 'error' && <div className="error-notice" role="alert">{mode === 'mock' ? 'Mock' : 'Gemini'} 응답을 불러오지 못했어요. 진행은 그대로예요.<button onClick={retry}>다시 시도 ↻</button></div>}
           <p className="input-hint"><span className="your-turn">YOUR TURN</span> 선배라면, 어떻게 말해 줄래요?</p>
           <ChoiceList items={choices[state.completedTurns]} disabled={disabled} selectedId={state.pending?.input.kind === 'choice' ? state.pending.input.choiceId : undefined} onChoose={choice => send({ kind: 'choice', choiceId: choice.id, text: choice.label })} />
           <form onSubmit={event => { event.preventDefault(); submit() }}>
@@ -143,7 +147,7 @@ export function ChatScene() {
             <p id="input-error" className="validation" role="status">{validation}</p>
           </form>
         </>}
-        <p className="demo-note">시연용 대사 · 실제 AI 미연결 · 새로고침하면 초기화</p>
+        <p className="demo-note">{mode === 'mock' ? '시연용 대사 · 실제 AI 미연결' : 'Gemini 실제 AI · 개강 2턴 실험'} · 새로고침하면 초기화</p>
       </section>
       </>}
     </div>
