@@ -1,0 +1,23 @@
+/* 기존 작품 콘셉트 아트 보존 */
+.p-fridge { position: relative; width: 155px; height: 215px; margin: 35px auto; border: 3px solid var(--w-ink); border-radius: 15px 15px 7px 7px; background: var(--w-surface); box-shadow: 10px 10px 0 var(--w-secondary); transform: rotate(-6deg); }
+.p-fridge-door { height: 45%; border-bottom: 3px solid var(--w-ink); position: relative; display: grid; place-items: center; }
+.p-fridge-eyes { background: var(--w-ink); color: var(--w-primary); padding: 5px 9px; font: 700 19px monospace; }
+.p-fridge-handle { position: absolute; right: 10px; top: 14px; width: 5px; height: 28px; background: var(--w-gold); border: 1px solid var(--w-ink); }
+.p-fridge-plaque { display: block; width: 105px; border: 1px solid var(--w-ink); margin: 20px auto 0; background: var(--w-gold); color: var(--w-ink); text-align: center; font: 700 9px/1.7 var(--m-logo); padding: 5px; }
+.p-fridge-plaque b { font-size: 17px; }
+.p-fridge-crown { position: absolute; top: -49px; left: 45px; font-size: 43px; color: var(--w-secondary); transform: rotate(10deg); }
+.p-fridge-feet { position: absolute; left: 16px; right: 16px; bottom: -10px; border-inline: 9px solid var(--w-ink); height: 8px; }
+.p-poster > .p-fridge { position: absolute; bottom: 40px; right: 55px; width: 125px; height: 175px; margin: 0; transform: rotate(9deg); }
+.p-poster .p-fridge-plaque { width: 90px; margin-top: 11px; }
+.p-poster .p-fridge-crown { left: 30px; }
+.p-cloud-art { position: relative; width: 260px; height: 230px; margin: 0 auto; }
+.p-cloud-island { position: absolute; left: 42px; top: 80px; width: 180px; height: 90px; border-radius: 50%; background: var(--w-green); border-bottom: 30px solid var(--w-secondary); box-shadow: 0 14px 0 -5px var(--w-soft); transform: rotate(-8deg); }
+.p-cloud-face { position: absolute; top: -62px; left: 55px; width: 75px; height: 82px; border-radius: 45% 45% 30% 30%; border: 2px solid var(--w-ink); background: var(--w-yellow); color: var(--w-ink); text-align: center; font-size: 25px; box-shadow: inset 0 -11px var(--w-primary); transform: rotate(8deg); }
+.p-cloud-face small { display: block; font: 700 17px/1 var(--m-logo); }
+.p-cloud-flag { position: absolute; top: -45px; left: 12px; color: var(--w-secondary); font-size: 45px; }
+.p-cloud-puff { position: absolute; width: 68px; height: 23px; background: var(--w-surface); border-radius: 40px; }
+.p-cloud-puff::before { content: ''; position: absolute; bottom: 0; left: 10px; width: 32px; height: 34px; background: inherit; border-radius: 50%; }
+.p-puff-one { left: 0; top: 35px; }
+.p-puff-two { right: 0; bottom: 28px; transform: scale(.8); }
+.p-cloud-orbit { position: absolute; right: 9px; top: 20px; color: var(--w-secondary); font-size: 38px; }
+.p-poster > .p-cloud-art { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); }
