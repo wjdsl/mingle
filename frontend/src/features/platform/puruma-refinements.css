@@ -1,0 +1,56 @@
+/* 푸르마의 원화·스크랩북 테마를 보존하고 공통 UX 규칙만 적용한다. */
+.p-puruma-experience .desktop-canvas { width: 100%; flex: 1; min-height: 0; height: auto; padding: 0; background: var(--paper); }
+.p-puruma-experience .diary-shell { width: min(100%,520px); height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; margin-inline: auto; }
+.p-puruma-experience .diary-header { padding: 6px 18px 10px; }
+.p-puruma-experience .progress-label { min-height: 44px; font-size: 12px; }
+.p-puruma-experience .progress-label > span:first-child { font-size: 14px; }
+.p-puruma-experience .progress-foot { display: none; }
+.p-puruma-experience .message-region { background-image: none; }
+.p-puruma-experience .message-list { padding-inline: 18px; }
+.p-puruma-experience .message.character { grid-template-columns: 62px minmax(0,1fr); gap: 8px; }
+.p-puruma-experience .message-portrait { width: 62px; height: 82px; }
+.p-puruma-experience .message p { font-size: 15px; line-height: 1.8; border-width: 1px; box-shadow: none; }
+.p-puruma-experience .message-body p { background: #fffdf7; }
+.p-puruma-experience .comic-reply .message-body p { background: #fff9dc; }
+.p-puruma-experience .reaction-caption { font-size: 10px; border-radius: 3px; }
+.p-puruma-experience .composer { padding: 12px 18px max(12px,env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--rule); }
+.p-puruma-experience .input-hint { margin: 0 0 8px; font-size: 12px; }
+.p-puruma-experience .choices { gap: 7px; }
+.p-puruma-experience .choices button { min-height: 44px; padding: 9px 12px; background: #fffdf7; border: 1px solid #293b7940; box-shadow: none; border-radius: var(--radius); font-weight: 500; }
+.p-puruma-experience .choices button.is-selected { background: var(--ink); color: white; }
+.p-puruma-experience .choice-number { display: none; }
+.p-puruma-experience .input-row { gap: 6px; }
+.p-puruma-experience textarea { font-size: 16px; border-radius: var(--radius); border-width: 1px; }
+.p-puruma-experience .send { min-width: 48px; background: var(--blue); color: white; border: 0; border-radius: var(--radius); box-shadow: none; }
+.p-puruma-experience .input-meta { font-size: 10px; }
+.p-puruma-experience .validation:empty { display: none; }
+.p-puruma-experience .completion { padding: 0; }
+.p-puruma-experience .completion > b { font-size: 15px; }
+.p-puruma-experience .completion p { margin: 5px 0 12px; }
+.p-puruma-experience .completion-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.p-puruma-experience .restart { font-size: 12px; border-radius: var(--radius); border: 1px solid var(--blue); padding: 10px; box-shadow: none; }
+.p-puruma-experience .restart:first-child { background: var(--blue); color: white; }
+.p-puruma-experience .restart:last-child { background: #fffdf7; }
+.p-puruma-experience .record-screen { max-width: 500px; width: 100%; margin: auto; padding: 12px 20px 32px; }
+.p-puruma-experience .puruma-record-view { display: block; }
+.p-puruma-experience .puruma-record-view .diary-shell { display: block; height: auto; }
+.p-puruma-experience .record-screen > .back-button { font-size: 12px; padding: 8px 0; margin-bottom: 12px; }
+.p-puruma-experience .ending-preview { display: block; overflow: visible; padding: 0; }
+.p-puruma-experience .graduation-card { min-height: 0; margin: 0; padding: 20px; border: 1px solid var(--ink); box-shadow: 3px 4px 0 #293b7920; gap: 0; background-image: radial-gradient(#293b790c .5px,transparent .5px); }
+.p-puruma-experience .graduation-card::before { display: none; }
+.p-puruma-experience .graduation-card > .p-result-label { align-self: center; }
+.p-puruma-experience .graduation-portrait { flex: none; height: 205px; border: 0; background: transparent; margin: 12px 0 0; padding: 0; box-shadow: none; transform: none; }
+.p-puruma-experience .graduation-portrait img { inset: 0; width: 100%; height: 100%; }
+.p-puruma-experience .graduation-card h3 { font-size: 25px; font-weight: 900; margin: 14px 0 12px; letter-spacing: -.8px; }
+.p-puruma-experience .ending-description { font-size: 14px; }
+.p-puruma-experience .ending-collection { min-height: 650px; }
+.p-puruma-experience .album-book { min-height: 360px; flex: none; }
+.p-puruma-experience .album-grid { min-height: 300px; }
+.p-puruma-experience .note-sheet { min-height: 420px; flex: none; }
+@media (max-height: 600px) {
+  .p-chat-stage.p-puruma-experience .diary-header { padding-block: 0; }
+  .p-chat-stage.p-puruma-experience .composer { max-height: 58%; overflow-y: auto; padding-block: 8px; }
+  .p-chat-stage.p-puruma-experience .choices { grid-template-columns: 1fr; gap: 5px; }
+  .p-chat-stage.p-puruma-experience .choices button { font-size: 13px; }
+  .p-chat-stage.p-puruma-experience .input-hint, .p-chat-stage.p-puruma-experience .input-meta { display: none; }
+}

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import graduation from '../../assets/puruma/graduation.png'
 import './endings.css'
+import { ResultActions, ActionButton } from '../platform/shared'
+import { projects } from '../../projects/stories/catalog'
 
 type Ending = { endingId: string; title: string; description: string; image: string }
 // PM 기획서 v0.2 §6.1의 후보 예시. 실제 판정·획득 데이터가 아니다.
@@ -17,22 +19,15 @@ function LockIcon() {
 
 export function EndingCard({ ending }: { ending: Ending }) {
   return <article className="graduation-card" aria-label="졸업 기념 엔딩 카드">
-    <div className="card-corners" aria-hidden="true" />
-    <p className="card-serial">CAMPUS MEMORY / DESIGN SAMPLE</p>
-    <div className="card-heading"><span aria-hidden="true">✦</span><h3>한 학기의 기록</h3><span aria-hidden="true">✦</span></div>
-    <p className="card-subtitle">선배와 함께여서, 무사히.</p>
-    <div className="graduation-portrait"><img src={ending.image} alt="학사모를 쓰고 꽃다발을 든 푸르마" /><span className="portrait-caption">우리의 첫 학기를 기억하며</span></div>
-    <span className="ending-category">재미 엔딩 · 기획 후보 예시</span>
-    <h4>{ending.title}</h4>
-    <p className="ending-description">{ending.description}</p>
-    <div className="card-signature"><span>함께한 선배에게<br /><b>고마워요, 히히힝!</b></span><span className="memory-seal" aria-hidden="true">PURUMA<br /><strong>✦</strong><br />MEMORY</span></div>
-    <p className="card-footer">푸르마와 학교 다니기 <span aria-hidden="true">✳</span> mingle</p>
+    <span className="p-result-label">결과 예시 · 디자인 샘플</span>
+    <div className="graduation-portrait"><img src={ending.image} alt="학사모를 쓰고 꽃다발을 든 푸르마" /></div>
+    <h3>{ending.title}</h3><p className="ending-description">선배와 함께라서 무사히 버틴 한 학기.<br />푸르마의 졸업 기념 카드예요.</p>
   </article>
 }
 
-export function EndingCollection() {
+export function EndingCollection({ initialPreview = false, onHome, onRestart }: { initialPreview?: boolean; onHome(): void; onRestart(): void }) {
   const [sampleMode, setSampleMode] = useState(false)
-  const [selected, setSelected] = useState<Ending | null>(null)
+  const [selected, setSelected] = useState<Ending | null>(initialPreview ? sampleEnding : null)
   const heading = useRef<HTMLHeadingElement>(null)
   const didMount = useRef(false)
   useLayoutEffect(() => {
@@ -41,12 +36,10 @@ export function EndingCollection() {
   }, [selected])
 
   if (selected) return <div className="ending-preview">
-    <p className="eyebrow">ENDING CARD / U06</p>
-    <h2 ref={heading} tabIndex={-1}>졸업 기념 카드</h2>
-    <p className="sample-notice">디자인 샘플 · 실제 획득 아님</p>
+    <h2 className="sr-only" ref={heading} tabIndex={-1}>푸르마 결과 예시</h2>
     <EndingCard ending={selected} />
-    <button className="primary-action" onClick={() => setSelected(null)}>졸업 앨범으로 돌아가기 <span aria-hidden="true">↩</span></button>
-    <p className="demo-note">저장·공유·엔딩 판정은 이후 연결 예정</p>
+    <p className="p-sample-note">실제 획득·엔딩 판정이 아닌 디자인 샘플이에요.</p>
+    <ResultActions project={projects[0]} onHome={onHome} onRestart={onRestart}><ActionButton secondary onClick={() => setSelected(null)}>앨범 보기</ActionButton></ResultActions>
   </div>
 
   return <div className="ending-collection">
