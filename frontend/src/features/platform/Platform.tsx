@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { projects } from '../../projects/stories/catalog'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ChatScene } from '../chat/ChatScene'
+import type { ConversationMode } from '../chat/types'
 import { useViewportHeight } from '../chat/useViewportHeight'
 import { Home } from './Home'
 import { ProjectIntro, ProjectSetup } from './ProjectEntry'
@@ -18,6 +19,7 @@ function Experience({ project }: { project: StoryProject }) {
   const [stage, setStage] = useState<Stage>('intro')
   const stageRef = useRef<Stage>('intro')
   const [name, setName] = useState(project.defaultName)
+  const [mode, setMode] = useState<ConversationMode>('mock')
   const [session, setSession] = useState(0)
   const [started, setStarted] = useState(false)
   const [surface, setSurface] = useState('chat')
@@ -48,10 +50,10 @@ function Experience({ project }: { project: StoryProject }) {
   }
   const chatting = stage === 'chat' && (project.id !== 'puruma' || surface === 'chat')
   return <div className={`p-experience theme-${project.id} ${chatting ? 'p-chat-stage' : ''} ${project.id === 'puruma' ? 'p-puruma-experience' : ''}`} ref={heading} tabIndex={-1} style={{ '--viewport-height': `${viewport}px`, ...(chatting ? { height: viewport } : {}) } as CSSProperties}>
-    <AppShell project={project} onBack={stage === 'intro' ? undefined : back} onHome={home}>
+    <AppShell project={project} liveAi={stage === 'chat' && mode === 'gemini'} onBack={stage === 'intro' ? undefined : back} onHome={home}>
       {stage === 'intro' && <ProjectIntro project={project} onStart={() => go('setup')} />}
-      {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { setName(n); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }} />}
-      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} onResult={() => go('result')} />}</div>}
+      {stage === 'setup' && <ProjectSetup project={project} initialName={name} initialMode={mode} onStart={(n, m) => { setName(n); setMode(m); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }} />}
+      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}>{project.id === 'puruma' ? <ChatScene nickname={name} mode={mode} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} onResult={() => go('result')} />}</div>}
       {stage === 'result' && <StoryResult project={project} name={name} onRestart={() => go('setup')} onHome={openHome} />}
     </AppShell>
     {exit && <ExitDialog onCancel={() => setExit(false)} onLeave={openHome} />}

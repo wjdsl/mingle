@@ -2,8 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { project } from '../../projects/puruma/config'
 import { choices } from '../../projects/puruma/mockConversation'
+import { mockConversationClient } from '../../services/mockConversationClient'
+import { geminiConversationClient } from '../../services/geminiConversationClient'
 import { useChat } from './useChat'
-import type { ChatState, Choice, Emotion, Message } from './types'
+import type { ChatState, Choice, ConversationMode, Emotion, Message } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
 import { useViewportHeight } from './useViewportHeight'
 
@@ -65,9 +67,9 @@ function ChoiceList({ items, disabled, selectedId, onChoose }: { items: Choice[]
   return <div className="choices" aria-label="답변 선택지">{items.map((choice, index) => <button key={choice.id} className={selectedId === choice.id ? 'is-selected' : ''} aria-pressed={selectedId === choice.id} disabled={disabled} onClick={() => onChoose(choice)}><span className="choice-number">0{index + 1}</span><span className="choice-label">{choice.label}</span>{selectedId === choice.id && <span className="selected-label">선택함</span>}</button>)}</div>
 }
 
-export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { nickname?: string; onHome(): void; onSurfaceChange(view: string, back: () => void): void }) {
+export function ChatScene({ nickname = '선배', mode = 'mock', onHome, onSurfaceChange }: { nickname?: string; mode?: ConversationMode; onHome(): void; onSurfaceChange(view: string, back: () => void): void }) {
   const viewportHeight = useViewportHeight()
-  const { state, draft, setDraft, validation, send, retry, reset } = useChat()
+  const { state, draft, setDraft, validation, send, retry, reset } = useChat(mode === 'gemini' ? geminiConversationClient : mockConversationClient)
   const [view, setView] = useState<View>('chat')
   const returnView = useRef<View>('chat')
   const pageHeading = useRef<HTMLHeadingElement>(null)
@@ -97,7 +99,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
       <MessageList state={state} nickname={nickname} />
       <section className="composer" aria-label="메시지 보내기">
         {state.status === 'complete' ? <div className="completion" role="status"><b>첫 번째 기록, 여기까지!</b><p>개강 2턴 체험을 마쳤어요.</p><div className="completion-actions"><button className="restart" onClick={() => { returnView.current = 'chat'; setView('result') }}>결과 예시 보기 →</button><button className="restart" onClick={restart}>다시 체험하기 ↻</button></div></div> : <>
-          {state.status === 'error' && <div className="error-notice" role="alert">Mock 응답을 불러오지 못했어요. 진행은 그대로예요.<button onClick={retry}>다시 시도 ↻</button></div>}
+          {state.status === 'error' && <div className="error-notice" role="alert">{mode === 'gemini' ? 'Gemini' : 'Mock'} 응답을 불러오지 못했어요. 진행은 그대로예요.<button onClick={retry}>다시 시도 ↻</button></div>}
           <p className="input-hint">선택하거나 직접 답해 보세요.</p>
           <ChoiceList items={choices[state.completedTurns]} disabled={disabled} selectedId={state.pending?.input.kind === 'choice' ? state.pending.input.choiceId : undefined} onChoose={choice => send({ kind: 'choice', choiceId: choice.id, text: choice.label })} />
           <form onSubmit={event => { event.preventDefault(); submit() }}>
@@ -109,7 +111,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
             <p id="input-error" className="validation" role="status">{validation}</p>
           </form>
         </>}
-
+        {mode === 'gemini' && <p className="demo-note">Gemini 실제 AI · 입력이 Google로 전송돼요 · 새로고침하면 초기화</p>}
       </section>
       </>}
     </div>
