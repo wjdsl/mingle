@@ -49,7 +49,6 @@
 .p-poster > .p-cloud-art { bottom: -10px; }
 .p-card-copy { width: 100%; display: flex; flex-direction: column; flex: 1; }
 .p-card-copy > p { font-size: 13px; color: var(--m-muted); line-height: 1.7; margin: 12px 0; }
-.p-card-copy > span { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--m-border); font-size: 12px; display: flex; justify-content: space-between; }
 .p-coming { padding: 20px 0; border-block: 1px solid var(--m-border); display: flex; align-items: center; gap: 20px; }
 .p-coming > span:first-child { color: var(--m-active); font-size: 10px; letter-spacing: 1px; }
 .p-coming p { margin: 0; flex: 1; font-size: 12px; color: var(--m-muted); }
@@ -178,8 +177,7 @@
   .p-project-grid { grid-template-columns: 1fr; gap: 26px; }
   .p-card-title { min-height: 0; margin-bottom: 12px; }
   .p-poster { height: 230px; }
-  .p-card-copy { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: start; }
-  .p-card-copy > span { margin-top: 13px; padding: 0; border: 0; gap: 8px; white-space: nowrap; }
+  .p-card-copy { display: block; }
   .p-intro { display: flex; flex-direction: column; align-items: stretch; padding: 24px 20px 32px; gap: 18px; max-width: 480px; }
   .p-entry-heading h1 { font-size: 27px; }
   .p-intro-art { min-height: 220px; height: 220px; }
@@ -207,3 +205,138 @@
 @media (prefers-reduced-motion: reduce) { .p-home *, .p-work * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 .p-mini-fridge { position: relative; display: block; width: 25px; height: 25px; overflow: hidden; }
 .p-mini-fridge .p-fridge { position: absolute; top: 3px; left: 5px; margin: 0; transform-origin: top left; transform: scale(.1); box-shadow: none; }
+
+/* 제공 원화 · 대화 목록 안의 장면 메시지 */
+.p-fridge-art { display:block; max-width:100%; max-height:100%; object-fit:contain; }
+.p-fridge-art.p-compact { width:100%; height:100%; object-fit:cover; }
+.p-scene-image { width:min(100%, 320px); margin:12px 0 18px; }
+.p-image-trigger { display:block; padding:0; width:100%; border:1px solid var(--w-border, var(--m-border)); background:var(--w-surface); border-radius:14px; overflow:hidden; cursor:zoom-in; }
+.p-image-trigger img { display:block; width:100%; aspect-ratio:4 / 3; object-fit:contain; }
+.p-scene-image figcaption { margin-top:6px; font-size:11px; line-height:1.5; color:var(--w-ink); }
+.p-scene-image button:focus-visible { outline:3px solid var(--w-primary); outline-offset:3px; }
+.p-scene-image > div button { min-height:44px; display:block; }
+.p-image-dialog { width:min(94vw, 960px); max-height:94dvh; padding:16px; border:0; border-radius:12px; background:var(--w-surface); color:var(--w-ink); }
+.p-image-dialog::backdrop { background:rgb(0 0 0 / .8); }
+.p-image-dialog > button { display:block; margin-left:auto; min-height:44px; min-width:80px; }
+.p-image-dialog img { display:block; width:100%; max-height:72dvh; object-fit:contain; }
+.p-image-dialog p { font-size:13px; }
+.p-event-message { white-space:pre-wrap; padding:12px; margin:12px 0; border:1px dashed var(--w-primary); border-radius:10px; font-size:13px; line-height:1.6; }
+.p-event-message span { display:block; font-size:11px; font-weight:700; margin-bottom:5px; }
+.p-bubble p { white-space:pre-wrap; }
+
+/* 홈의 가로 카드에는 세로 포스터 대신 원룸 장면을 채운다. */
+.p-poster > .p-fridge-cover { display:block; width:100%; height:100%; object-fit:cover; object-position:50% 42%; }
+.theme-fridge .p-poster-genre { padding:4px 7px; border-radius:3px; background:var(--w-surface); }
+
+/* 최초 세션 진입 연출. 대화는 마운트 상태를 유지하며 도입 중 접근만 막는다. */
+.p-chat-entry { position:relative; display:flex; flex:1; flex-direction:column; min-height:0; width:100%; isolation:isolate; }
+.p-chat-entry-content { display:flex; flex:1; flex-direction:column; min-height:0; }
+.p-chat-entry[data-phase="loading"] .p-chat-entry-content, .p-chat-entry[data-phase="backgroundReveal"] .p-chat-entry-content { visibility:hidden; }
+.p-chat-intro { position:absolute; inset:0; z-index:3; overflow:hidden; background:var(--w-ink); color:var(--w-surface); }
+.p-scene-background { position:absolute; inset:0; overflow:hidden; background:var(--w-ink); }
+.p-scene-background > img { width:100%; height:100%; object-fit:cover; object-position:center; filter:blur(14px) brightness(.35); transform:scale(1.04); transition:filter 800ms ease, transform 1800ms ease; }
+.p-scene-background > div { position:absolute; inset:0; background:linear-gradient(0deg, rgb(0 0 0 / .68), rgb(0 0 0 / .08) 65%); }
+[data-phase="loading"] .p-scene-background { opacity:.45; }
+[data-phase="backgroundReveal"] .p-scene-background, [data-phase="chatReveal"] .p-scene-background { opacity:1; transition:opacity 500ms ease; }
+[data-phase="backgroundReveal"] .p-scene-background img, [data-phase="chatReveal"] .p-scene-background img { filter:blur(18px) brightness(.45); transform:scale(1.08); }
+.p-intro-atmosphere { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:32px 24px; }
+.p-intro-atmosphere p { max-width:32ch; text-align:center; font-size:clamp(17px, 3vw, 23px); line-height:1.8; text-wrap:balance; animation:p-story-appear 450ms ease both; }
+[data-phase="loading"] .p-intro-atmosphere { align-items:center; padding-bottom:32px; }
+.p-intro-dots { display:flex; gap:9px; }
+.p-intro-dots i { height:6px; width:6px; border-radius:50%; background:currentColor; animation:p-intro-dot 900ms ease-in-out infinite alternate; }
+.p-intro-dots i:nth-child(2) { animation-delay:150ms; }.p-intro-dots i:nth-child(3) { animation-delay:300ms; }
+.p-intro-skip { position:absolute; right:20px; bottom:max(24px, env(safe-area-inset-bottom)); min-height:44px; padding:8px 16px; background:rgb(0 0 0 / .55); color:inherit; border:1px solid currentColor; border-radius:30px; cursor:pointer; }
+[data-phase="chatReveal"] .p-chat-entry-content { animation:p-story-appear 350ms ease both; }
+[data-phase="chatReveal"] .p-chat-entry-content .p-chat-stream > div:first-child { animation:p-story-appear 400ms 80ms ease both; }
+[data-phase="chatReveal"] .p-chat-entry-content .p-composer { animation:p-story-appear 400ms 150ms ease both; }
+@keyframes p-intro-dot { from { opacity:.25; } to { opacity:1; } }
+@keyframes p-story-appear { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) {
+ .p-chat-entry *, .p-chat-entry *::before, .p-chat-entry *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+}
+
+[data-phase="chatReveal"] .p-chat-intro { opacity:0; transition:opacity 400ms ease; pointer-events:none; }
+[data-phase="chatReveal"] .p-chat-entry-content { animation:p-story-appear 400ms ease both; }
+
+/* 채팅은 화면 크기와 관계없이 모바일 폭을 기준으로 읽는다. */
+.p-chat-stage { --chat-frame-width:390px; background:var(--m-bg, #FAFAF8); }
+.p-chat-stage > .p-work { width:min(100%, var(--chat-frame-width)); margin-inline:auto; box-shadow:0 0 0 1px var(--m-border); }
+.p-chat-stage .p-chat-layout { width:100%; }
+
+.p-work-header.p-immersive-header { min-height:48px; padding-block:2px; gap:8px; }
+.p-chat-work-title { flex:1; min-width:0; font-size:14px; font-weight:700; text-align:center; }
+.p-chat-menu { position:relative; }
+.p-chat-menu > summary { display:grid; place-items:center; min-width:44px; min-height:44px; font-size:22px; cursor:pointer; list-style:none; }
+.p-chat-menu > summary::-webkit-details-marker { display:none; }
+.p-chat-menu > div { position:absolute; right:0; top:46px; width:240px; max-width:calc(100vw - 32px); padding:12px; background:var(--w-surface); border:1px solid var(--w-soft); border-radius:10px; box-shadow:0 6px 20px rgb(0 0 0 / .08); }
+.p-chat-menu > div > button { min-height:44px; width:100%; text-align:left; border:0; background:transparent; color:var(--w-ink); cursor:pointer; }
+.p-chat-menu > div > p { font-size:11px; line-height:1.7; margin:8px 0 0; }
+
+/* 냉장고 결과: 포스터와 이야기 마무리를 한 장에 담는다. */
+.p-fridge-result { width:100%; max-width:390px; padding:16px 16px 24px; }
+.p-fridge-result .p-result-card { padding:14px 16px; }
+.p-fridge-result .p-fridge-art { width:100%; height:clamp(120px, 30dvh, 240px); object-fit:contain; margin:0 auto 12px; }
+.p-fridge-result .p-result-card h1 { font-size:21px; line-height:1.4; margin:0 0 8px; }
+.p-fridge-result .p-result-card > p { font-size:13px; line-height:1.7; margin:0; }
+.p-fridge-result .p-sample-note { margin:10px 0; font-size:10px; }
+.p-fridge-result .p-share-status:empty { display:none; }
+
+/* 결과 카드 자체를 채팅과 같은 폭/화면 높이의 세로 프레임으로 구성한다. */
+.p-fridge-result { max-width:390px; padding:0 0 24px; }
+.p-fridge-result .p-result-card { width:100%; height:calc(100dvh - 60px); min-height:440px; padding:20px; display:flex; flex-direction:column; border-radius:0; box-shadow:none; }
+.p-fridge-result .p-fridge-art { flex:1; min-height:0; height:0; max-height:none; width:100%; object-fit:contain; margin:0 auto 20px; }
+.p-fridge-result .p-result-card h1, .p-fridge-result .p-result-card > p { flex-shrink:0; }
+.p-fridge-result .p-result-actions { padding-inline:16px; }
+.p-fridge-result .p-sample-note { padding-inline:16px; }
+
+/* 작품별 카드와 공통 의견 창 */
+.p-project-card { background:var(--m-surface); border:1px solid var(--m-border); border-radius:12px; padding:16px; cursor:pointer; transition:border-color 150ms ease, box-shadow 150ms ease; }
+.p-project-card:hover { border-color:var(--m-active); box-shadow:0 4px 14px rgb(0 0 0 / .04); }
+.p-card-title { grid-template-columns:22px minmax(0,1fr); min-height:68px; }
+.p-card-copy > p { margin:12px 0 0; }
+.p-header-tools { display:flex; align-items:center; gap:10px; }
+.p-feedback-button { min-height:44px; padding:8px 12px; font:inherit; font-size:12px; color:var(--m-ink); background:transparent; border:1px solid var(--m-border); border-radius:24px; cursor:pointer; white-space:nowrap; }
+.p-feedback-button.p-feedback-compact { min-width:44px; padding:6px; border:0; color:inherit; font-size:11px; }
+.p-feedback-dialog { box-sizing:border-box; width:min(440px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto; padding:24px; border:1px solid var(--m-border); border-radius:16px; background:var(--m-surface); color:var(--m-ink); }
+.p-feedback-dialog::backdrop { background:rgb(0 0 0 / .5); }
+.p-feedback-heading { display:flex; align-items:center; gap:12px; justify-content:space-between; }
+.p-feedback-heading h2 { margin:0; font-size:19px; }
+.p-feedback-heading > button { min-width:44px; min-height:44px; font-size:24px; border:0; background:transparent; color:inherit; cursor:pointer; }
+.p-feedback-notice { font-size:12px; line-height:1.7; color:var(--m-muted); margin:12px 0 20px; }
+.p-feedback-dialog label { display:block; margin:16px 0 8px; font-size:13px; font-weight:700; }
+.p-feedback-dialog label span { font-size:10px; color:var(--m-muted); }
+.p-feedback-dialog select, .p-feedback-dialog textarea { box-sizing:border-box; width:100%; min-height:44px; padding:10px; border:1px solid var(--m-border); border-radius:8px; background:var(--m-bg); color:var(--m-ink); font:inherit; font-size:16px; }
+.p-feedback-dialog textarea { resize:vertical; line-height:1.6; }
+.p-feedback-status { min-height:20px; font-size:12px; line-height:1.6; }
+.p-feedback-copy { min-height:44px; width:100%; border:0; border-radius:8px; background:var(--m-active); color:var(--m-surface); font:inherit; cursor:pointer; }
+.p-feedback-dialog :focus-visible { outline:3px solid var(--m-active); outline-offset:3px; }
+
+/* 확대 이미지의 제목/닫기를 사진과 분리한다. */
+.p-image-dialog { box-sizing:border-box; padding:12px; }
+.p-image-dialog-header { display:grid; grid-template-columns:44px minmax(0, 1fr) 44px; align-items:center; gap:8px; margin-bottom:12px; }
+.p-image-dialog-header > p { grid-column:2; grid-row:1; margin:0; text-align:center; font-size:14px; font-weight:700; line-height:1.5; overflow-wrap:anywhere; }
+.p-image-dialog-header > button { grid-column:3; grid-row:1; width:44px; height:44px; padding:0; border:0; border-radius:8px; background:var(--w-bg); color:var(--w-ink); font-size:24px; cursor:pointer; }
+.p-image-dialog > img { max-height:calc(90dvh - 92px); object-fit:contain; }
+
+.p-home-footer { align-items:center; gap:16px; flex-wrap:wrap; }
+.p-footer-brand { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; }
+.p-footer-brand > span:first-child { font:700 15px var(--m-logo); color:var(--m-ink); }
+.p-github-link { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:8px 12px; border:1px solid var(--m-border); border-radius:24px; color:var(--m-muted); text-decoration:none; font-size:12px; }
+.p-github-link svg { width:17px; height:17px; flex-shrink:0; }
+.p-github-link:hover { color:var(--m-ink); border-color:var(--m-active); background:var(--m-surface); }
+
+.p-project-card.p-coming-card { cursor:default; border-style:dashed; background:transparent; }
+.p-project-card.p-coming-card:hover { border-color:var(--m-border); box-shadow:none; }
+.p-coming-poster { height:270px; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; border:1px solid var(--m-border); border-radius:3px; background:var(--m-surface); }
+.p-coming-emblem { font-size:80px; line-height:1; color:var(--m-lavender); }
+.p-coming-label { font:600 12px var(--m-logo); letter-spacing:2px; color:var(--m-muted); }
+.p-coming-card .p-card-title h3 { color:var(--m-muted); }
+@media (max-width:599px) { .p-coming-poster { height:230px; } }
+
+/* 냉장고: 빈 대화창 → 세로 점 → 메시지 순차 등장 */
+.p-chat-entry[data-message-entrance="true"] .p-chat-intro { background:var(--w-surface); color:var(--w-ink); }
+.p-chat-entry[data-message-entrance="true"] .p-intro-dots { flex-direction:column; gap:14px; }
+.p-chat-entry[data-message-entrance="true"][data-phase="chatReveal"] .p-chat-stream > div:not([hidden]) { animation:p-message-rise 450ms ease both; }
+.p-chat-stream > div[hidden] { display:none !important; }
+.p-chat-entry[data-message-entrance="true"][data-phase="chatReveal"] .p-composer { visibility:hidden; }
+@keyframes p-message-rise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }

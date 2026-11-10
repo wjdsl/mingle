@@ -1,3 +1,6 @@
+import { FeedbackButton } from './FeedbackButton'
+import fridgePoster from '../../assets/fridge/poster.webp'
+import fridgePortrait from '../../assets/fridge/fridge-smug.webp'
 import { useEffect, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
@@ -13,12 +16,16 @@ export function DemoNotice({ compact = false }: { compact?: boolean }) {
   return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요. 진행은 새로고침하면 초기화돼요.</p></details>
 }
 
-export function AppShell({ project, onBack, onHome, children }: { project: StoryProject; onBack?: () => void; onHome(): void; children: ReactNode }) {
+export function AppShell({ project, onBack, onHome, children, immersive = false }: { immersive?: boolean; project: StoryProject; onBack?: () => void; onHome(): void; children: ReactNode }) {
   return <div className={`p-work theme-${project.id}`}>
-    <header className="p-work-header"><div className="p-header-navigation">
+    {immersive ? <header className="p-work-header p-immersive-header">
+      <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>
+      <span className="p-chat-work-title" title={project.title}>{project.id === 'fridge' ? '냉장고 회장님' : project.title}</span>
+      <details className="p-chat-menu"><summary aria-label="채팅 메뉴">···</summary><div><button onClick={onHome}>MINGLE 홈으로</button><FeedbackButton /><p>시연 모드 · 실제 AI 없이 정해진 대사로 진행돼요. 새로고침하면 초기화돼요.</p></div></details>
+    </header> : <header className="p-work-header"><div className="p-header-navigation">
       {onBack && <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>}
       <button className="p-wordmark p-home-button" onClick={onHome} aria-label="MINGLE 홈으로">mingle<span>✳</span></button>
-    </div><DemoNotice compact /></header>{children}
+    </div><div className="p-header-tools"><FeedbackButton compact /><DemoNotice compact /></div></header>}{children}
   </div>
 }
 
@@ -48,7 +55,7 @@ export function ResultActions({ project, onRestart, onHome, children }: { projec
 
 export function CharacterPortrait({ project, name, compact = false }: { project: StoryProject; name?: string; compact?: boolean }) {
   if (project.id === 'puruma') return <img className="p-puruma-image" src={purumaImage} alt="신입생 푸르마" />
-  if (project.id === 'fridge') return <div className={`p-fridge ${compact ? 'p-compact' : ''}`} role="img" aria-label="황금 명패와 표정 디스플레이가 있는 냉장고 회장 콘셉트 일러스트"><span className="p-fridge-crown" aria-hidden="true">♛</span><div className="p-fridge-door"><span className="p-fridge-eyes" aria-hidden="true">⌐ − ⌐</span><span className="p-fridge-handle" /></div><span className="p-fridge-plaque">CHAIRMAN<br /><b>회 장 님</b></span><span className="p-fridge-feet" /></div>
+  if (project.id === 'fridge') return <img className={`p-fridge-art ${compact ? 'p-compact' : ''}`} src={compact ? fridgePortrait : fridgePoster} alt={compact ? '원룸의 냉장고 회장' : '우리 집 냉장고가 재벌 회장님이다 공식 제공 포스터'} />
   const character = project.characters.find(c => c.name === name) ?? project.characters[0]
   return <div className={`p-cloud-art ${compact ? 'p-compact' : ''}`} role="img" aria-label={`${character.name} 구조대원 콘셉트 심벌`}><span className="p-cloud-puff p-puff-one" /><span className="p-cloud-puff p-puff-two" /><span className="p-cloud-island"><span className="p-cloud-flag" aria-hidden="true">⚑</span><span className="p-cloud-face" aria-hidden="true">{character.symbol}<small>• ‿ •</small></span></span><span className="p-cloud-orbit" aria-hidden="true">✧</span></div>
 }
