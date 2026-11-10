@@ -34,3 +34,16 @@ test('Mock 실패 뒤 동일한 입력을 재시도할 수 있다', async () => 
   assert.ok(response.text.length > 0)
   assert.equal(response.speaker, '냉장고 회장')
 })
+
+
+test('냉장고 바이블 체험은 10턴이며 사건 연락과 예고편 경계를 유지한다', () => {
+  assert.equal(fridge.steps.length, 10)
+  assert.deepEqual(fridge.steps.flatMap((step, i) => step.event ? [i + 1] : []), [5, 7, 8])
+  assert.equal(fridge.steps[3].sceneImage, 'chairman-office')
+  assert.match(fridge.steps[9].text, /인간으로 돌아갈 방법을 찾았네/)
+  for (const step of fridge.steps) {
+    assert.equal(step.choices.length, 2)
+    assert.ok(step.choices.every(c => c.reply.length > 0))
+    assert.equal((step.text.match(/디스플레이:/g) ?? []).length, 1)
+  }
+})

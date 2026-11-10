@@ -2,10 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { requestStoryReply } from '../../services/mockStoryClient'
 
-export type StoryMessage = { role: 'user' | 'character'; speaker: string; text: string; reaction?: string }
+type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string }
+export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
+function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
+ const step = project.steps[index]
+ return [
+  ...(step.sceneImage ? [{ kind: 'scene_image' as const, asset: step.sceneImage }] : []),
+  ...(step.event ? [{ kind: 'system' as const, text: step.event }] : []),
+  { kind: 'text', role: 'character', speaker: step.speaker, text: `${name ? name + ', ' : ''}${step.text}`, situation: step.situation }
+ ]
+}
 export function useStoryChat(project: StoryProject, name: string, onResult: () => void) {
   const [turn, setTurn] = useState(0)
-  const [messages, setMessages] = useState<StoryMessage[]>([{ role: 'character', speaker: project.steps[0].speaker, text: `${name}, ${project.steps[0].text}` }])
+  const [messages, setMessages] = useState<StoryMessage[]>(() => opening(project, 0, name))
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'replied'>('idle')
   const [selected, setSelected] = useState<number>()
   const controller = useRef<AbortController | null>(null)
@@ -38,7 +47,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     const next = turn + 1
     if (next === project.steps.length) { onResult(); return }
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
-    setMessages(old => [...old, { role: 'character', speaker: project.steps[next].speaker, text: project.steps[next].text }])
+    setMessages(old => [...old, ...opening(project, next)])
   }
   return { turn, messages, status, selected, step, send, retry: run, advance }
 }
