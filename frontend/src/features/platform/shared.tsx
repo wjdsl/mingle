@@ -8,17 +8,17 @@ export function ActionButton({ secondary = false, className = '', ...props }: Bu
   return <button {...props} className={`${secondary ? 'p-secondary' : 'p-primary'} ${className}`} />
 }
 
-export function DemoNotice({ compact = false }: { compact?: boolean }) {
+export function DemoNotice({ compact = false, liveAi = false }: { compact?: boolean; liveAi?: boolean }) {
   if (!compact) return <p className="p-demo-notice">실제 AI 없이 정해진 대사로 답하는 체험이에요.<br />진행은 새로고침하면 초기화돼요.</p>
-  return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요. 진행은 새로고침하면 초기화돼요.</p></details>
+  return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>{liveAi ? 'Gemini 실험 모드예요. 입력과 최소 대화 맥락이 백엔드를 거쳐 Google로 전송돼요.' : '실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요.'} 진행은 새로고침하면 초기화돼요.</p></details>
 }
 
-export function AppShell({ project, onBack, onHome, children }: { project: StoryProject; onBack?: () => void; onHome(): void; children: ReactNode }) {
+export function AppShell({ project, liveAi = false, onBack, onHome, children }: { project: StoryProject; liveAi?: boolean; onBack?: () => void; onHome(): void; children: ReactNode }) {
   return <div className={`p-work theme-${project.id}`}>
     <header className="p-work-header"><div className="p-header-navigation">
       {onBack && <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>}
       <button className="p-wordmark p-home-button" onClick={onHome} aria-label="MINGLE 홈으로">mingle<span>✳</span></button>
-    </div><DemoNotice compact /></header>{children}
+    </div><DemoNotice compact liveAi={liveAi} /></header>{children}
   </div>
 }
 

@@ -25,7 +25,7 @@ export function useChat(client: ConversationClient = mockConversationClient) {
     const error = validateInput(input.text)
     setValidation(error)
     if (error) return
-    const request: TurnRequest = { requestId: crypto.randomUUID(), turn: state.completedTurns + 1, input: { ...input, text: input.text.trim() } }
+    const request: TurnRequest = { requestId: crypto.randomUUID(), turn: state.completedTurns + 1, input: { ...input, text: input.text.trim() }, history: state.messages.map(({ role, text }) => ({ role, text })) }
     inFlight.current = true
     dispatch({ type: 'send', request })
     setDraft('')

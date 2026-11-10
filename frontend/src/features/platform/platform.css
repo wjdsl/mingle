@@ -103,7 +103,8 @@
 .p-setup form { margin-top: 24px; }
 .p-setup label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
 .p-setup label span { font-size: 11px; font-weight: 400; }
-.p-setup input, .p-manual-link input { width: 100%; min-height: 50px; border: 1px solid color-mix(in srgb,var(--w-ink) 45%,transparent); border-radius: var(--radius); padding: 12px; color: var(--w-ink); background: var(--w-surface); font-size: 16px; }
+.p-setup .p-mode-label { margin-top: 20px; }
+.p-setup input, .p-setup select, .p-manual-link input { width: 100%; min-height: 50px; border: 1px solid color-mix(in srgb,var(--w-ink) 45%,transparent); border-radius: var(--radius); padding: 12px; color: var(--w-ink); background: var(--w-surface); font-size: 16px; }
 .p-setup .p-primary { margin-top: 24px; }
 .p-experience:focus { outline: none; }
 .p-chat-stage { overflow: hidden; min-height: 0; }
