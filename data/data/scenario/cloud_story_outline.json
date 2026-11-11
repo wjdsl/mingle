@@ -1,0 +1,183 @@
+{
+  "schema_version": "0.2",
+  "project_id": "cloud",
+  "scope": "story_outline_only",
+  "source_basis": [
+    "docs/stories/cloud/cloud-story-bible.md (2026-11-09)"
+  ],
+  "title": "구름섬 구조대",
+  "experience_mode": "B: 닮은 인물 찾기",
+  "turn_count": {
+    "approximate": true,
+    "target": 10
+  },
+  "duration_minutes": {
+    "min": 3,
+    "max": 5
+  },
+  "stage_breakdown_status": "바이블 초안",
+  "phases": [
+    {
+      "id": "cloud_phase_join",
+      "name": "합류",
+      "turn_range": [
+        1,
+        2
+      ],
+      "confirmed_beat": "닉네임을 입력하고 구조대의 임시 승무원으로 합류한다. 다섯 대원이 인사하며 성격을 드러낸다."
+    },
+    {
+      "id": "cloud_phase_depart",
+      "name": "출동",
+      "turn_range": [
+        3,
+        4
+      ],
+      "confirmed_beat": "구름섬 추락 신호를 받고 위험한 구름 지대로 출발한다."
+    },
+    {
+      "id": "cloud_phase_crisis",
+      "name": "위기",
+      "turn_range": [
+        5,
+        6
+      ],
+      "confirmed_beat": "구조선 엔진이 고장 나고 제한 시간 안에 해결 방법을 정한다. 대원들은 서로 다른 해결책을 제안한다."
+    },
+    {
+      "id": "cloud_phase_rescue",
+      "name": "구조",
+      "turn_range": [
+        7,
+        9
+      ],
+      "confirmed_beat": "고립된 주민을 구한다. 사용자의 선택에 따라 대원들의 반응과 성향 점수가 달라진다."
+    },
+    {
+      "id": "cloud_phase_teaser",
+      "name": "예고편 컷",
+      "turn_range": [
+        10,
+        10
+      ],
+      "confirmed_beat": "마지막 주민 구조 직전 하늘이 검어지고 거대한 그림자가 드리운다. 나침반이 처음 보는 방향을 가리킨다. 결말을 보여 주지 않고 중단한다."
+    }
+  ],
+  "turn_slots": [
+    {
+      "turn_id": "cloud_t01",
+      "turn_number": 1,
+      "phase_id": "cloud_phase_join",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t02",
+      "turn_number": 2,
+      "phase_id": "cloud_phase_join",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t03",
+      "turn_number": 3,
+      "phase_id": "cloud_phase_depart",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t04",
+      "turn_number": 4,
+      "phase_id": "cloud_phase_depart",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t05",
+      "turn_number": 5,
+      "phase_id": "cloud_phase_crisis",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t06",
+      "turn_number": 6,
+      "phase_id": "cloud_phase_crisis",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t07",
+      "turn_number": 7,
+      "phase_id": "cloud_phase_rescue",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t08",
+      "turn_number": 8,
+      "phase_id": "cloud_phase_rescue",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t09",
+      "turn_number": 9,
+      "phase_id": "cloud_phase_rescue",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    },
+    {
+      "turn_id": "cloud_t10",
+      "turn_number": 10,
+      "phase_id": "cloud_phase_teaser",
+      "scene": null,
+      "speakers": null,
+      "fixed_choices": null,
+      "choice_score_changes": null,
+      "free_input_response_guidelines": null,
+      "status": "미확정: 턴별 장면/대사/선택지/점수 미작성"
+    }
+  ],
+  "post_cliffhanger": {
+    "type": "result_card",
+    "result_card_ref": "data/ending/cloud_result_types.json"
+  },
+  "note": "턴별 대사·고정 선택지·가중치는 공식 바이블에서 미정. 기존 3미션 프론트 Mock을 이 10턴 정본으로 간주하지 않음."
+}

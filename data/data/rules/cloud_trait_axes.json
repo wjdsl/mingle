@@ -1,0 +1,80 @@
+{
+  "schema_version": "0.2",
+  "project_id": "cloud",
+  "scope": "personality_axes_and_scoring_contract",
+  "source_basis": [
+    "docs/stories/cloud/cloud-story-bible.md (2026-11-09)",
+    "docs/stories/cloud/images/personality-axes.png"
+  ],
+  "purpose": "사용자 선택·자유 입력을 두 성향 축으로 누적해 닮은 대원 결과를 정한다.",
+  "axes": [
+    {
+      "id": "relationship_goal",
+      "display_name": "관계·공감 ↔ 목표·효율",
+      "negative_label": "관계·공감",
+      "positive_label": "목표·효율",
+      "direction_basis": "스토리 바이블의 성향 축 이미지"
+    },
+    {
+      "id": "stability_challenge",
+      "display_name": "안정·안전 ↔ 도전·변화",
+      "negative_label": "안정·안전",
+      "positive_label": "도전·변화",
+      "direction_basis": "스토리 바이블의 성향 축 이미지"
+    }
+  ],
+  "per_free_input_score_bound": {
+    "min": -2,
+    "max": 2,
+    "applies_per_axis": true,
+    "source": "스토리 바이블 §8"
+  },
+  "choice_scores": {
+    "status": "미확정",
+    "per_turn_values": null
+  },
+  "free_text_scoring": {
+    "status": "미확정: 점수 배정·애매한 입력·우선순위/충돌 처리 세부 기준 없음",
+    "nearest_fixed_choice_if_available": true,
+    "concrete_mapping_rules": null,
+    "ambiguous_intent_fallback": null
+  },
+  "initial_total_values": {
+    "status": "미확정",
+    "relationship_goal": null,
+    "stability_challenge": null
+  },
+  "result_quadrants": [
+    {
+      "x": "positive",
+      "y": "positive",
+      "result_type_id": "cloud_result_toto"
+    },
+    {
+      "x": "positive",
+      "y": "negative",
+      "result_type_id": "cloud_result_bibi"
+    },
+    {
+      "x": "negative",
+      "y": "negative",
+      "result_type_id": "cloud_result_nana"
+    },
+    {
+      "x": "negative",
+      "y": "positive",
+      "result_type_id": "cloud_result_kiki"
+    },
+    {
+      "x": "center",
+      "y": "center",
+      "result_type_id": "cloud_result_dudu"
+    }
+  ],
+  "central_balance_threshold": null,
+  "central_balance_threshold_status": "미확정 (두두 타입 허용 범위 필요)",
+  "axis_zero_and_tie_policy": null,
+  "axis_zero_and_tie_policy_status": "미확정",
+  "calculation_owner": "AI가 숫자를 임의로 확정하지 않고 별도 규칙 계산 담당이 수행 (SRS FR-25)",
+  "implementation_status": "데이터 규격 초안, 실제 판정 함수 없음"
+}

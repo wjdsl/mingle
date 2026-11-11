@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.2",
+  "project_id": "cloud",
+  "scope": "fictional_world_reference",
+  "source_basis": [
+    "docs/stories/cloud/cloud-story-bible.md (2026-11-09)"
+  ],
+  "external_rag_required": false,
+  "reference_type": "팀 창작 설정; 실존 자료 검증용 RAG 아님",
+  "allowed_facts": [
+    {
+      "id": "cloud_world_islands",
+      "topic": "구름섬",
+      "facts": [
+        "하늘 위에 풀과 나무가 자라는 작은 섬들이 떠 있다.",
+        "섬 가장자리에서 물줄기가 구름 아래로 떨어진다.",
+        "주민들은 섬에 작업장과 집을 짓고 살아간다."
+      ]
+    },
+    {
+      "id": "cloud_world_energy",
+      "topic": "에너지 구름",
+      "facts": [
+        "섬과 섬을 잇고 하늘을 띄우는 빛나는 구름 띠다."
+      ]
+    },
+    {
+      "id": "cloud_world_fall",
+      "topic": "섬 추락 사건",
+      "facts": [
+        "에너지 구름이 끊어지며 섬이 기울고 금이 가기 시작한다.",
+        "주민들이 고립된다."
+      ]
+    },
+    {
+      "id": "cloud_world_team",
+      "topic": "구조대",
+      "facts": [
+        "다섯 대원으로 이뤄진 작고 엉뚱한 구조대다.",
+        "낡고 기운 나무 구조선을 타고 다닌다."
+      ]
+    },
+    {
+      "id": "cloud_world_storm",
+      "topic": "위험한 구름 지대",
+      "facts": [
+        "진한 보랏빛 폭풍 구름과 소용돌이 바람, 번개가 있다.",
+        "섬들이 서로 멀어지는 위험한 곳이다."
+      ]
+    }
+  ],
+  "excluded_answer_topics": [
+    "섬이 추락하는 진짜 원인",
+    "예고편 검은 하늘의 정체",
+    "예고편 거대한 그림자의 정체",
+    "나침반이 가리키는 방향의 정체"
+  ],
+  "unknown_answer_policy": "공식 설정에 정답이 없으므로 추측·힌트·설명을 생성하지 않음"
+}

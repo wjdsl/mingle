@@ -1,0 +1,65 @@
+{
+  "schema_version": "0.2",
+  "project_id": "cloud",
+  "scope": "five_result_cards",
+  "source_basis": [
+    "docs/stories/cloud/cloud-story-bible.md (2026-11-09)"
+  ],
+  "mapping_rule_file": "data/rules/cloud_trait_axes.json",
+  "result_card_text_status": "가안 (최종 문구 미확정)",
+  "bibi_result_title_status": "명칭 재검토 필요",
+  "result_cards": [
+    {
+      "result_type_id": "cloud_result_toto",
+      "character_id": "cloud_toto",
+      "character_name": "토토",
+      "title": "앞장서는 돌격 대장형",
+      "description": "망설이는 순간에도 먼저 한 발 내딛는 당신. 당신의 '가자!' 한마디가 모두에게 용기가 돼요.",
+      "image_path": null,
+      "image_final_approval": "미확정"
+    },
+    {
+      "result_type_id": "cloud_result_bibi",
+      "character_id": "cloud_bibi",
+      "character_name": "비비",
+      "title": "빈틈없는 설계자형",
+      "description": "모두가 서두를 때 한 번 더 확인하는 당신. 당신 덕분에 오늘도 모두 무사해요.",
+      "image_path": null,
+      "image_final_approval": "미확정"
+    },
+    {
+      "result_type_id": "cloud_result_nana",
+      "character_id": "cloud_nana",
+      "character_name": "나나",
+      "title": "모두를 지키는 등불형",
+      "description": "누군가의 떨리는 목소리를 가장 먼저 알아채는 당신. 당신 곁에서는 누구도 혼자가 아니에요.",
+      "image_path": null,
+      "image_final_approval": "미확정"
+    },
+    {
+      "result_type_id": "cloud_result_kiki",
+      "character_id": "cloud_kiki",
+      "character_name": "키키",
+      "title": "반짝이는 모험 친구형",
+      "description": "계획보다 마음이 먼저 움직이는 당신. 당신이 뛰어들면 모두가 따라 웃게 돼요.",
+      "image_path": null,
+      "image_final_approval": "미확정"
+    },
+    {
+      "result_type_id": "cloud_result_dudu",
+      "character_id": "cloud_dudu",
+      "character_name": "두두",
+      "title": "묵묵한 버팀목형",
+      "description": "말보다 행동으로 보여 주는 당신. 흔들리는 순간, 모두가 당신을 찾아요.",
+      "image_path": null,
+      "image_final_approval": "미확정"
+    }
+  ],
+  "post_result_actions": [
+    "공유 버튼",
+    "다른 대원 타입 둘러보기",
+    "본편 안내"
+  ],
+  "original_work_link": null,
+  "original_work_link_status": "미확정"
+}

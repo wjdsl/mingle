@@ -1,0 +1,75 @@
+{
+  "schema_version": "0.2",
+  "project_id": "cloud",
+  "scope": "logical_user_progress_schema_proposal",
+  "source_basis": [
+    "docs/stories/cloud/cloud-story-bible.md (2026-11-09)",
+    "docs/mingle-srs.md (2026-10-14)"
+  ],
+  "status": "구현 제안: 실제 프론트 상태 타입/서버 API 계약이 아님",
+  "storage_policy": {
+    "primary": "브라우저 로컬 (SRS NFR-05)",
+    "conversation_original_server_persistence": "별도 합의 없이는 저장하지 않음",
+    "admin_event_payload": "익명 통계 이벤트만; 원문과 닉네임 제외",
+    "retention_period": null,
+    "retention_period_status": "미확정"
+  },
+  "fields": [
+    {
+      "name": "project_id",
+      "type": "string",
+      "allowed_values": [
+        "cloud"
+      ],
+      "note": "프론트 현재 catalog.ts 프로젝트 ID와 일치"
+    },
+    {
+      "name": "nickname",
+      "type": "string_or_null",
+      "note": "정제된 표시용 호칭만; 실명/연락처처럼 보이면 '신입 대원'으로 대체",
+      "sanitization_implementation": "미확정"
+    },
+    {
+      "name": "current_turn",
+      "type": "integer_or_null",
+      "note": "1~10 계획, 실제 초기값/완료 상태 방식은 프론트와 협의"
+    },
+    {
+      "name": "phase_id",
+      "type": "string_or_null",
+      "note": "cloud_story_outline.json의 phase ID 참조"
+    },
+    {
+      "name": "relationship_goal_total",
+      "type": "integer_or_null",
+      "note": "관계·공감(-) ↔ 목표·효율(+) 점수 누적, 초기값 미확정"
+    },
+    {
+      "name": "stability_challenge_total",
+      "type": "integer_or_null",
+      "note": "안정·안전(-) ↔ 도전·변화(+) 점수 누적, 초기값 미확정"
+    },
+    {
+      "name": "selected_choice_ids",
+      "type": "array_of_string",
+      "note": "확정된 선택 ID만 기록, 선택지 ID 체계는 미확정"
+    },
+    {
+      "name": "toto_fear_revealed",
+      "type": "boolean_or_null",
+      "note": "토토 숨은 면을 한 번만 드러냈는지 추적하는 구현 제안"
+    },
+    {
+      "name": "result_type_id",
+      "type": "string_or_null",
+      "note": "결과 카드 ID, 판정 전에는 null"
+    },
+    {
+      "name": "obtained_result_type_ids",
+      "type": "array_of_string",
+      "note": "도감에 이미 획득한 결과 타입 목록. 다시 시작해도 유지 (SRS FR-44, FR-45). 실제 저장 키·동기화 방식은 미확정",
+      "implementation_status": "구현 제안"
+    }
+  ],
+  "notes": "User Note 상세 규칙·유지 기간 등은 구름섬 전용 공식 정의가 없어 별도 생성하지 않음"
+}
