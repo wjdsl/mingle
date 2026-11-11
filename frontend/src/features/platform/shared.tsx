@@ -1,3 +1,8 @@
+import toto from '../../assets/cloud/toto.webp'
+import bibi from '../../assets/cloud/bibi.webp'
+import nana from '../../assets/cloud/nana.webp'
+import kiki from '../../assets/cloud/kiki.webp'
+import dudu from '../../assets/cloud/dudu.webp'
 import { FeedbackButton } from './FeedbackButton'
 import fridgePoster from '../../assets/fridge/poster.webp'
 import fridgePortrait from '../../assets/fridge/fridge-smug.webp'
@@ -56,6 +61,7 @@ export function ResultActions({ project, onRestart, onHome, children }: { projec
 export function CharacterPortrait({ project, name, compact = false }: { project: StoryProject; name?: string; compact?: boolean }) {
   if (project.id === 'puruma') return <img className="p-puruma-image" src={purumaImage} alt="신입생 푸르마" />
   if (project.id === 'fridge') return <img className={`p-fridge-art ${compact ? 'p-compact' : ''}`} src={compact ? fridgePortrait : fridgePoster} alt={compact ? '원룸의 냉장고 회장' : '우리 집 냉장고가 재벌 회장님이다 공식 제공 포스터'} />
+  const portraits: Record<string, string> = { 토토: toto, 비비: bibi, 나나: nana, 키키: kiki, 두두: dudu }
   const character = project.characters.find(c => c.name === name) ?? project.characters[0]
-  return <div className={`p-cloud-art ${compact ? 'p-compact' : ''}`} role="img" aria-label={`${character.name} 구조대원 콘셉트 심벌`}><span className="p-cloud-puff p-puff-one" /><span className="p-cloud-puff p-puff-two" /><span className="p-cloud-island"><span className="p-cloud-flag" aria-hidden="true">⚑</span><span className="p-cloud-face" aria-hidden="true">{character.symbol}<small>• ‿ •</small></span></span><span className="p-cloud-orbit" aria-hidden="true">✧</span></div>
+  return <img className={`p-cloud-portrait ${compact ? 'p-compact' : ''}`} src={portraits[character.name]} alt={`${character.name} 구조대원`} />
 }

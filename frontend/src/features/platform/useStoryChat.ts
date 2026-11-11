@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
-import { requestStoryReply } from '../../services/mockStoryClient'
+import { mockStoryClient } from '../../services/storyClient'
+import type { StoryClient } from '../../services/storyClient'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string }
 export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
@@ -12,13 +13,13 @@ function opening(project: StoryProject, index: number, name?: string): StoryMess
   { kind: 'text', role: 'character', speaker: step.speaker, text: `${name ? name + ', ' : ''}${step.text}`, situation: step.situation }
  ]
 }
-export function useStoryChat(project: StoryProject, name: string, onResult: () => void) {
+export function useStoryChat(project: StoryProject, name: string, onResult: () => void, client: StoryClient = mockStoryClient) {
   const [turn, setTurn] = useState(0)
   const [messages, setMessages] = useState<StoryMessage[]>(() => opening(project, 0, name))
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'replied'>('idle')
   const [selected, setSelected] = useState<number>()
   const controller = useRef<AbortController | null>(null)
-  const pending = useRef<{ text: string; choice?: number } | null>(null)
+  const pending = useRef<{ requestId: string; text: string; choice?: number } | null>(null)
   const busy = useRef(false)
   const failedTurns = useRef(new Set<number>())
   const step = project.steps[turn]
@@ -32,14 +33,14 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     const fail = new URLSearchParams(window.location.search).get('mockError') === 'once' && !failedTurns.current.has(turn)
     failedTurns.current.add(turn)
     try {
-      const reply = await requestStoryReply(project, turn, pending.current.choice, abort.signal, fail)
+      const reply = await client.sendTurn({ requestId: pending.current.requestId, project, turn, input: { text: pending.current.text, choice: pending.current.choice }, mockFailure: fail }, abort.signal)
       if (!abort.signal.aborted) { setMessages(old => [...old, { role: 'character', ...reply }]); setStatus('replied') }
     } catch { if (!abort.signal.aborted) setStatus('error') }
     finally { if (controller.current === abort) busy.current = false }
   }
   function send(text: string, choice?: number) {
     if (busy.current || status !== 'idle' || !text.trim()) return
-    pending.current = { text, choice }; setSelected(choice)
+    pending.current = { requestId: crypto.randomUUID(), text, choice }; setSelected(choice)
     setMessages(old => [...old, { role: 'user', speaker: name, text }]); void run()
   }
   function advance() {
