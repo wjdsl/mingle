@@ -839,6 +839,9 @@ async def _repair_missing_knowledge(db, existing: list[Persona]) -> None:
 
 
 async def _ensure_admin(db) -> None:
+    # No automatically usable default account. Provision explicitly via CLI/env.
+    if not settings.admin_email or len(settings.admin_password) < 12 or settings.admin_password == "admin1234!":
+        return
     existing = (
         await db.execute(select(AdminUser).where(AdminUser.email == settings.admin_email))
     ).scalar_one_or_none()

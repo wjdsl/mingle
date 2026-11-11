@@ -81,6 +81,7 @@ class RecentConversation(BaseModel):
 
 
 class DashboardOverview(BaseModel):
+    environment: str = "unknown"
     generated_at: datetime
     range_days: int
     totals: Totals

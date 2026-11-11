@@ -1,4 +1,5 @@
 import { ChatIntro } from './ChatIntro'
+import { AdminApp } from '../admin/AdminApp'
 import { chatIntros } from '../../projects/stories/chatIntros'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -60,8 +61,10 @@ function Experience({ project }: { project: StoryProject }) {
   </div>
 }
 export function Platform() {
+  const [adminRoute, setAdminRoute] = useState(() => /^#\/admin(?:\/|$)/.test(window.location.hash))
   const [project, setProject] = useState(readProject)
+  useEffect(() => { const update = () => setAdminRoute(/^#\/admin(?:\/|$)/.test(window.location.hash)); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])
   useEffect(() => { const update = () => { setProject(readProject()); if (window.location.hash !== '#archive') window.scrollTo(0, 0) }; window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])
-  useEffect(() => { document.title = project ? `${project.title} · MINGLE` : 'MINGLE · 이야기 속으로' }, [project])
-  return project ? <Experience key={project.id} project={project} /> : <Home onSelect={p => { window.location.hash = `/project/${p.id}` }} />
+  useEffect(() => { document.title = adminRoute ? '관리자 · MINGLE' : project ? `${project.title} · MINGLE` : 'MINGLE · 이야기 속으로' }, [project, adminRoute])
+  return adminRoute ? <AdminApp /> : project ? <Experience key={project.id} project={project} /> : <Home onSelect={p => { window.location.hash = `/project/${p.id}` }} />
 }
