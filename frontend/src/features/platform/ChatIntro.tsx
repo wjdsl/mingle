@@ -4,7 +4,7 @@ import type { ChatIntroConfig } from '../../projects/stories/chatIntros'
 
 export const ChatEntryMessages = createContext<number>(Infinity)
 
-type Phase = 'loading' | 'backgroundReveal' | 'chatReveal' | 'chatReady'
+type Phase = 'loading' | 'backgroundReveal' | 'sceneIntro' | 'chatReveal' | 'chatReady'
 export function SceneBackground({ config }: { config: ChatIntroConfig }) {
  return <div className="p-scene-background" aria-hidden="true">{config.background && <img src={config.background} alt="" onError={e => { e.currentTarget.hidden = true }} />}<div /></div>
 }
@@ -35,23 +35,23 @@ export function ChatIntro({ config, active, dataReady, children }: { config: Cha
  }, [config.background])
  useEffect(() => {
   if (!active || phase !== 'loading') return
-  const timer = window.setTimeout(() => setMinimumElapsed(true), 1500)
+  const timer = window.setTimeout(() => setMinimumElapsed(true), 700)
   return () => clearTimeout(timer)
  }, [active, phase])
  useEffect(() => {
   if (!active || phase === 'chatReady') return
   if (phase === 'loading') {
-   if (dataReady && imageReady && minimumElapsed) setPhase(config.messageEntrance ? 'chatReveal' : 'backgroundReveal')
+   if (dataReady && imageReady && minimumElapsed) setPhase('backgroundReveal')
    return
   }
-  const timer = window.setTimeout(() => setPhase(phase === 'backgroundReveal' ? 'chatReveal' : 'chatReady'), phase === 'backgroundReveal' ? 1300 : config.messageEntrance ? 2100 : 400)
+  const timer = window.setTimeout(() => setPhase(phase === 'backgroundReveal' ? 'sceneIntro' : phase === 'sceneIntro' ? 'chatReveal' : 'chatReady'), phase === 'backgroundReveal' ? 700 : phase === 'sceneIntro' ? 900 : 900)
   return () => clearTimeout(timer)
  }, [active, phase, reduced, dataReady, imageReady, minimumElapsed, config.messageEntrance])
  useEffect(() => {
   if (!active || phase !== 'chatReveal' || !config.messageEntrance) return
   setVisibleMessages(1)
-  const second = window.setTimeout(() => setVisibleMessages(2), 650)
-  const rest = window.setTimeout(() => setVisibleMessages(Infinity), 1300)
+  const second = window.setTimeout(() => setVisibleMessages(2), 500)
+  const rest = window.setTimeout(() => setVisibleMessages(Infinity), 800)
   return () => { clearTimeout(second); clearTimeout(rest) }
  }, [active, phase, config.messageEntrance])
  useEffect(() => {
@@ -62,8 +62,8 @@ export function ChatIntro({ config, active, dataReady, children }: { config: Cha
  }, [active, phase])
  return <div className="p-chat-entry" data-phase={phase} data-reduced={reduced} data-message-entrance={Boolean(config.messageEntrance)}>
   {phase !== 'chatReady' && !(config.messageEntrance && phase === 'chatReveal') && <section className="p-chat-intro" aria-label="이야기 도입">
-   {!config.messageEntrance && <SceneBackground config={config} />}
-   <div className="p-intro-atmosphere" role="status" aria-live="polite"><span className="sr-only">이야기를 준비하고 있어요</span><span className="p-intro-dots" aria-hidden="true"><i /><i /><i /></span></div>
+   <SceneBackground config={config} />
+   <div className="p-intro-atmosphere" role="status" aria-live="polite">{phase === 'sceneIntro' ? <p className="p-intro-scene-paper">{config.scene}</p> : <><span className="sr-only">이야기를 준비하고 있어요</span><span className="p-intro-dots" aria-hidden="true"><i /><i /><i /></span></>}</div>
    <button className="p-intro-skip" ref={skip} disabled={!dataReady} onClick={() => setPhase('chatReady')}>건너뛰기 →</button>
   </section>}
   <div className="p-chat-entry-content" ref={content} tabIndex={-1} inert={phase !== 'chatReady'} aria-hidden={phase !== 'chatReady'}><ChatEntryMessages.Provider value={config.messageEntrance && phase !== 'chatReady' ? visibleMessages : Infinity}>{children}</ChatEntryMessages.Provider></div>

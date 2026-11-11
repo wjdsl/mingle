@@ -1,3 +1,4 @@
+import { mockStoryClient } from '../src/services/storyClient.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { projects } from '../src/projects/stories/catalog.ts'
@@ -46,4 +47,16 @@ test('냉장고 바이블 체험은 10턴이며 사건 연락과 예고편 경�
     assert.ok(step.choices.every(c => c.reply.length > 0))
     assert.equal((step.text.match(/디스플레이:/g) ?? []).length, 1)
   }
+})
+
+
+test('교체 가능한 StoryClient 경계는 선택 응답·취소·Mock 실패 계약을 유지한다', async () => {
+ const request = { requestId: 'retry-stable-id', project: fridge, turn: 0, input: { text: fridge.steps[0].choices[0].label, choice: 0 } }
+ const signal = new AbortController().signal
+ const response = await mockStoryClient.sendTurn(request, signal)
+ assert.equal(response.text, fridge.steps[0].choices[0].reply)
+ await assert.rejects(mockStoryClient.sendTurn({ ...request, mockFailure: true }, signal), /Mock 응답 실패/)
+ const cancelled = new AbortController(); cancelled.abort()
+ await assert.rejects(mockStoryClient.sendTurn(request, cancelled.signal), { name: 'AbortError' })
+ assert.equal(request.requestId, 'retry-stable-id')
 })
