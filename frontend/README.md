@@ -1,3 +1,5 @@
+관리자 로그인·조회 대시보드: `#/admin`. 서버 실행·계정 발급 및 통계 연결 범위는 [ADMIN_GUIDE.md](./ADMIN_GUIDE.md)를 참고하세요.
+
 # MINGLE · Playful Storybook 프론트엔드
 
 현재 3개 작품의 React UI에 Figma 리디자인을 적용했다. **Mock 대화 프로토타입이며 실제 API/AI는 미연결**이다. 팀 통합 지점과 최신 검증은 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md), 디자인 기준은 [PLAYFUL_STORYBOOK_DESIGN.md](PLAYFUL_STORYBOOK_DESIGN.md)를 먼저 읽는다.

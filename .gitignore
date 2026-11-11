@@ -1,3 +1,6 @@
 
 # Local verified source snapshots
 .backups/
+backend/.env
+backend/.venv/
+**/__pycache__/

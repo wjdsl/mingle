@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import decode_access_token, hash_personal_code
+from app.core.security import decode_access_token, hash_personal_code, verify_password
+from app.core.config import settings
 from app.db.base import get_db
 from app.db.models import AdminUser, Conversation, UserSession, utcnow
 
 bearer_scheme = HTTPBearer(auto_error=False, description="관리자 JWT")
+
+
+def require_admin_configuration(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+    if len(settings.secret_key) < 32 or settings.secret_key.startswith("change-me-in-production"):
+        raise HTTPException(status_code=503, detail="관리자 인증용 SECRET_KEY를 서버에 설정해야 합니다.")
 
 
 def _unauthorized(detail: str) -> HTTPException:
@@ -74,6 +81,10 @@ async def get_current_admin(
     admin = await db.get(AdminUser, admin_id)
     if admin is None or not admin.is_active:
         raise _unauthorized("관리자 계정을 찾을 수 없습니다.")
+    if admin.role != "admin":
+        raise HTTPException(status_code=403, detail="전체 관리자 권한이 필요합니다.")
+    if verify_password("admin1234!", admin.password_hash):
+        raise HTTPException(status_code=403, detail="기본 비밀번호를 변경해야 합니다.")
     return admin
 
 

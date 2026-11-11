@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, require_admin_configuration
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.db.base import get_db
@@ -32,7 +32,7 @@ from app.schemas.admin import (
 from app.services.analytics import build_overview
 from app.services.memory import load_notes
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_configuration)])
 
 
 @router.post("/login", response_model=TokenOut, summary="관리자 로그인")
@@ -52,6 +52,10 @@ async def login(
             detail="이메일 또는 비밀번호가 올바르지 않습니다.",
         )
 
+    if admin.role != "admin":
+        raise HTTPException(status_code=403, detail="전체 관리자 권한이 필요합니다.")
+    if verify_password("admin1234!", admin.password_hash):
+        raise HTTPException(status_code=403, detail="기본 비밀번호를 변경한 뒤 로그인해 주세요.")
     token = create_access_token(
         admin.id, {"email": admin.email, "role": admin.role, "name": admin.name}
     )

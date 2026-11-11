@@ -7,17 +7,17 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
-TEST_DB = Path(__file__).resolve().parent / "test.db"
-if TEST_DB.exists():
-    TEST_DB.unlink()
+_test_directory = tempfile.TemporaryDirectory(prefix="mingle-admin-tests-")
+TEST_DB = Path(_test_directory.name) / "test.db"
 
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB.as_posix()}"
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["SECRET_KEY"] = "test-secret-key-0123456789-abcdefghij"
 os.environ["ADMIN_EMAIL"] = "admin@test.local"
-os.environ["ADMIN_PASSWORD"] = "testpass123"
+os.environ["ADMIN_PASSWORD"] = "testpass12345"
 os.environ["ADMIN_NAME"] = "테스트 관리자"
 os.environ["SEED_ON_STARTUP"] = "true"
 os.environ["MEMORY_LLM_ENABLED"] = "false"

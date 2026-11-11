@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     # --- 인증 ---
     secret_key: str = "change-me-in-production-please-use-32-bytes"
     access_token_expire_minutes: int = 720  # 관리자 JWT (12시간)
-    admin_email: str = "admin@companion.ai"
-    admin_password: str = "admin1234!"
+    admin_email: str = ""
+    admin_password: str = ""
     admin_name: str = "관리자"
 
     # --- CORS (쉼표 구분) ---

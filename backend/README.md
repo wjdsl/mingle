@@ -300,8 +300,8 @@ Marketing Trigger(3개)와 CTA가 포함됩니다.
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `DATABASE_URL` | SQLite `data/app.db` | `postgresql+asyncpg://...`로 변경 시 pgvector 사용 |
-| `SECRET_KEY` | dev 값 | **운영 시 반드시 32바이트 이상으로 변경** |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@companion.ai` / `admin1234!` | 시드 시 관리자 계정 생성 |
+| `SECRET_KEY` | dev 값 | 관리자 API는 기본값 사용 시 503. 환경 전용 32자 이상 키를 설정 |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | 미설정 | 명시한 계정만 최초 생성(비밀번호 12자 이상). 기존 계정 자동 변경 없음 |
 | `LLM_PROVIDER` | `auto` | `auto/openai/gemini/mock` |
 | `OPENAI_API_KEY` | – | 있으면 OpenAI 사용 |
 | `GEMINI_API_KEY` | – | OpenAI 키가 없을 때 Gemini 사용 |
@@ -375,3 +375,14 @@ backend/
 - [ ] LLM API 키를 서버 환경변수/시크릿으로 주입
 - [ ] 리버스 프록시에서 SSE 버퍼링 비활성화 (`X-Accel-Buffering: no` 이미 설정)
 - [ ] 요청 로그/에러 모니터링, LLM 비용·지연 추적 (`/api/admin/overview`의 `avg_latency_ms`)
+
+
+## 2026-11-11 관리자 UI 연동
+
+React 관리자 화면은 `#/admin`에 있으며 로그인·me·overview를 실제 연결한다. 전체 관리자 역할과 활성 상태를 서버에서 확인한다. 기본 JWT 키·기존 예제 비밀번호 사용은 거부한다.
+
+계정 발급: `python -m scripts.create_admin --email 실제이메일` (비밀번호 숨김 입력), 기존 계정 재발급은 `--reset`. 별도 회원가입은 없다. 키/계정/프록시 실행과 지표 정의는 [관리자 연동 가이드](../frontend/ADMIN_GUIDE.md)를 따른다.
+
+Overview의 `days`는 오늘 포함 KST 달력 일자 기준이다. 신규 세션/대화는 기간 내 생성 기준, 완료율·관계 단계는 그 대화의 현재 상태, 메시지·홍보 이벤트는 기간 내 발생 기준이다. 전체 누적 수치와 기간별 수치를 혼합하던 기존 집계를 보정했다. 응답 `environment`는 서버 환경이며 검증 전용 DB는 `local-qa`로 표시한다.
+
+기본 시드(서하린·카이·모모)는 프론트 3개 작품과 아직 매핑하지 않았다. 기존 개인 코드·채팅 API 동작은 유지한다. 선택지·공유·장면/엔딩별 분석·프로젝트별 제한 관리자·콘텐츠 편집은 후속 구현이다.
