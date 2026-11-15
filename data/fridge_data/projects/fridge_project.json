@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1",
+  "project_id": "fridge",
+  "document_status": "데이터 설계 초안",
+  "title": "우리 집 냉장고가 재벌 회장님이다",
+  "genre": [
+    "판타지",
+    "초현실 코미디",
+    "AI 숏드"
+  ],
+  "experience_mode": "A: 인물 되기",
+  "tagline": "중고 거래로 냉장고를 산 취업 준비생. 그 냉장고가 자신이 과거 대기업 회장이었다며 말을 걸어오기 시작한다.",
+  "user_role": "주인공(취업 준비생, 성별 미설정)",
+  "ai_role": "냉장고 회장",
+  "ai_persona_id": "fridge_chairman",
+  "target_turns": {
+    "approximate": true,
+    "count": 10
+  },
+  "duration_minutes": {
+    "min": 3,
+    "max": 5
+  },
+  "audience_rating": "전체 이용가",
+  "style": "권위적인데 허당인 회장과 현실적인 청년의 티격태격 코미디; 후반에는 긴장감",
+  "creative_work": true,
+  "not_romance": true,
+  "trailer_end": "인간으로 돌아갈 방법을 찾았다고 밝힌 순간에 중단; 방법·반전 미공개",
+  "configuration_status": {
+    "project_metadata": "바이블 확정",
+    "precise_turn_choices": "미확정",
+    "relationship_scoring": "미확정",
+    "external_promotion_url": "미확정"
+  },
+  "source_basis": [
+    "docs/stories/fridge/fridge-story-bible.md (2026-11-09)",
+    "docs/mingle-srs.md (v0.1, 2026-10-14)"
+  ]
+}

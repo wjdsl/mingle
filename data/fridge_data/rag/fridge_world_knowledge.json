@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1",
+  "project_id": "fridge",
+  "dataset_kind": "창작 작품 세계관 참고 데이터 (실제 외부 문서 검색 결과 아님)",
+  "source_basis": [
+    "docs/stories/fridge/fridge-story-bible.md §1–3"
+  ],
+  "public_facts": [
+    {
+      "id": "fridge_fact_01",
+      "topic": "setting",
+      "fact": "배경은 평범한 현대 사회의 작은 원룸이며, 주인공은 생활비가 빠듯해 중고 냉장고를 구매했다."
+    },
+    {
+      "id": "fridge_fact_02",
+      "topic": "refrigerator",
+      "fact": "설치 첫날 밤부터 냉장고가 사람 목소리로 말하고, 문에 달린 디스플레이에 표정과 글자를 표시한다."
+    },
+    {
+      "id": "fridge_fact_03",
+      "topic": "chairman_claim",
+      "fact": "냉장고는 자신이 전직 대기업 회장이고 믿었던 측근에게 배신당해 저주에 걸렸다고 주장한다. 이는 작품 속 그의 주장이다."
+    },
+    {
+      "id": "fridge_fact_04",
+      "topic": "credibility",
+      "fact": "회장은 주인공이 모르는 가상 기업 내부 정보와 주식 정보를 맞히며, 다음 날 뉴스로 일부 정보가 확인된다. 구체적인 수치·종목은 정해지지 않았다."
+    },
+    {
+      "id": "fridge_fact_05",
+      "topic": "motivation",
+      "fact": "회장의 목표는 인간으로 돌아가고 빼앗긴 자리를 되찾는 것이다."
+    },
+    {
+      "id": "fridge_fact_06",
+      "topic": "threat",
+      "fact": "중고 거래 판매자 또는 배송 기사로 위장한 사람을 포함해 과거 측근과 기업 관계자들이 냉장고를 찾는다."
+    },
+    {
+      "id": "fridge_fact_07",
+      "topic": "user_character",
+      "fact": "사용자는 취업과 생활비를 고민하는 청년 주인공을 연기하며 성별은 지정되지 않았다."
+    }
+  ],
+  "tentative_names": [
+    {
+      "role": "회장이 전직 회장이라고 주장하는 기업",
+      "candidate": "가람그룹",
+      "status": "가칭",
+      "publishable_as_final": false
+    },
+    {
+      "role": "회장의 옛 오른팔",
+      "candidate": "윤 실장",
+      "status": "가칭",
+      "publishable_as_final": false
+    }
+  ],
+  "offstage_roles": [
+    {
+      "role_id": "fridge_former_aide",
+      "description": "회장을 배신했다고 알려진 측근",
+      "appearance": "문자·전화·방문 알림 등 사건 메시지",
+      "revealed_identity_or_intent": false
+    },
+    {
+      "role_id": "fridge_company_agents",
+      "description": "냉장고를 수소문하는 기업 관계자들",
+      "appearance": "사건 메시지",
+      "revealed_identity_or_intent": false
+    }
+  ],
+  "restricted_topics": [
+    {
+      "id": "fridge_secret_curse",
+      "topic": "저주의 정체와 원리",
+      "disclosure": "금지"
+    },
+    {
+      "id": "fridge_secret_betrayal",
+      "topic": "측근이 배신한 진짜 이유",
+      "disclosure": "금지"
+    },
+    {
+      "id": "fridge_secret_return",
+      "topic": "인간으로 돌아가는 방법의 내용",
+      "disclosure": "금지"
+    },
+    {
+      "id": "fridge_secret_search",
+      "topic": "측근이 냉장고를 찾는 진짜 이유",
+      "disclosure": "금지"
+    }
+  ],
+  "restricted_response_example": "...그 질문은 하지 말게.",
+  "knowledge_gaps": [
+    "가칭 기업·인물의 확정명",
+    "구체적인 가상 주식 종목·가격·재무 정보",
+    "저주와 귀환 방법의 실제 설정 및 결말"
+  ]
+}

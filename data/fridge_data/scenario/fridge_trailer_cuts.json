@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1",
+  "project_id": "fridge",
+  "kind": "예고편 지점과 관계 단계별 마무리 대사 가안",
+  "source_basis": [
+    "docs/stories/fridge/fridge-story-bible.md §6"
+  ],
+  "intro_hook": {
+    "turn_number": 1,
+    "quote": "이봐. 문 좀 닫게. 냉기가 다 빠져나가잖아!",
+    "status": "바이블 대표 대사"
+  },
+  "trailer_cut": {
+    "turn_number": 10,
+    "trigger": "회장이 인간으로 돌아갈 방법을 찾았다고 밝힘",
+    "must_stop_before": "방법의 구체적인 내용과 결말·반전",
+    "disclosure_of_method_allowed": false
+  },
+  "relationship_variants": [
+    {
+      "relationship_stage_id": "fridge_rel_stage_1",
+      "dialogue": "흠흠. 자네한테 알려 줄 의리는 없지만… 인간으로 돌아갈 방법을 찾았네.",
+      "status": "바이블 가안"
+    },
+    {
+      "relationship_stage_id": "fridge_rel_stage_2",
+      "dialogue": "[호칭] 사원, 잘 듣게. 돌아갈 방법을 찾았네. 그런데 그러려면…",
+      "status": "바이블 가안"
+    },
+    {
+      "relationship_stage_id": "fridge_rel_stage_3",
+      "dialogue": "[호칭] 비서실장. 자네가 아니었으면 못 찾았을 걸세. 돌아갈 방법을 찾았네. 다만 자네 도움이 필요하네…",
+      "status": "바이블 가안"
+    }
+  ],
+  "post_cut_question": "회장님은 인간으로 돌아갈 수 있을까?",
+  "full_story_answer": null,
+  "final_ending_variants_status": "정해지지 않음: 관계 3단계의 예고편 대사를 완결 엔딩 3종으로 확정하지 않음"
+}

@@ -1,0 +1,85 @@
+{
+  "schema_version": "0.1",
+  "project_id": "fridge",
+  "specification_status": "논리 구조 구현 제안(프론트 저장 키·DB 필드 확정 아님)",
+  "source_basis": [
+    "docs/mingle-srs.md FR-12, FR-25, FR-44~45, FR-52, NFR-05~07",
+    "docs/stories/fridge/fridge-story-bible.md §5"
+  ],
+  "default_storage": "브라우저 로컬 저장소",
+  "fields": [
+    {
+      "name": "project_id",
+      "type": "string",
+      "sample": "fridge",
+      "purpose": "프로젝트 구분"
+    },
+    {
+      "name": "safe_nickname",
+      "type": "string|null",
+      "sample": null,
+      "purpose": "닉네임이 안전하게 확인된 경우에만 사용; 아니라면 자네로 대체"
+    },
+    {
+      "name": "current_turn",
+      "type": "integer",
+      "sample": 1,
+      "purpose": "현재 진행 턴 (1~10)"
+    },
+    {
+      "name": "current_phase_id",
+      "type": "string",
+      "sample": "fridge_phase_intro",
+      "purpose": "구간 참조"
+    },
+    {
+      "name": "relationship_stage_id",
+      "type": "string|null",
+      "sample": null,
+      "purpose": "승급 조건 확정 후 관계 단계 식별"
+    },
+    {
+      "name": "affinity_score",
+      "type": "number|null",
+      "sample": null,
+      "purpose": "수치 모델 미확정이므로 기본 점수 지정하지 않음"
+    },
+    {
+      "name": "story_flags",
+      "type": "object",
+      "sample": {},
+      "purpose": "필요한 핵심 사건만 저장; 세부 항목 미확정"
+    },
+    {
+      "name": "dismissed_promotion_ids",
+      "type": "string[]",
+      "sample": [],
+      "purpose": "현재 진행에서 닫은 홍보 재노출 방지"
+    },
+    {
+      "name": "trailer_cut_seen",
+      "type": "boolean",
+      "sample": false,
+      "purpose": "예고편 컷 도달 여부"
+    },
+    {
+      "name": "obtained_ending_ids",
+      "type": "string[]",
+      "sample": [],
+      "purpose": "향후 엔딩 확정 시 도감 획득 기록; 재시작해도 유지"
+    }
+  ],
+  "collection_restart_rule": "진행 상태는 새로 시작 가능하지만 획득한 도감은 유지(FR-45). 실제 엔딩 ID는 미확정.",
+  "do_not_persist": [
+    "실명",
+    "학번",
+    "학교",
+    "연락처",
+    "민감 정보",
+    "전체 대화 원문"
+  ],
+  "local_storage_key": null,
+  "retention_period": null,
+  "server_storage_contract": null,
+  "integration_status": "미구현/미확인; 실제 코드 연결 검증 필요"
+}

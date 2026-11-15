@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "project_id": "fridge",
+  "source_basis": [
+    "docs/stories/fridge/fridge-story-bible.md §6",
+    "docs/mingle-srs.md FR-30~34"
+  ],
+  "target_kind": "가상 작품의 본편 유도",
+  "official_destination_url": null,
+  "url_status": "미확정: 본편 공개 링크 미제공",
+  "points": [
+    {
+      "id": "fridge_promo_after_06",
+      "after_turn": 6,
+      "placement": "전개 끝 직후",
+      "example_copy": "회장님의 40년 비결은 본편에서",
+      "copy_status": "바이블 예시, 최종 문구 미확정",
+      "kind": "안내 문구",
+      "url": null,
+      "must_be_clickable": false
+    },
+    {
+      "id": "fridge_promo_after_10",
+      "after_turn": 10,
+      "placement": "예고편 컷 직후",
+      "example_copy": "회장님은 인간으로 돌아갈 수 있을까?",
+      "copy_status": "바이블 예시, 최종 문구 미확정",
+      "kind": "본편 안내/관계별 예고편 다시 보기",
+      "url": null,
+      "must_be_clickable": false
+    }
+  ],
+  "delivery_rules": {
+    "max_exposures_at_turn_6": 1,
+    "forced_click": false,
+    "dismissed_not_reshown_in_same_run": true,
+    "hide_during_crisis_signal": true,
+    "show_actual_link_only_if_approved": true
+  },
+  "content_assets": {
+    "poster_path": null,
+    "poster_approval": "미확정",
+    "source_url": null,
+    "checked_at": null
+  },
+  "disclaimer": "아직 승인된 본편 URL·포스터가 없어 실제 연결 버튼을 활성화할 수 없음. 가상 작품임을 명확히 표시."
+}
