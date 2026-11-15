@@ -4,3 +4,8 @@
 backend/.env
 backend/.venv/
 **/__pycache__/
+# Local databases (recreated on startup)
+*.db
+*.sqlite
+*.sqlite3
+*.pyc
