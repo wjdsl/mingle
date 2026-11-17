@@ -286,3 +286,24 @@
 - 이미지 확대창은 제목 중앙/닫기 오른쪽의 독립 상단 바와 12px 간격을 사용한다. 기존 확대·Escape·스크롤 복귀는 유지한다.
 - 의견은 작성/검증/복사까지만 제공한다. 저장 API/실제 전송·AI·관계 분석·영구 저장은 미연결이다.
 - 최종 build 및 기존 테스트 9개 통과. 사용자 원본 Images/와 .backups/는 커밋 대상에서 제외한다. 백엔드/data/prompts 변경 없음.
+
+
+## 2026-11-15 냉장고·구름섬 Gemini 연동 (feature/gemini-story-fridge-cloud)
+
+- origin/main@103d05a 기반 독립 브랜치. 백엔드 `/api/story-chat`(장면 정의·턴 처리·`story_turns` 중복 방지 표), 프론트 `apiStoryClient.ts`와 `VITE_STORY_CLIENT=api` 모드를 추가했다. 기본은 Mock이며 API 모드 실패 시 Mock으로 대체하지 않는다. 푸르마·Qwen 실험 브랜치 파일은 변경하지 않았다. 새 의존성 없음.
+- GeminiProvider는 키를 헤더(x-goog-api-key)로 보낸다. 관계 점수·성향 분석·결과 판정은 구현하지 않았다. 상세·PR #4 비교·미완료는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절과 `frontend/STORY_CHAT_GEMINI_REVIEW.md`.
+- 커밋/푸시/PR 없음.
+
+## 2026-11-15 냉장고·구름섬 10턴 데이터 구조화 (코드 미변경)
+
+- 사용자 요청에 따라 Gemini 호출·API·프론트 UI·DB는 수정하지 않고 데이터만 구조화했다. 원본은 `docs/stories/{fridge,cloud}/*-story-bible.md`, `*-scenario.md`.
+- 신규 `data/fridge_data/scenario/fridge_scene_cards_draft.json`(v0.1)과 `data/cloud_data/scenario/cloud_scene_cards_draft.json`은 공식 개요 `fridge_story_outline.json`, `cloud_story_outline.json`과 별개인 시나리오 초안 추출본이다. 2026-11-17 작업 트리 확인에서 공식 `cloud_story_outline.json`의 변경은 없었다. 각 10턴의 장면·첫 대사·화자·지문·시스템 메시지·버튼·의도표·고정 연출을 원문 그대로 옮겼고 출처 수준을 bible_confirmed / bible_draft / scenario_draft / unconfirmed로 구분한다.
+- 점수·관계 단계·성향 판정은 시나리오 제안값만 '미확정'으로 보관한다. `cloud_trait_axes.json` 등 다른 cloud_data 파일은 변경하지 않았다.
+- 검증: `python data/validate_story_outlines.py`(스키마·원문 일치·미확정 유지 52항목), `python data/cloud_data/tests/validate_cloud_chat_data.py`(폴더 이름 변경 후 깨진 경로를 수정, 80항목).
+- 커밋/푸시 없음.
+
+## 2026-11-15 냉장고·구름섬 P1: 공식 데이터 프롬프트·응답 제어·시나리오 초안 10턴
+
+- 범위: 백엔드 LLM·프롬프트·응답 제어·장면 컨텍스트만. 프론트·공식 데이터·시나리오 원본·팀원 검증 스크립트는 변경하지 않았다. 점수·관계 단계·엔딩 판정은 미구현.
+- `story_data.py`가 저장소 루트 `data/` 또는 `STORY_DATA_DIR`에서 공식 JSON과 장면 카드 초안을 읽는다. 현재 프론트 API 모드는 기본 `ui_mock_v1`(냉장고 10장면·구름섬 3미션)을 사용한다. 두 작품의 `scenario_draft_v1` 10턴은 API에서 선택할 수 있으며 프론트에는 연결되어 있지 않다. 상세는 `backend/README.md` 해당 절.
+- 당시 백엔드 테스트 55개(신규 17), 프론트 20개·빌드, 초안 검증 52개가 통과했다. 앞선 기본 세트의 실제 Gemini 검증은 작품별 첫 2장면과 구름섬 브라우저 1미션이었다. P1 적용 후 실제 Gemini 전체 진행은 미실행이다. 커밋/푸시 없음.

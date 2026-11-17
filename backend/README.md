@@ -386,3 +386,14 @@ React 관리자 화면은 `#/admin`에 있으며 로그인·me·overview를 실�
 Overview의 `days`는 오늘 포함 KST 달력 일자 기준이다. 신규 세션/대화는 기간 내 생성 기준, 완료율·관계 단계는 그 대화의 현재 상태, 메시지·홍보 이벤트는 기간 내 발생 기준이다. 전체 누적 수치와 기간별 수치를 혼합하던 기존 집계를 보정했다. 응답 `environment`는 서버 환경이며 검증 전용 DB는 `local-qa`로 표시한다.
 
 기본 시드(서하린·카이·모모)는 프론트 3개 작품과 아직 매핑하지 않았다. 기존 개인 코드·채팅 API 동작은 유지한다. 선택지·공유·장면/엔딩별 분석·프로젝트별 제한 관리자·콘텐츠 편집은 후속 구현이다.
+
+## 2026-11-15 냉장고·구름섬 장면형 스토리 API
+
+`/api/story-chat/*`(세션은 기존 개인 코드). 장면 정의 `app/services/story_scenes.py`, 처리 `app/services/story_turn_service.py`, 재시도 중복 방지 표 `story_turns`(create_all로 생성). 기존 LLM 공급자를 재사용하며 Mock 공급자일 때는 `provider: "mock"`, `model: "mock-story-v1"`로 고정 응답임을 표시한다. 실제 연동 확인은 `python -m scripts.smoke_story_chat`(provider가 gemini가 아니면 exit 1). 상세·한계는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절.
+
+### 2026-11-15 공식 데이터 기반 프롬프트·응답 제어·시나리오 초안 10턴 (P1)
+- 프롬프트: `app/prompts/story_{fridge,cloud}_system.md` 템플릿 + `app/services/story_prompt.py`. 캐릭터·규칙·금지·세계관은 공식 데이터(`data/*_data/persona|rules|rag`, 냉장고 예고편)를 **읽기 전용**으로 사용한다(`app/services/story_data.py`, 경로는 `STORY_DATA_DIR` 또는 저장소 `data/`). 데이터가 없으면 기존 내장 규칙으로 대체한다.
+- 장면 세트: `ui_mock_v1`(기본, 현재 프론트 Mock과 동일) / `scenario_draft_v1`(시나리오 장면 카드 초안 10턴, `app/services/story_scene_sets.py`). 대화 생성 시 `{"project": …, "scene_set": …}`. 점수·관계 단계·판정은 구현하지 않으며 장면 카드의 점수 표현은 프롬프트에서 제거한다.
+- 고정 연출: 냉장고 4턴 두 번째 대사·9턴 마무리 지문은 LLM 응답 뒤 서버가 붙이고, 10턴(냉장고 공식 예고편 1단계 대사·구름섬 고정 연출)은 `POST /api/story-chat/conversations/{id}/fixed-turns`로 LLM 없이 진행한다. 장면 조회: `GET /api/story-chat/scene-sets/{project}/{scene_set}`.
+- 응답 제어(`app/services/story_response_control.py`): 존댓말·3문장 초과·지문 수·성별 호칭·미노출 가칭·실존 투자·지침 노출·이후 장면 문장(장면 이탈)·반복·두두 호칭을 검사하고, 위반 시 교정 메모와 함께 1회 재생성, 계속 위반이면 502(저장 없음). 턴 응답 스키마는 변경 없음(대화 생성/조회 응답에 `scene_set` 필드만 추가).
+- 테스트: `tests/test_story_prompt_control.py`(17건). 실제 Gemini 스모크: `python -m scripts.smoke_story_chat --scene-set scenario_draft_v1`(`--dry-run`으로 호출 계획만 확인).

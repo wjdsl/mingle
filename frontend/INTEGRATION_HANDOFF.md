@@ -58,3 +58,34 @@ Figma 대표 화면과 달리 실제 스토리의 대사/지문/반응·진행 �
 - 390×460에서 로그198px, 입력 하단452px로 화면460px 내부에 유지.
 - 이미지 확대/닫기, ··· 의견 dialog 진입, Skip 확인. 콘솔 error 없음(검증 탭 로그).
 - 실제 서버/LLM 호출, 로그인/관리자, 실제 OS 공유 전송, 실제 휴대폰 키보드/스크린리더, 이미지 네트워크 실패 시뮬레이션은 미검증.
+
+## 2026-11-15 냉장고·구름섬 실제 API 연결 (브랜치 `feature/gemini-story-fridge-cloud`)
+
+위 '현재 앱은 의도적으로 Mock만 사용' 기록은 이 작업 전 상태다. 푸르마(ConversationClient·reducer·2턴 데이터)는 변경하지 않았다.
+
+### 구조
+- 백엔드 `POST /api/sessions`(기존) → `POST /api/story-chat/conversations {project}` → `POST /api/story-chat/conversations/{id}/turns {request_id, turn, input:{text, choice_id?}}`. 조회는 `GET /api/story-chat/conversations/{id}`. 인증은 기존 X-Personal-Code.
+- 프론트 API 모드는 기본 `ui_mock_v1`(냉장고 10장면·구름섬 3미션)을 사용한다. `backend/app/services/story_scenes.py`의 기본 장면과 프론트 카탈로그 간 일치는 `tests/test_story_chat.py`가 검사한다. 후속 P1에서 `story_data.py`가 저장소 루트 `data/` 또는 `STORY_DATA_DIR`의 공식 페르소나·규칙·세계관 JSON을 읽도록 추가했다. 공식 데이터가 없으면 내장 프롬프트 규칙을 사용한다.
+- 두 작품의 `scenario_draft_v1`은 API에서 대화 생성 시 선택할 수 있는 별도 10턴 초안이다. 현재 프론트는 해당 세트나 입력 없는 `fixed-turns` 경로에 연결되어 있지 않다.
+- 처리 `backend/app/services/story_turn_service.py`: 기존 `get_llm()`(GeminiProvider) 재사용, JSON 출력 검증(형식 오류 1회 재시도), 기존 금지어 가드레일, 연락처·이메일·긴 숫자 마스킹. 일반 `/api/chat`의 관계 점수·RAG·User Note·마케팅 Trigger는 쓰지 않는다. 스토리 페르소나 행은 비활성으로 생성돼 일반 채팅/페르소나 목록에서 제외된다(대시보드 페르소나 집계에는 표시될 수 있음).
+- 중복 방지: 새 표 `story_turns`의 (conversation_id, turn_index)·(conversation_id, request_id) 고유 제약. 같은 request_id 재시도는 저장된 응답을 `replayed:true`로 반환하고 메시지를 늘리지 않는다. LLM 실패 시 아무것도 저장하지 않는다(502). 요청 turn이 서버 진행과 다르면 409(`detail.current_turn`).
+- 프론트 `src/services/apiStoryClient.ts`: 세션/대화를 메모리에서 1회 생성(실패 시 다음 시도에서 재생성), choice index → `fridge-01-a` 형식 ID, 응답의 request_id·turn·completed_turns가 화면 턴과 다르면 진행하지 않는다. 구름섬은 1~3명 대사를 각 말풍선으로 표시한다. 시간 초과 90초.
+- 모드: `VITE_STORY_CLIENT=api`일 때만 실제 API(기본은 기존 Mock). API 모드에서 실패하면 Mock으로 대체하지 않고 오류·재시도를 표시한다. 백엔드가 Mock 공급자로 응답하면 말풍선에 'AI 미연결 · 서버 고정 응답'을 표시하고 `data-provider/data-model` 속성을 남긴다.
+- 키: 백엔드 `backend/.env`의 `GEMINI_API_KEY`(+ `LLM_PROVIDER=gemini`, 필요 시 `GEMINI_CHAT_MODEL`). GeminiProvider는 키를 URL 쿼리 대신 `x-goog-api-key` 헤더로 보내도록 바꿨다. 프론트 번들에는 키·공급자 설정이 없다.
+
+### 실행
+```bash
+cd backend && LLM_PROVIDER=gemini uvicorn app.main:app --port 8000
+cd frontend && VITE_STORY_CLIENT=api npm run dev
+cd backend && python -m scripts.smoke_story_chat   # provider가 gemini가 아니면 실패
+```
+
+### PR #4(feature/ai-llm-local)와의 비교
+- PR #4는 `backend/main.py` 별도 FastAPI 앱 + google-genai/python-dotenv 의존성 + 푸르마 전용 무상태 `/api/chat/turn`(history를 클라이언트가 전송, requestId 미사용)이다. main의 `app/` 구조·세션·대화 저장과 경로/스키마가 달라 병합·복사하지 않았다.
+- 참고한 점: 사용자 입력/대화 맥락을 신뢰하지 않는 자료로 표시, JSON 출력 강제·검증, 오류 원문·키를 로그/응답에 남기지 않음. 새 의존성은 추가하지 않았다.
+
+### 미완료·팀 확인
+- 2026-11-15 초기 기본 세트에서 실제 Gemini(gemini-3.5-flash)로 냉장고·구름섬 각 첫 2장면과 구름섬 브라우저 1미션을 확인했다(당시 지연 5~12초). 상세는 `frontend/STORY_CHAT_GEMINI_REVIEW.md`. 후속 P1의 공식 프롬프트·응답 제어와 초안 10턴은 자동화 테스트 범위이며 실제 Gemini 전 구간과 적대적 입력 평가는 미실행이다.
+- 냉장고 호감도·직함 승급, 장면당 최대 3회 주고받기, 구름섬 성향 점수·결과 판정은 미확정이라 구현하지 않았다(1장면 1입력 유지). 구름섬 결과는 계속 고정 나나 샘플이다.
+- 가칭(가람그룹·윤 실장·한빛전자)은 확정 전이라 프롬프트에서 고유명사를 만들지 않도록 했다. 프론트 구름섬 역할 표기(비비 정비, 키키 발명가, 두두 행동파)와 바이블(비비 발명가 겸 정비, 키키 사고뭉치, 두두 버팀목)이 다르며, 프롬프트는 바이블을 따른다.
+- 새로고침 후 세션 복원·개인 코드 보관, 위기 상황 공식 안내 문구, 실제 서버 통계 이벤트는 미구현. SQLite에서 LLM 호출 중 트랜잭션은 닫지만 운영 DB 검증은 하지 않았다.
