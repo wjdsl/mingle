@@ -255,7 +255,7 @@ def build_story_messages(
             {
                 "role": "user",
                 "content": json.dumps(
-                    {"장면": index + 1, "장면 제목": past.title, "첫 대사": past.opening, "사용자 입력": past_user},
+                    {"장면": index + 1, "장면 제목": past.title, "사용자 입력": past_user},
                     ensure_ascii=False,
                 ),
             }

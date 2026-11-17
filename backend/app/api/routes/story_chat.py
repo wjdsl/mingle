@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+from weakref import WeakValueDictionary
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_session, get_owned_conversation
@@ -28,6 +30,7 @@ from app.schemas.story_chat import (
     StoryTurnResponse,
 )
 from app.services.llm import LLMError
+from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
 from app.services.story_scenes import get_project
 from app.services.story_turn_service import (
     StoryTurnError,
@@ -42,14 +45,14 @@ from app.services.story_turn_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/story-chat", tags=["story-chat"])
+_turn_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
 
 def llm_failure_reason(exc: Exception) -> str:
     """로그용 원인 분류만 추출한다(오류 본문·사용자 입력·키는 남기지 않는다)."""
+    if isinstance(exc, GeminiHTTPError):
+        return f"provider_http_{exc.status_code}"
     message = str(exc)
-    status = re.findall(r"Gemini 오류 (\d{3})", message)
-    if status:
-        return f"provider_http_{status[-1]}"
     if "검증 실패" in message:
         return "response_control:" + re.sub(r"[^a-z_,]", "", message.split(":", 1)[-1])[:80]
     if "연결 실패" in message:
@@ -198,23 +201,36 @@ async def send_fixed_turn(
 async def send_turn(
     conversation_id: str,
     payload: StoryTurnRequest,
+    x_story_provider: str | None = Header(default=None, pattern="^(gemini|mock)$"),
     session: UserSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db),
 ) -> StoryTurnResponse:
-    conversation = await get_owned_conversation(db, session.id, conversation_id)
+    # 한 서버 프로세스에서 동시 재전송이 같은 턴을 두 번 생성하지 않게 한다.
+    # 여러 프로세스에서의 저장 중복은 story_turns의 고유 제약으로 막는다.
+    lock = _turn_locks.setdefault(conversation_id, asyncio.Lock())
     try:
-        outcome = await process_story_turn(
-            db,
-            session,
-            conversation,
-            request_id=payload.request_id,
-            turn=payload.turn,
-            text=payload.input.text,
-            choice_id=payload.input.choice_id,
-        )
+        async with lock:
+            conversation = await get_owned_conversation(db, session.id, conversation_id)
+            outcome = await process_story_turn(
+                db,
+                session,
+                conversation,
+                request_id=payload.request_id,
+                turn=payload.turn,
+                text=payload.input.text,
+                choice_id=payload.input.choice_id,
+                expected_provider=x_story_provider,
+            )
     except StoryTurnError as exc:
         await db.rollback()
         raise _http_error(exc) from exc
+    except GeminiQuotaError as exc:
+        await db.rollback()
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after is not None else None
+        raise HTTPException(429, detail={"code": f"gemini_quota_{exc.kind}"}, headers=headers) from exc
+    except GeminiTimeoutError as exc:
+        await db.rollback()
+        raise HTTPException(504, detail="Gemini 응답 시간이 초과되었습니다.") from exc
     except LLMError as exc:
         await db.rollback()
         # 예외 원문에는 공급자 응답 일부가 있을 수 있어 분류만 기록한다.
@@ -224,6 +240,8 @@ async def send_turn(
             type(exc).__name__,
             llm_failure_reason(exc),
         )
+        if isinstance(exc, GeminiHTTPError) and exc.status_code == 503:
+            raise HTTPException(503, detail={"code": "gemini_unavailable"}) from exc
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",

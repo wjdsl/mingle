@@ -10,13 +10,23 @@ import { useEffect, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import purumaImage from '../../assets/puruma/happy.png'
+import { storyClientMode } from '../../services/storyClient'
 import { shareProject } from '../../services/shareProject'
 
 export function ActionButton({ secondary = false, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { secondary?: boolean }) {
   return <button {...props} className={`${secondary ? 'p-secondary' : 'p-primary'} ${className}`} />
 }
 
-export function DemoNotice({ compact = false }: { compact?: boolean }) {
+function usesGemini(project: StoryProject) {
+  return project.id !== 'puruma' && storyClientMode() === 'api'
+}
+
+const geminiNotice = '입력은 Gemini에 전송돼요. 마지막 장면은 고정 연출이고, 새로고침하면 처음부터 시작해요.'
+
+export function DemoNotice({ compact = false, project }: { compact?: boolean; project: StoryProject }) {
+  if (usesGemini(project)) return compact
+    ? <details className="p-demo-details"><summary>Gemini 모드 <span aria-hidden="true">ⓘ</span></summary><p>{geminiNotice}</p></details>
+    : <p className="p-demo-notice">{geminiNotice}</p>
   if (!compact) return <p className="p-demo-notice">실제 AI 없이 정해진 대사로 답하는 체험이에요.<br />진행은 새로고침하면 초기화돼요.</p>
   return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요. 진행은 새로고침하면 초기화돼요.</p></details>
 }
@@ -26,11 +36,11 @@ export function AppShell({ project, onBack, onHome, children, immersive = false 
     {immersive ? <header className="p-work-header p-immersive-header">
       <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>
       <span className="p-chat-work-title" title={project.title}>{project.id === 'fridge' ? '냉장고 회장님' : project.title}</span>
-      <details className="p-chat-menu"><summary aria-label="채팅 메뉴">···</summary><div><button onClick={onHome}>MINGLE 홈으로</button><FeedbackButton /><p>시연 모드 · 실제 AI 없이 정해진 대사로 진행돼요. 새로고침하면 초기화돼요.</p></div></details>
+      <details className="p-chat-menu"><summary aria-label="채팅 메뉴">···</summary><div><button onClick={onHome}>MINGLE 홈으로</button><FeedbackButton /><p>{usesGemini(project) ? geminiNotice : "Mock 모드 · 정해진 대사로 진행돼요. 새로고침하면 초기화돼요."}</p></div></details>
     </header> : <header className="p-work-header"><div className="p-header-navigation">
       {onBack && <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>}
       <button className="p-wordmark p-home-button" onClick={onHome} aria-label="MINGLE 홈으로">mingle<span>✳</span></button>
-    </div><div className="p-header-tools"><FeedbackButton compact /><DemoNotice compact /></div></header>}{children}
+    </div><div className="p-header-tools"><FeedbackButton compact /><DemoNotice compact project={project} /></div></header>}{children}
   </div>
 }
 
@@ -38,7 +48,7 @@ export function ExitDialog({ onCancel, onLeave }: { onCancel(): void; onLeave():
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { dialog.current?.showModal() }, [])
   return <dialog className="p-exit-dialog" ref={dialog} onCancel={event => { event.preventDefault(); onCancel() }} aria-labelledby="exit-heading">
-    <h2 id="exit-heading">홈으로 돌아갈까요?</h2><p>지금 대화는 저장되지 않아요.<br />다시 들어오면 처음부터 시작해요.</p>
+    <h2 id="exit-heading">홈으로 돌아갈까요?</h2><p>다시 들어오면 처음부터 시작해요.</p>
     <div><ActionButton secondary onClick={onCancel}>계속 대화하기</ActionButton><ActionButton onClick={onLeave}>홈으로</ActionButton></div>
   </dialog>
 }

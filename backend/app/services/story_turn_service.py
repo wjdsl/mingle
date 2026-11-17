@@ -326,7 +326,7 @@ async def _generate(
     started = time.perf_counter()
     correction: str | None = None
     seen: list[str] = []
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    for attempt in range(1, min(settings.story_generation_attempts, MAX_ATTEMPTS) + 1):
         messages, versions = build_story_messages(project, nickname, turn, history, user_text, choice, correction)
         result = await llm.generate(
             messages,
@@ -463,11 +463,14 @@ async def process_story_turn(
     turn: int,
     text: str,
     choice_id: str | None,
+    expected_provider: str | None = None,
 ) -> StoryTurnOutcome:
     project = await resolve_project(db, conversation)
     replay = await _check_turn(db, conversation, project, request_id, turn)
     if replay is not None:
         return replay
+    if expected_provider and get_llm().name != expected_provider:
+        raise StoryTurnError(503, "요청한 스토리 공급자를 사용할 수 없습니다.")
     scene = project.scenes[turn]
     if scene.input_mode == "none":
         raise StoryTurnError(409, "이 장면은 입력 없이 고정 연출로 진행합니다. fixed-turns 경로를 사용하세요.", current_turn=turn)

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: companion
       POSTGRES_PASSWORD: companion
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,9 +25,25 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3.5-flash}
+      GEMINI_HTTP_ATTEMPTS: ${GEMINI_HTTP_ATTEMPTS:-2}
+      STORY_GENERATION_ATTEMPTS: ${STORY_GENERATION_ATTEMPTS:-2}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-}
+      GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:-0}
+      LLM_PROBE_ON_STARTUP: ${LLM_PROBE_ON_STARTUP:-true}
+      SEED_ON_STARTUP: ${SEED_ON_STARTUP:-true}
+      STORY_DATA_DIR: /story-data
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
+    volumes:
+      - ../data:/story-data:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+      start_period: 15s
     depends_on:
       db:
         condition: service_healthy

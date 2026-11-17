@@ -250,3 +250,58 @@ def test_scene_text_matches_frontend_mock_catalog():
             assert opening in source, opening
             for choice in scene.choices:
                 assert choice.label in source and choice.reference_reply.split(": ", 1)[-1] in source
+
+
+async def test_quota_keeps_turn_retryable_and_provider_mismatch_does_not_generate(client, monkeypatch):
+    from app.services.llm.gemini_provider import GeminiQuotaError
+
+    headers, cid = await _start(client, "fridge")
+    url = f"/api/story-chat/conversations/{cid}/turns"
+    payload = _turn(0, "문을 닫았어요.")
+    live_headers = {**headers, "X-Story-Provider": "gemini"}
+
+    unavailable = await client.post(url, json=payload, headers=live_headers)
+    assert unavailable.status_code == 503
+    fake = FakeGemini([GeminiQuotaError("minute", 30), _fridge_json()])
+    monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
+    mock_headers = {**headers, "X-Story-Provider": "mock"}
+    assert (await client.post(url, json=payload, headers=mock_headers)).status_code == 503
+    assert len(fake.calls) == 0
+
+    limited = await client.post(url, json=payload, headers=live_headers)
+    assert limited.status_code == 429
+    assert limited.headers["Retry-After"] == "30"
+    assert limited.json()["detail"]["code"] == "gemini_quota_minute"
+    assert await _message_count(client, headers, cid) == 0
+
+    retry = await client.post(url, json=payload, headers=live_headers)
+    assert retry.status_code == 200
+    assert retry.json()["completed_turns"] == 1
+    replay = await client.post(url, json=payload, headers=live_headers)
+    assert replay.json()["replayed"] is True
+    assert len(fake.calls) == 2
+    assert await _message_count(client, headers, cid) == 2
+
+
+async def test_gemini_503_surfaces_without_saving_turn_and_same_id_can_retry(client, monkeypatch):
+    from app.services.llm.gemini_provider import GeminiHTTPError
+
+    headers, cid = await _start(client, "fridge")
+    headers["X-Story-Provider"] = "gemini"
+    url = f"/api/story-chat/conversations/{cid}/turns"
+    payload = _turn(0, "문을 닫았어요.")
+    fake = FakeGemini([GeminiHTTPError(503), _fridge_json()])
+    monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
+
+    failed = await client.post(url, json=payload, headers=headers)
+    assert failed.status_code == 503
+    assert failed.json()["detail"] == {"code": "gemini_unavailable"}
+    assert await _message_count(client, headers, cid) == 0
+
+    retried = await client.post(url, json=payload, headers=headers)
+    assert retried.status_code == 200
+    assert retried.json()["request_id"] == payload["request_id"]
+    assert retried.json()["completed_turns"] == 1
+    assert (await client.post(url, json=payload, headers=headers)).json()["replayed"] is True
+    assert len(fake.calls) == 2
+    assert await _message_count(client, headers, cid) == 2

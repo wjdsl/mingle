@@ -44,19 +44,22 @@ test('세션·대화는 한 번만 만들고 개인 코드와 선택지 ID로 �
 })
 
 test('같은 requestId 재시도는 그대로 전송되고 서버 재생 응답을 받는다', async () => {
-  let failures = 1
+  const sentIds: string[] = []
   const backend = fakeBackend(fridge)
   const flaky = async (url: string, init?: RequestInit) => {
-    if (url.endsWith('/turns') && failures-- > 0) return new Response('{"detail":"AI 응답 생성에 실패했습니다."}', { status: 502 })
+    if (url.endsWith('/turns')) {
+      sentIds.push(JSON.parse(String(init?.body)).request_id)
+      if (sentIds.length === 1) return Response.json({ detail: { code: 'gemini_unavailable' } }, { status: 503 })
+    }
     return backend.fetch(url, init)
   }
   const client = createApiStoryClient({ displayName: '민트', fetch: flaky })
   const request = { requestId: 'retry-stable-0001', project: fridge, turn: 0, input: { text: '안녕' } }
-  await assert.rejects(client.sendTurn(request, signal()), (error: unknown) => error instanceof StoryApiError && error.kind === 'server' && error.status === 502)
+  await assert.rejects(client.sendTurn(request, signal()), (error: unknown) => error instanceof StoryApiError && error.kind === 'server' && error.status === 503 && /잠시 후 같은 답변/.test(error.message))
   const ok = await client.sendTurn(request, signal())
   assert.equal(ok.speaker, '냉장고 회장')
-  const turnBodies = backend.calls.filter(c => c.url.endsWith('/turns')).map(c => c.body.request_id)
-  assert.deepEqual(turnBodies, ['retry-stable-0001'])
+  assert.equal((await client.sendTurn(request, signal())).meta?.replayed, true)
+  assert.deepEqual(sentIds, ['retry-stable-0001', 'retry-stable-0001', 'retry-stable-0001'])
   assert.equal(backend.calls.filter(c => c.url === '/api/sessions').length, 1)
 })
 

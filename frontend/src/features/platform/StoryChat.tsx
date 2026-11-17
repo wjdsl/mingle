@@ -1,5 +1,5 @@
 import type { StoryClient } from '../../services/storyClient'
-import { createSessionStoryClient } from '../../services/storyClient'
+import { createSessionStoryClient, storyClientMode } from '../../services/storyClient'
 import { useContext } from 'react'
 import { ChatEntryMessages } from './ChatIntro'
 import { SceneImage } from './SceneImage'
@@ -8,7 +8,8 @@ import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait } from './shared'
 import { useStoryChat } from './useStoryChat'
 import type { StoryMessage } from './useStoryChat'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { loadStoryScenario } from '../../services/apiStoryClient'
 
 export function MessageComposer({ disabled, onSend }: { disabled: boolean; onSend(text: string): void }) {
   const [draft, setDraft] = useState('')
@@ -32,14 +33,41 @@ export function ChatBubble({ message, project, latest }: { message: StoryMessage
   return <div className={`p-bubble p-${message.role}`} data-provider={message.provider} data-model={message.model}>
     <div className="p-speaker">{message.role === 'character' && <span className="p-speaker-symbol" aria-hidden="true">{project.id === 'fridge' ? <span className="p-mini-fridge"><CharacterPortrait project={project} compact /></span> : character?.symbol ?? '✦'}</span>}<b>{message.speaker}</b></div>
     <p>{display && <span className="p-display-direction">{display}</span>}{spokenText}</p>{latest && message.reaction && <span className="p-reaction">{message.reaction}</span>}
+    {message.provider === 'gemini' && <small className="p-provider-note">Gemini · {message.model}</small>}
+    {message.provider === 'fixed' && <small className="p-provider-note">고정 연출</small>}
     {unlinked && <small className="p-provider-note">AI 미연결 · 서버 고정 응답</small>}
   </div>
 }
 export function ChatLayout({ project, name, onResult, client }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void }) {
+  if (client || storyClientMode() === 'mock') return <StoryConversation project={project} name={name} onResult={onResult} client={client} />
+  return <ScenarioChat project={project} name={name} onResult={onResult} />
+}
+
+function ScenarioChat({ project, name, onResult }: { project: StoryProject; name: string; onResult(): void }) {
+  const [scenario, setScenario] = useState<StoryProject>()
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    loadStoryScenario(project, name, controller.signal).then(loaded => {
+      if (!controller.signal.aborted) setScenario(loaded)
+    }).catch(() => {
+      if (!controller.signal.aborted) setFailed(true)
+    })
+    return () => controller.abort()
+  }, [project, name, attempt])
+  if (scenario) return <StoryConversation project={scenario} name={name} onResult={onResult} />
+  return <main className="p-chat-layout">{failed
+    ? <div className="p-error" role="alert"><span>장면을 불러오지 못했어요.</span><button onClick={() => { setFailed(false); setAttempt(old => old + 1) }}>다시 시도</button></div>
+    : <p className="p-loading" role="status">장면을 불러오고 있어요</p>}
+  </main>
+}
+
+function StoryConversation({ project, name, onResult, client }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void }) {
   const visibleMessages = useContext(ChatEntryMessages)
   // 세션(key)마다 새 클라이언트 → 새 서버 대화. 기본은 Mock, VITE_STORY_CLIENT=api일 때 실제 API.
   const [sessionClient] = useState(() => client ?? createSessionStoryClient(name))
-  const { turn, messages, status, selected, step, send, retry, advance, errorMessage } = useStoryChat(project, name, onResult, sessionClient)
+  const { turn, messages, status, selected, step, send, retry, advance, errorMessage, retryBlocked } = useStoryChat(project, name, onResult, sessionClient)
   const log = useRef<HTMLDivElement>(null)
   const stream = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -66,8 +94,8 @@ export function ChatLayout({ project, name, onResult, client }: { client?: Story
       {status === 'loading' && <p className="p-loading" role="status">● ● ● 답변을 준비하고 있어요</p>}
     </div></div>
     <section className="p-composer" aria-label="답변 보내기">
-      {status === 'error' && <div className="p-error" role="alert"><span>{errorMessage ?? '답변을 불러오지 못했어요.'}</span><button onClick={() => void retry()}>다시 시도</button></div>}
-      {status === 'replied' ? <button className="p-primary" ref={next} onClick={() => { follow.current = true; advance() }}>{turn === project.steps.length - 1 ? (project.id === 'fridge' ? '예고편 마무리' : '결과 예시 보기') : '다음 장면'} <span aria-hidden="true">→</span></button> : <>
+      {status === 'error' && <div className="p-error" role="alert"><span>{errorMessage ?? '답변을 불러오지 못했어요.'}</span><button disabled={retryBlocked} onClick={() => void retry()}>다시 시도</button></div>}
+      {status === 'replied' ? <button className="p-primary" ref={next} onClick={() => { follow.current = true; advance() }}>{turn === project.steps.length - 1 ? (project.id === 'fridge' ? '예고편 마무리' : '결과 예시 보기') : '다음 장면'} <span aria-hidden="true">→</span></button> : step.inputMode === 'none' ? <ActionButton disabled={status !== 'idle'} onClick={() => { follow.current = true; send('') }}>마지막 장면 재생</ActionButton> : <>
         {project.id !== 'fridge' && <p className="p-input-label">선택하거나 직접 답해 보세요.</p>}<div className="p-choices">{step.choices.map((c, i) => <ActionButton secondary key={c.label} className={`p-choice ${selected === i ? 'p-selected' : ''}`} aria-pressed={selected === i} disabled={status !== 'idle'} onClick={() => { follow.current = true; send(c.label, i) }}><span className="p-ticket-number">{selected === i ? '✓' : String(i + 1).padStart(2, '0')}</span><span>{c.label}</span><span className="p-ticket-perforation" aria-hidden="true" /></ActionButton>)}</div>
         <MessageComposer disabled={status !== 'idle'} onSend={text => { follow.current = true; send(text) }} />
       </>}

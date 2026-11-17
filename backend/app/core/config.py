@@ -5,7 +5,9 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
@@ -57,7 +59,10 @@ class Settings(BaseSettings):
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     gemini_chat_model: str = "gemini-3.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
-    gemini_thinking_budget: int = 0  # 0=thinking 비활성(빠른 응답), -1=모델 기본값
+    gemini_http_attempts: int = Field(default=2, ge=1, le=2)
+    story_generation_attempts: int = Field(default=2, ge=1, le=2)
+    gemini_thinking_level: Literal["", "minimal", "low", "medium", "high"] = ""
+    gemini_thinking_budget: int = 0  # 구형 옵션. -1이면 공급자 기본값을 사용한다.
     llm_timeout_seconds: float = 30.0
     llm_temperature: float = 0.8
     llm_max_tokens: int = 700
@@ -77,6 +82,7 @@ class Settings(BaseSettings):
     trigger_llm_judge_enabled: bool = False
     guardrail_enabled: bool = True
     seed_on_startup: bool = True
+    llm_probe_on_startup: bool = True
 
     @property
     def is_postgres(self) -> bool:

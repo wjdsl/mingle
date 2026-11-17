@@ -389,7 +389,7 @@ Overview의 `days`는 오늘 포함 KST 달력 일자 기준이다. 신규 세�
 
 ## 2026-11-15 냉장고·구름섬 장면형 스토리 API
 
-`/api/story-chat/*`(세션은 기존 개인 코드). 장면 정의 `app/services/story_scenes.py`, 처리 `app/services/story_turn_service.py`, 재시도 중복 방지 표 `story_turns`(create_all로 생성). 기존 LLM 공급자를 재사용하며 Mock 공급자일 때는 `provider: "mock"`, `model: "mock-story-v1"`로 고정 응답임을 표시한다. 실제 연동 확인은 `python -m scripts.smoke_story_chat`(provider가 gemini가 아니면 exit 1). 상세·한계는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절.
+`/api/story-chat/*`(세션은 기존 개인 코드). 장면 정의 `app/services/story_scenes.py`, 처리 `app/services/story_turn_service.py`, 재시도 중복 방지 표 `story_turns`(create_all로 생성). 기존 LLM 공급자를 재사용하며 Mock 공급자일 때는 `provider: "mock"`, `model: "mock-story-v1"`로 고정 응답임을 표시한다. 실제 연동 확인은 `python -m scripts.smoke_story_chat --expect-provider gemini`(provider가 gemini가 아니면 exit 1). 상세·한계는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절.
 
 ### 2026-11-15 공식 데이터 기반 프롬프트·응답 제어·시나리오 초안 10턴 (P1)
 - 프롬프트: `app/prompts/story_{fridge,cloud}_system.md` 템플릿 + `app/services/story_prompt.py`. 캐릭터·규칙·금지·세계관은 공식 데이터(`data/*_data/persona|rules|rag`, 냉장고 예고편)를 **읽기 전용**으로 사용한다(`app/services/story_data.py`, 경로는 `STORY_DATA_DIR` 또는 저장소 `data/`). 데이터가 없으면 기존 내장 규칙으로 대체한다.
@@ -397,3 +397,60 @@ Overview의 `days`는 오늘 포함 KST 달력 일자 기준이다. 신규 세�
 - 고정 연출: 냉장고 4턴 두 번째 대사·9턴 마무리 지문은 LLM 응답 뒤 서버가 붙이고, 10턴(냉장고 공식 예고편 1단계 대사·구름섬 고정 연출)은 `POST /api/story-chat/conversations/{id}/fixed-turns`로 LLM 없이 진행한다. 장면 조회: `GET /api/story-chat/scene-sets/{project}/{scene_set}`.
 - 응답 제어(`app/services/story_response_control.py`): 존댓말·3문장 초과·지문 수·성별 호칭·미노출 가칭·실존 투자·지침 노출·이후 장면 문장(장면 이탈)·반복·두두 호칭을 검사하고, 위반 시 교정 메모와 함께 1회 재생성, 계속 위반이면 502(저장 없음). 턴 응답 스키마는 변경 없음(대화 생성/조회 응답에 `scene_set` 필드만 추가).
 - 테스트: `tests/test_story_prompt_control.py`(17건). 실제 Gemini 스모크: `python -m scripts.smoke_story_chat --scene-set scenario_draft_v1`(`--dry-run`으로 호출 계획만 확인).
+
+### 2026-11-17 냉장고·구름섬 시연 실행
+
+프론트의 `VITE_STORY_CLIENT=api`는 `scenario_draft_v1`의 10개 장면을 API에서 불러온다. 1~9턴은 Gemini, 10턴은 기존 JSON의 고정 연출이다. `VITE_STORY_CLIENT=scenario-mock`은 동일한 장면 세트와 엔딩 UI를 서버 Mock으로 검증한다. 환경변수 없이 실행하면 기존 브라우저 Mock을 사용한다.
+
+로컬 API는 `backend/`에서 실행한다. `GEMINI_CHAT_MODEL`은 프로젝트에서 사용 가능한 모델 ID를 기존 `backend/.env`에 설정한다. 키도 같은 서버 파일에서 읽는다.
+
+```bash
+# 서버 Mock
+LLM_PROVIDER=mock LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false .venv/bin/python -m uvicorn app.main:app
+
+# 실제 Gemini. 초도 검증에서는 요청당 생성 및 HTTP 시도를 각각 1회로 제한한다.
+LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
+  GEMINI_HTTP_ATTEMPTS=1 STORY_GENERATION_ATTEMPTS=1 .venv/bin/python -m uvicorn app.main:app
+```
+
+`frontend/`에서 `npm ci` 후 실제 검증은 `VITE_STORY_CLIENT=api npm run dev`, 서버 Mock은 `VITE_STORY_CLIENT=scenario-mock npm run dev`로 실행한다. Vite 개발 서버의 `/api` 프록시는 8000번을 사용한다.
+
+```bash
+# backend/에서 호출 계획, Mock 전체, Gemini 한 턴 순서로 실행
+.venv/bin/python -m scripts.smoke_story_chat --scene-set scenario_draft_v1 --expect-provider gemini --dry-run
+.venv/bin/python -m scripts.smoke_story_chat --scene-set scenario_draft_v1
+.venv/bin/python -m scripts.smoke_story_chat --scene-set scenario_draft_v1 --expect-provider gemini --project fridge --turn-limit 1
+```
+
+- 전체 시연의 기본 생성은 18회다. 10턴 고정 연출과 저장된 요청 ID 재생은 생성하지 않는다. 기본 설정은 턴당 검증 교정 최대 1회, 생성당 일시 오류 HTTP 재시도 최대 1회다. 제한된 검증에서는 위 1회 설정을 적용한다.
+- 429에서 일일 한도 또는 판단할 수 없는 한도는 자동 재시도하지 않는다. 확인된 분당 한도는 `Retry-After` 또는 공급자 재시도 힌트를 우선하며 대기가 15초를 넘으면 클라이언트에 반환한다. UI는 대화와 요청 ID를 유지한다.
+- 서버 로그에서 모델·HTTP 시도·소요 시간과 Google이 반환한 입력·출력·추론 토큰 수를 확인한다. 스토리 턴에는 임베딩 호출이 없고 `LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false`로 시작 점검과 시드 비용을 피할 수 있다.
+- Docker는 `backend/`에서 같은 환경변수와 함께 `docker compose up --build`를 사용한다. Compose는 저장소 `data/`를 읽기 전용으로 마운트한다. 기존 검증 환경과 분리하려면 별도 `-p` 이름과 `API_HOST_PORT`·`POSTGRES_HOST_PORT`를 사용한다.
+
+#### Gemini 읽기 타임아웃 진단
+
+백엔드는 Gemini SDK 없이 HTTPX로 `generateContent`를 호출한다. `LLM_TIMEOUT_SECONDS` 기본 30초는 HTTPX의 연결·쓰기·읽기·풀 대기 제한에 적용된다. 브라우저의 턴 요청 제한은 180초이며, 로컬 CLI 스모크는 Vite를 거치지 않고 120초를 기다린다. Docker 헬스체크 제한은 생성 요청 경로와 별개다.
+
+같은 JSON 모드·출력 한도에서 오프라인으로 직렬화한 비교 요청은 짧은 프롬프트 213바이트, 냉장고 첫 장면(이력 없음) 9,516바이트였다. 바이트 수는 API 과금 토큰과 다르다. 서버 로그의 `headers_ms`는 응답 헤더 도착 시점이며, 실패 시 `phase=before_headers`와 `phase=response_body`로 구분한다. 읽기 타임아웃에서는 자동 재전송하지 않는다.
+
+`GEMINI_THINKING_LEVEL`로 지원되는 모델의 추론 수준을 선택할 수 있다. 미지정 상태에서 기존 `gemini-3.5-flash`와 `thinkingBudget: 0` 조합은 `thinkingLevel: minimal`을 전송한다. Google은 해당 모델 ID의 생성 요청을 3.6 Flash로 라우팅한다고 안내한다. 앱은 모델 ID를 자동 변경하지 않는다. Flash Lite를 별도로 한 턴 검증할 때에는 기존 로컬 `.env` 수정 없이 위 1회 제한 실행 명령에 `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite GEMINI_THINKING_LEVEL=minimal`을 추가한다.
+
+#### 서비스 복구 후 냉장고 첫 턴 재검증
+
+무료 사용 가능 상태를 확인한 후 `backend/`에서 아래 두 명령을 별도 터미널에 실행한다. 모델은 검증 프로세스에만 지정한다.
+
+```bash
+# 터미널 1: 기존 .env의 키를 읽고 시작 점검·임베딩·자동 재시도 없이 실행
+env -u GEMINI_API_KEY LLM_PROVIDER=gemini GEMINI_CHAT_MODEL=gemini-3.5-flash-lite \
+  GEMINI_THINKING_LEVEL=minimal LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
+  GEMINI_HTTP_ATTEMPTS=1 STORY_GENERATION_ATTEMPTS=1 \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 18001
+
+# 터미널 2: 냉장고 첫 턴 1회, 성공 시 같은 ID의 저장 응답 및 진행 조회
+.venv/bin/python -m scripts.smoke_story_chat --base-url http://127.0.0.1:18001 \
+  --scene-set scenario_draft_v1 --expect-provider gemini --project fridge --turn-limit 1
+```
+
+확인 항목은 `provider=gemini`, `model=gemini-3.5-flash-lite`, 유효한 대사, `completed=1/10`, `replayed=True`다. 서버 로그에서 `generateContent` 1건 및 헤더 도착 시간·토큰 사용량을 확인한다. 첫 턴을 브라우저에서 확인할 경우 백엔드를 Vite 기본 프록시 포트인 8000번으로 시작하고 `VITE_STORY_CLIENT=api npm run dev`에서 한 번만 전송한다. 이 경우 CLI 생성 검증을 함께 실행하지 않는다.
+
+Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다. 채팅 화면에는 일시적으로 Gemini가 응답할 수 없다는 안내가 표시된다. 같은 화면에서 다시 시도하면 기존 입력과 요청 ID를 사용한다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.

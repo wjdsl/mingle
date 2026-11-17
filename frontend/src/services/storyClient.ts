@@ -1,7 +1,7 @@
 import type { StoryProject } from '../projects/stories/catalog'
 import { requestStoryReply } from './mockStoryClient.ts'
 import type { StoryReply } from './mockStoryClient.ts'
-import { createApiStoryClient } from './apiStoryClient.ts'
+import { createApiStoryClient, SCENARIO_SET } from './apiStoryClient.ts'
 
 // UI 경계 계약이며 백엔드 HTTP 스키마와 구분한다.
 export type StoryTurnRequest = {
@@ -17,9 +17,15 @@ export const mockStoryClient: StoryClient = {
 }
 // 실제 API 클라이언트는 apiStoryClient.ts(/api/story-chat). 빌드 환경변수 VITE_STORY_CLIENT=api 일 때만 사용한다.
 // 기본값은 Mock이며, API 모드에서 실패해도 Mock으로 몰래 대체하지 않는다.
-export function storyClientMode(): 'api' | 'mock' {
- return (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_STORY_CLIENT === 'api' ? 'api' : 'mock'
+export function storyClientMode(): 'api' | 'scenario-mock' | 'mock' {
+ const mode = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_STORY_CLIENT
+ return mode === 'api' || mode === 'scenario-mock' ? mode : 'mock'
 }
 export function createSessionStoryClient(displayName: string): StoryClient {
- return storyClientMode() === 'api' ? createApiStoryClient({ displayName }) : mockStoryClient
+ const mode = storyClientMode()
+ return mode === 'mock' ? mockStoryClient : createApiStoryClient({
+   displayName,
+   sceneSet: SCENARIO_SET,
+   provider: mode === 'api' ? 'gemini' : 'mock',
+ })
 }

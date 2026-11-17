@@ -8,6 +8,14 @@ type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'characte
 export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
+ if (step.openingLines) {
+   return [
+     ...(step.sceneImage ? [{ kind: 'scene_image' as const, asset: step.sceneImage }] : []),
+     ...(step.systemMessages ?? []).map(text => ({ kind: 'system' as const, text })),
+     ...step.openingLines.map((line, i): StoryMessage => ({ role: 'character', ...line, situation: i === 0 ? step.situation : undefined })),
+     ...(!step.openingLines.length && step.situation ? [{ kind: 'system' as const, text: step.situation }] : []),
+   ]
+ }
  return [
   ...(step.sceneImage ? [{ kind: 'scene_image' as const, asset: step.sceneImage }] : []),
   ...(step.event ? [{ kind: 'system' as const, text: step.event }] : []),
@@ -20,14 +28,19 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'replied'>('idle')
   const [selected, setSelected] = useState<number>()
   const [errorMessage, setErrorMessage] = useState<string>()
+  const [retryBlocked, setRetryBlocked] = useState(false)
   const controller = useRef<AbortController | null>(null)
   const pending = useRef<{ requestId: string; text: string; choice?: number } | null>(null)
   const busy = useRef(false)
   const failedTurns = useRef(new Set<number>())
   const step = project.steps[turn]
-  useEffect(() => () => controller.current?.abort(), [])
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => {
+    controller.current?.abort()
+    clearTimeout(retryTimer.current)
+  }, [])
   async function run() {
-    if (busy.current || !pending.current) return
+    if (busy.current || retryBlocked || !pending.current) return
     busy.current = true
     setStatus('loading')
     const abort = new AbortController()
@@ -43,13 +56,23 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
         setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
         setErrorMessage(undefined); setStatus('replied')
       }
-    } catch (error) { if (!abort.signal.aborted) { setErrorMessage(error instanceof StoryApiError ? error.message : undefined); setStatus('error') } }
+    } catch (error) {
+      if (!abort.signal.aborted) {
+        setErrorMessage(error instanceof StoryApiError ? error.message : undefined)
+        setStatus('error')
+        if (error instanceof StoryApiError && error.retryAfter) {
+          setRetryBlocked(true)
+          retryTimer.current = setTimeout(() => setRetryBlocked(false), error.retryAfter * 1000)
+        }
+      }
+    }
     finally { if (controller.current === abort) busy.current = false }
   }
   function send(text: string, choice?: number) {
-    if (busy.current || status !== 'idle' || !text.trim()) return
+    if (busy.current || status !== 'idle' || (step.inputMode !== 'none' && !text.trim())) return
     pending.current = { requestId: crypto.randomUUID(), text, choice }; setSelected(choice)
-    setMessages(old => [...old, { role: 'user', speaker: name, text }]); void run()
+    if (step.inputMode !== 'none') setMessages(old => [...old, { role: 'user', speaker: name, text }])
+    void run()
   }
   function advance() {
     if (status !== 'replied' || !pending.current) return
@@ -58,5 +81,5 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }
-  return { turn, messages, status, selected, step, send, retry: run, advance, errorMessage }
+  return { turn, messages, status, selected, step, send, retry: run, advance, errorMessage, retryBlocked }
 }

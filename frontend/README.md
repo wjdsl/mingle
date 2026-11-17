@@ -2,7 +2,7 @@
 
 # MINGLE · Playful Storybook 프론트엔드
 
-현재 3개 작품의 React UI에 Figma 리디자인을 적용했다. 기본 실행은 **Mock 대화**다. 냉장고·구름섬은 `VITE_STORY_CLIENT=api npm run dev`로 백엔드 `/api/story-chat`(서버 측 Gemini)에 연결할 수 있다(2026-11-15, INTEGRATION_HANDOFF.md). 푸르마는 계속 Mock이다. 팀 통합 지점과 최신 검증은 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md), 디자인 기준은 [PLAYFUL_STORYBOOK_DESIGN.md](PLAYFUL_STORYBOOK_DESIGN.md)를 먼저 읽는다.
+현재 3개 작품의 React UI에 Figma 리디자인을 적용했다. 기본 실행은 **Mock 대화**다. 냉장고·구름섬은 `VITE_STORY_CLIENT=api npm run dev`로 백엔드 `/api/story-chat`(서버 측 Gemini)에 연결할 수 있다(2026-11-15, INTEGRATION_HANDOFF.md). 이 모드는 두 작품의 서버 10턴 장면 세트를 사용한다. 같은 장면을 비용 없이 검증하려면 백엔드를 Mock으로 실행하고 `VITE_STORY_CLIENT=scenario-mock npm run dev`를 사용한다. 실행 및 호출량 설정은 [백엔드 가이드](../backend/README.md#2026-11-17-냉장고구름섬-시연-실행)를 참고한다. 푸르마는 계속 Mock이다. 팀 통합 지점과 검증은 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md), 디자인 기준은 [PLAYFUL_STORYBOOK_DESIGN.md](PLAYFUL_STORYBOOK_DESIGN.md)를 먼저 읽는다.
 
 아래는 단계별 기존 기록이며, 430px/이전 화면 흐름 등은 당시 상태다. 현재 채팅 상한은390px, 홈은 반응형이다. 관리자 UI는 이번 범위에서 보류했다.
 

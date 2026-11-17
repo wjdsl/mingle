@@ -58,6 +58,8 @@ def _build_provider() -> LLMProvider:
             timeout=settings.llm_timeout_seconds,
             embedding_dim=settings.embedding_dim,
             thinking_budget=settings.gemini_thinking_budget,
+            thinking_level=settings.gemini_thinking_level or None,
+            http_attempts=settings.gemini_http_attempts,
         )
     return MockProvider(settings.embedding_dim)
 
@@ -116,8 +118,8 @@ async def ensure_llm_ready() -> None:
         get_llm.cache_clear()
         get_llm()
     except Exception as exc:  # pragma: no cover - 예상치 못한 공급자 오류
-        _degraded_reason = str(exc)
-        logger.exception("LLM 공급자 확인 중 오류 → Mock으로 대체")
+        _degraded_reason = type(exc).__name__
+        logger.warning("LLM 공급자 확인 중 오류 → Mock으로 대체: %s", _degraded_reason)
         _provider_override = "mock"
         get_llm.cache_clear()
         get_llm()
