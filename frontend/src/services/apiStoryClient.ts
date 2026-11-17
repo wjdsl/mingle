@@ -1,0 +1,109 @@
+import type { StoryClient, StoryTurnRequest } from './storyClient.ts'
+import type { StoryReply } from './mockStoryClient.ts'
+
+// 냉장고·구름섬 실제 백엔드(/api/story-chat) 클라이언트.
+// - 개인 코드·대화 ID는 이 객체의 메모리에만 둔다(새로고침하면 새 세션). API 키는 서버만 보유한다.
+// - requestId는 재시도 동안 유지되며 서버가 같은 requestId의 저장된 응답을 돌려준다(중복 방지).
+// - 서버 진행 장면과 응답 장면이 다르면 오류로 처리해 화면 진행과 서버 상태가 어긋나지 않게 한다.
+
+export type StoryApiErrorKind = 'network' | 'timeout' | 'conflict' | 'server' | 'invalid' | 'auth'
+export class StoryApiError extends Error {
+  readonly kind: StoryApiErrorKind
+  readonly status?: number
+  constructor(kind: StoryApiErrorKind, message: string, status?: number) {
+    super(message); this.name = 'StoryApiError'; this.kind = kind; this.status = status
+  }
+}
+
+type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
+type Options = { displayName: string; fetch?: FetchLike; baseUrl?: string; timeoutMs?: number }
+type Conversation = { code: string; id: string; project: string; totalTurns: number }
+
+const MESSAGES: Record<StoryApiErrorKind, string> = {
+  network: '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  timeout: '응답이 늦어지고 있어요. 다시 시도해 주세요.',
+  conflict: '이야기 진행 상태가 서버와 달라요. 새로 시작해 주세요.',
+  server: 'AI 응답을 만들지 못했어요. 다시 시도해 주세요.',
+  invalid: '응답 형식이 올바르지 않아요. 다시 시도해 주세요.',
+  auth: '대화 세션을 확인하지 못했어요. 새로 시작해 주세요.',
+}
+
+export function storyChoiceId(projectId: string, turn: number, choice: number) {
+  return `${projectId}-${String(turn + 1).padStart(2, '0')}-${'abcdefgh'[choice]}`
+}
+
+function linkSignals(signal: AbortSignal, timeoutMs: number) {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = globalThis.setTimeout(() => { timedOut = true; controller.abort() }, timeoutMs)
+  const abort = () => controller.abort()
+  if (signal.aborted) controller.abort(); else signal.addEventListener('abort', abort, { once: true })
+  return { signal: controller.signal, timedOut: () => timedOut, done: () => { globalThis.clearTimeout(timer); signal.removeEventListener('abort', abort) } }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null }
+
+export function createApiStoryClient({ displayName, fetch: doFetch = (input, init) => globalThis.fetch(input, init), baseUrl = '', timeoutMs = 90_000 }: Options): StoryClient {
+  let conversation: Promise<Conversation> | null = null
+
+  async function call(path: string, body: unknown, signal: AbortSignal, code?: string): Promise<unknown> {
+    const linked = linkSignals(signal, timeoutMs)
+    let response: Response
+    try {
+      response = await doFetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(code ? { 'X-Personal-Code': code } : {}) }, body: JSON.stringify(body), signal: linked.signal })
+    } catch {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      if (linked.timedOut()) throw new StoryApiError('timeout', MESSAGES.timeout)
+      throw new StoryApiError('network', MESSAGES.network, undefined)
+    } finally { linked.done() }
+    if (!response.ok) {
+      const kind: StoryApiErrorKind = response.status === 409 ? 'conflict' : response.status === 401 || response.status === 403 || response.status === 404 ? 'auth' : response.status === 422 ? 'invalid' : response.status === 504 ? 'timeout' : 'server'
+      throw new StoryApiError(kind, MESSAGES[kind], response.status)
+    }
+    try { return await response.json() } catch { throw new StoryApiError('invalid', MESSAGES.invalid, response.status) }
+  }
+
+  async function start(projectId: string, signal: AbortSignal): Promise<Conversation> {
+    const session = await call('/api/sessions', { display_name: displayName.slice(0, 60) || null }, signal)
+    const code = isRecord(session) && typeof session.personal_code === 'string' ? session.personal_code : ''
+    if (!code) throw new StoryApiError('invalid', MESSAGES.invalid)
+    const created = await call('/api/story-chat/conversations', { project: projectId }, signal, code)
+    if (!isRecord(created) || typeof created.conversation_id !== 'string' || created.project !== projectId || typeof created.total_turns !== 'number') throw new StoryApiError('invalid', MESSAGES.invalid)
+    return { code, id: created.conversation_id, project: projectId, totalTurns: created.total_turns }
+  }
+
+  function ensure(projectId: string, signal: AbortSignal) {
+    if (!conversation) {
+      // 실패하면 다음 재시도에서 세션/대화를 다시 만든다. 성공한 대화는 이 클라이언트 동안 재사용한다.
+      conversation = start(projectId, signal).catch(error => { conversation = null; throw error })
+    }
+    return conversation
+  }
+
+  return {
+    async sendTurn(request: StoryTurnRequest, signal: AbortSignal): Promise<StoryReply> {
+      const projectId = request.project.id
+      const current = await ensure(projectId, signal)
+      if (current.project !== projectId || current.totalTurns !== request.project.steps.length) throw new StoryApiError('conflict', MESSAGES.conflict)
+      const input: { text: string; choice_id?: string } = { text: request.input.text }
+      if (request.input.choice !== undefined) input.choice_id = storyChoiceId(projectId, request.turn, request.input.choice)
+      const data = await call(`/api/story-chat/conversations/${encodeURIComponent(current.id)}/turns`, { request_id: request.requestId, turn: request.turn, input }, signal, current.code)
+      return parseStoryTurnResponse(data, request)
+    },
+  }
+}
+
+export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnRequest, 'requestId' | 'turn'>): StoryReply {
+  if (!isRecord(data) || !Array.isArray(data.replies)) throw new StoryApiError('invalid', MESSAGES.invalid)
+  // 서버 진행 상태와 화면 진행 상태를 맞춘다.
+  if (data.request_id !== request.requestId || data.turn !== request.turn || data.completed_turns !== request.turn + 1) throw new StoryApiError('conflict', MESSAGES.conflict)
+  const lines = data.replies.filter((line): line is { speaker: string; text: string } => isRecord(line) && typeof line.speaker === 'string' && typeof line.text === 'string' && line.text.trim() !== '')
+  if (!lines.length || typeof data.provider !== 'string' || typeof data.model !== 'string') throw new StoryApiError('invalid', MESSAGES.invalid)
+  const [first, ...rest] = lines
+  return {
+    speaker: first.speaker, text: first.text,
+    reaction: typeof data.reaction === 'string' && data.reaction ? data.reaction : '이야기가 이어져요',
+    followUps: rest.map(line => ({ speaker: line.speaker, text: line.text })),
+    meta: { provider: data.provider, model: data.model, latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0, replayed: data.replayed === true, finished: data.finished === true },
+  }
+}

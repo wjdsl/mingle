@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { mockStoryClient } from '../../services/storyClient'
 import type { StoryClient } from '../../services/storyClient'
+import { StoryApiError } from '../../services/apiStoryClient'
 
-type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string }
+type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string }
 export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
@@ -18,6 +19,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   const [messages, setMessages] = useState<StoryMessage[]>(() => opening(project, 0, name))
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'replied'>('idle')
   const [selected, setSelected] = useState<number>()
+  const [errorMessage, setErrorMessage] = useState<string>()
   const controller = useRef<AbortController | null>(null)
   const pending = useRef<{ requestId: string; text: string; choice?: number } | null>(null)
   const busy = useRef(false)
@@ -34,8 +36,14 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     failedTurns.current.add(turn)
     try {
       const reply = await client.sendTurn({ requestId: pending.current.requestId, project, turn, input: { text: pending.current.text, choice: pending.current.choice }, mockFailure: fail }, abort.signal)
-      if (!abort.signal.aborted) { setMessages(old => [...old, { role: 'character', ...reply }]); setStatus('replied') }
-    } catch { if (!abort.signal.aborted) setStatus('error') }
+      if (!abort.signal.aborted) {
+        // 실제 API는 구름섬에서 여러 대원의 대사를 돌려줄 수 있다. 반응 표시는 마지막 말풍선에 둔다.
+        const lines = [{ speaker: reply.speaker, text: reply.text }, ...(reply.followUps ?? [])]
+        const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model } : {}
+        setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
+        setErrorMessage(undefined); setStatus('replied')
+      }
+    } catch (error) { if (!abort.signal.aborted) { setErrorMessage(error instanceof StoryApiError ? error.message : undefined); setStatus('error') } }
     finally { if (controller.current === abort) busy.current = false }
   }
   function send(text: string, choice?: number) {
@@ -50,5 +58,5 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }
-  return { turn, messages, status, selected, step, send, retry: run, advance }
+  return { turn, messages, status, selected, step, send, retry: run, advance, errorMessage }
 }

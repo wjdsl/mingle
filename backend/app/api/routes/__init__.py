@@ -11,6 +11,7 @@ from app.api.routes import (
     sessions,
     share,
     story,
+    story_chat,
 )
 
 routers = [
@@ -21,6 +22,7 @@ routers = [
     chat.router,
     notes.router,
     story.router,
+    story_chat.router,
     marketing.router,
     share.router,
     admin.router,

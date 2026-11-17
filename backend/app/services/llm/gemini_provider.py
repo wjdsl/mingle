@@ -48,11 +48,12 @@ class GeminiProvider(LLMProvider):
         attempts: int = 3,
     ) -> httpx.Response:
         """일시적 오류(429/5xx/타임아웃)는 짧은 백오프로 재시도한다."""
-        params = params or {"key": self._api_key}
+        # API 키는 URL 쿼리 대신 헤더로 보내 접근 로그·예외 메시지에 URL과 함께 남지 않게 한다.
+        headers = {"x-goog-api-key": self._api_key}
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:
-                response = await self._client.post(url, params=params, json=json)
+                response = await self._client.post(url, params=params, json=json, headers=headers)
             except httpx.TimeoutException as exc:
                 last_error = exc
             except httpx.HTTPError as exc:

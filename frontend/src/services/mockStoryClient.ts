@@ -1,6 +1,8 @@
 import type { StoryProject } from '../projects/stories/catalog'
 
-export type StoryReply = { speaker: string; text: string; reaction: string }
+// meta/followUps는 실제 API 응답에만 있다. Mock 응답에는 없으며 화면은 기존과 같다.
+export type StoryReplyMeta = { provider: string; model: string; latencyMs: number; replayed: boolean; finished: boolean }
+export type StoryReply = { speaker: string; text: string; reaction: string; followUps?: { speaker: string; text: string }[]; meta?: StoryReplyMeta }
 // 신규 작품 전용 Mock. 실제 API 계약이나 AI 분석을 구현하지 않는다.
 export async function requestStoryReply(project: StoryProject, turn: number, choice: number | undefined, signal: AbortSignal, fail = false): Promise<StoryReply> {
   await new Promise<void>((resolve, reject) => {
