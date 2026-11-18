@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import re
 
+import pytest
+
 from app.services import story_turn_service
 from app.services.llm.base import LLMProvider, LLMResult
 from app.services.story_scenes import get_project
@@ -73,7 +75,7 @@ def test_only_fridge_first_choice_has_placeholder():
         if any(PLACEHOLDER.search(c.label) for c in scene.choices)
     }
     assert found == {("fridge", SCENARIO, 0)}
-    assert _first_choice().label == "(문을 닫으며) 죄송해요. 저는 [호칭]이에요."  # 원본 데이터 유지
+    assert _first_choice().label == "(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다."  # 원본 데이터 유지
 
 
 async def test_validated_choice_is_filled_for_llm_and_history(client, monkeypatch):
@@ -82,14 +84,23 @@ async def test_validated_choice_is_filled_for_llm_and_history(client, monkeypatc
     ok = await client.post(url, json=_payload(0, choice.label, choice.id), headers=headers)
     assert ok.status_code == 200, ok.text
     first = fake.calls[0]
-    assert _user_input(first) == "(문을 닫으며) 죄송해요. 저는 민트이에요."
+    assert _user_input(first) == "(문을 닫으며) 죄송해요. 제 이름은 민트입니다."
     assert not PLACEHOLDER.search(first[0]["content"])  # 장면 카드의 선택지 목록도 채워진다
-    assert '버튼 "(문을 닫으며) 죄송해요. 저는 민트이에요."' in first[0]["content"]
+    assert '버튼 "(문을 닫으며) 죄송해요. 제 이름은 민트입니다."' in first[0]["content"]
 
     nxt = await client.post(url, json=_payload(1, "왜 냉장고가 됐어요?"), headers=headers)
     assert nxt.status_code == 200, nxt.text
     past_user = json.loads(fake.calls[1][1]["content"])["사용자 입력"]  # 저장된 대화 → 이전 맥락
-    assert past_user == "(문을 닫으며) 죄송해요. 저는 민트이에요."
+    assert past_user == "(문을 닫으며) 죄송해요. 제 이름은 민트입니다."
+
+
+@pytest.mark.parametrize("name", ["민트", "민준"])  # 받침 없는 이름·있는 이름
+async def test_choice_wording_reads_naturally_for_any_final_consonant(client, monkeypatch, name):
+    fake, headers, url = await _start(client, monkeypatch, name=name)
+    choice = _first_choice()
+    ok = await client.post(url, json=_payload(0, choice.label, choice.id), headers=headers)
+    assert ok.status_code == 200, ok.text
+    assert _user_input(fake.calls[0]) == f"(문을 닫으며) 죄송해요. 제 이름은 {name}입니다."
 
 
 async def test_display_label_is_still_rejected_by_exact_validation(client, monkeypatch):
@@ -109,7 +120,7 @@ async def test_server_fallback_nickname_is_used(client, monkeypatch):
     ok = await client.post(url, json=_payload(0, choice.label, choice.id), headers=headers)
     assert ok.status_code == 200, ok.text
     fallback = get_project("fridge", SCENARIO).nickname_fallback
-    assert _user_input(fake.calls[0]) == f"(문을 닫으며) 죄송해요. 저는 {fallback}이에요."
+    assert _user_input(fake.calls[0]) == f"(문을 닫으며) 죄송해요. 제 이름은 {fallback}입니다."
 
 
 async def test_free_text_is_kept_as_typed(client, monkeypatch):

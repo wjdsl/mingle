@@ -128,17 +128,26 @@ async function loadWith(project: typeof fridge, data: unknown, name: string) {
 }
 
 test('시나리오 선택지는 호칭을 채워 표시하고 원문은 따로 보관한다', async () => {
-  const raw = '(문을 닫으며) 죄송해요. 저는 [호칭]이에요.'
+  const raw = '(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다.'
   const loaded = await loadWith(fridge, sceneSet('fridge', { label: raw, opening: '잘 듣게, [호칭].' }), '민트')
   const choice = loaded.steps[0].choices[0]
-  assert.equal(choice.label, '(문을 닫으며) 죄송해요. 저는 민트이에요.')
+  assert.equal(choice.label, '(문을 닫으며) 죄송해요. 제 이름은 민트입니다.')
   assert.equal(choice.sourceLabel, raw)
   assert.equal(loaded.steps[0].openingLines?.[0].text, '잘 듣게, 민트.')
   assert.deepEqual(loaded.steps[1].choices[0], { id: 'fridge_t2_btn', label: '선택 2', sourceLabel: '선택 2', reply: '', reaction: '' })
 })
 
+test('받침 유무와 관계없이 선택지 표시 문구가 자연스럽다', async () => {
+  const raw = '(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다.'
+  for (const name of ['민트', '민준']) {
+    const loaded = await loadWith(fridge, sceneSet('fridge', { label: raw, opening: '첫 대사' }), name)
+    assert.equal(loaded.steps[0].choices[0].label, `(문을 닫으며) 죄송해요. 제 이름은 ${name}입니다.`)
+    assert.equal(loaded.steps[0].choices[0].sourceLabel, raw)
+  }
+})
+
 test('선택지 전송은 서버 검증용 원문을, 자유 입력은 입력 그대로 보낸다', async () => {
-  const raw = '(문을 닫으며) 죄송해요. 저는 [호칭]이에요.'
+  const raw = '(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다.'
   const loaded = await loadWith(fridge, sceneSet('fridge', { label: raw, opening: '첫 대사' }), '민트')
   const backend = fakeBackend(loaded)
   const client = createApiStoryClient({ displayName: '민트', fetch: backend.fetch })

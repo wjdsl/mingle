@@ -130,7 +130,7 @@
       "fixed_choices": [
         {
           "choice_id": "fridge_t01_i01_btn",
-          "label": "(문을 닫으며) 죄송해요. 저는 [호칭]이에요.",
+          "label": "(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다.",
           "intent_id": "fridge_t01_i01"
         },
         {
@@ -149,7 +149,7 @@
           "intent_id": "fridge_t01_i01",
           "intent_label": "사과하고 문을 닫음",
           "source_column": "의도",
-          "button_example": "(문을 닫으며) 죄송해요. 저는 [호칭]이에요.",
+          "button_example": "(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다.",
           "free_input_examples": [
             "앗 네 닫을게요"
           ],
