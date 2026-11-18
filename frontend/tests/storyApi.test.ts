@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { projects } from '../src/projects/stories/catalog.ts'
-import { StoryApiError, createApiStoryClient, parseStoryTurnResponse, storyChoiceId } from '../src/services/apiStoryClient.ts'
+import { StoryApiError, createApiStoryClient, loadStoryScenario, parseStoryTurnResponse, storyChoiceId } from '../src/services/apiStoryClient.ts'
 import { storyClientMode } from '../src/services/storyClient.ts'
 
 const fridge = projects.find(p => p.id === 'fridge')!
@@ -107,4 +107,60 @@ test('선택지 ID 규칙과 기본 Mock 모드', () => {
   assert.equal(storyChoiceId('fridge', 9, 1), 'fridge-10-b')
   assert.equal(storyChoiceId('cloud', 0, 0), 'cloud-01-a')
   assert.equal(storyClientMode(), 'mock')
+})
+
+// 시나리오 장면 세트: 화면 표시용 선택지(호칭 치환)와 서버 검증용 원문 선택지를 분리한다.
+function sceneSet(projectId: string, first: { label: string; opening: string }) {
+  return {
+    project: projectId, scene_set: 'scenario_draft_v1', total_turns: 10,
+    scenes: Array.from({ length: 10 }, (_, turn) => ({
+      turn, title: `장면 ${turn + 1}`, situation: '', input_mode: turn === 9 ? 'none' : 'input',
+      opening_lines: [{ speaker: '화자', text: turn === 0 ? first.opening : '첫 대사' }], system_messages: [],
+      choices: turn === 9 ? [] : [{ choice_id: `${projectId}_t${turn + 1}_btn`, label: turn === 0 ? first.label : `선택 ${turn + 1}` }],
+    })),
+  }
+}
+
+async function loadWith(project: typeof fridge, data: unknown, name: string) {
+  const original = globalThis.fetch
+  globalThis.fetch = (async () => Response.json(data)) as typeof fetch
+  try { return await loadStoryScenario(project, name, signal()) } finally { globalThis.fetch = original }
+}
+
+test('시나리오 선택지는 호칭을 채워 표시하고 원문은 따로 보관한다', async () => {
+  const raw = '(문을 닫으며) 죄송해요. 저는 [호칭]이에요.'
+  const loaded = await loadWith(fridge, sceneSet('fridge', { label: raw, opening: '잘 듣게, [호칭].' }), '민트')
+  const choice = loaded.steps[0].choices[0]
+  assert.equal(choice.label, '(문을 닫으며) 죄송해요. 저는 민트이에요.')
+  assert.equal(choice.sourceLabel, raw)
+  assert.equal(loaded.steps[0].openingLines?.[0].text, '잘 듣게, 민트.')
+  assert.deepEqual(loaded.steps[1].choices[0], { id: 'fridge_t2_btn', label: '선택 2', sourceLabel: '선택 2', reply: '', reaction: '' })
+})
+
+test('선택지 전송은 서버 검증용 원문을, 자유 입력은 입력 그대로 보낸다', async () => {
+  const raw = '(문을 닫으며) 죄송해요. 저는 [호칭]이에요.'
+  const loaded = await loadWith(fridge, sceneSet('fridge', { label: raw, opening: '첫 대사' }), '민트')
+  const backend = fakeBackend(loaded)
+  const client = createApiStoryClient({ displayName: '민트', fetch: backend.fetch })
+  const shown = loaded.steps[0].choices[0].label
+  await client.sendTurn({ requestId: 'req-0000-aaaa', project: loaded, turn: 0, input: { text: shown, choice: 0 } }, signal())
+  await client.sendTurn({ requestId: 'req-0001-bbbb', project: loaded, turn: 1, input: { text: '저는 [호칭]이라고 불러 주세요' } }, signal())
+  assert.deepEqual(backend.calls[2].body.input, { text: raw, choice_id: 'fridge_t1_btn' })
+  assert.deepEqual(backend.calls[3].body.input, { text: '저는 [호칭]이라고 불러 주세요' })
+})
+
+test('구름섬 시나리오 선택지와 기본 Mock 선택지는 그대로다', async () => {
+  const loaded = await loadWith(cloud, sceneSet('cloud', { label: '민트예요! 빨리 출동해요!', opening: '[닉네임], 반가워.' }), '민트')
+  assert.equal(loaded.steps[0].choices[0].label, '민트예요! 빨리 출동해요!')
+  assert.equal(loaded.steps[0].choices[0].sourceLabel, '민트예요! 빨리 출동해요!')
+  assert.equal(loaded.steps[0].openingLines?.[0].text, '민트, 반가워.')
+  for (const project of projects) for (const step of project.steps) for (const choice of step.choices) {
+    assert.equal(choice.sourceLabel, undefined)
+    assert.doesNotMatch(choice.label, /\[(호칭|닉네임)\]/)
+  }
+  // 원문이 없는 기본 Mock 선택지는 기존처럼 표시 문구를 그대로 보낸다.
+  const backend = fakeBackend(cloud)
+  const client = createApiStoryClient({ displayName: '민트', fetch: backend.fetch })
+  await client.sendTurn({ requestId: 'req-0000-cccc', project: cloud, turn: 0, input: { text: cloud.steps[0].choices[0].label, choice: 0 } }, signal())
+  assert.deepEqual(backend.calls[2].body.input, { text: cloud.steps[0].choices[0].label, choice_id: 'cloud-01-a' })
 })

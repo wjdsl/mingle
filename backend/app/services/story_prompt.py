@@ -156,10 +156,11 @@ def strip_scoring(text: str) -> str:
     return re.sub(r"\s{2,}", " ", text).strip()
 
 
-def _choice_hint(choice: SceneChoice, scenario: bool) -> str:
+def _choice_hint(choice: SceneChoice, scenario: bool, sub=lambda text: text) -> str:
+    # 버튼 문구의 [호칭]/[닉네임]도 장면 카드의 다른 문구와 같이 사용자 호칭으로 채운다.
     if scenario:
-        return f'  · 버튼 "{choice.label}"'
-    return f'  · "{choice.label}" → {choice.reference_reply}'
+        return f'  · 버튼 "{sub(choice.label)}"'
+    return f'  · "{sub(choice.label)}" → {choice.reference_reply}'
 
 
 def scene_card(project: StoryProjectDef, index: int, scene: Scene, nickname: str) -> str:
@@ -180,7 +181,7 @@ def scene_card(project: StoryProjectDef, index: int, scene: Scene, nickname: str
         lines.append(f"- 화면에 이미 표시된 첫 대사({scene.opening_speaker}, 그대로 반복하지 않는다): {scene.opening}")
     if scene.choices:
         lines.append("- 화면의 선택지 버튼:" if scenario else "- 선택지 버튼과 반응 방향 예시(그대로 베끼지 말고 상황에 맞게 새로 말한다):")
-        lines += [_choice_hint(c, scenario) for c in scene.choices]
+        lines += [_choice_hint(c, scenario, sub) for c in scene.choices]
     if scene.intents:
         lines.append("- 입력 의도별 반응 방향(예시 대사는 참고만 하고 그대로 베끼지 않는다):")
         lines += [f"  · [{it.id}] {it.label} → {sub(it.response_direction)}" for it in scene.intents]

@@ -585,6 +585,10 @@ async def process_story_turn(
             raise StoryTurnError(422, "현재 장면의 선택지가 아닙니다.")
     user_text = mask_personal_info(text.strip())
     nickname = safe_nickname(session.display_name, project.nickname_fallback)
+    if choice is not None:
+        # 원문 정확 일치 검증을 통과한 선택지만 서버 기준 호칭으로 채운다(LLM 입력·저장 대화 공통).
+        # 자유 입력은 사용자가 쓴 그대로 둔다.
+        user_text = _fill_nickname(user_text, nickname)
     history, previous = await _history(db, conversation.id)
 
     # LLM 호출 동안 DB 트랜잭션(SQLite 잠금)을 잡고 있지 않는다.

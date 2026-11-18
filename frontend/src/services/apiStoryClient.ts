@@ -109,7 +109,10 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
       const fixed = step.inputMode === 'none'
       const input: { text: string; choice_id?: string } = { text: request.input.text }
       if (request.input.choice !== undefined) {
-        input.choice_id = step.choices[request.input.choice]?.id ?? storyChoiceId(projectId, request.turn, request.input.choice)
+        const choice = step.choices[request.input.choice]
+        input.choice_id = choice?.id ?? storyChoiceId(projectId, request.turn, request.input.choice)
+        // 화면에는 호칭을 채운 문구를 보이고, 서버 검증에는 장면 데이터의 원문 문구를 보낸다.
+        if (choice?.sourceLabel !== undefined) input.text = choice.sourceLabel
       }
       const path = fixed ? 'fixed-turns' : 'turns'
       const data = await call(`/api/story-chat/conversations/${encodeURIComponent(current.id)}/${path}`, {
@@ -177,7 +180,7 @@ export async function loadStoryScenario(project: StoryProject, name: string, sig
       }),
       choices: scene.choices.map((choice: unknown) => {
         if (!isRecord(choice) || typeof choice.choice_id !== 'string' || typeof choice.label !== 'string') throw invalid()
-        return { id: choice.choice_id, label: choice.label, reply: '', reaction: '' }
+        return { id: choice.choice_id, label: address(choice.label), sourceLabel: choice.label, reply: '', reaction: '' }
       }),
     }
   })

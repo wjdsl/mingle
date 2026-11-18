@@ -439,6 +439,8 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 
 `STORY_RESPONSE_SCHEMA`(기본 true)는 Gemini 스토리 호출에 `generationConfig.responseJsonSchema`(lines 배열·화자 enum·최대 줄 수)를 지정한다. 스키마는 JSON 형태만 제한하며 기존 파서와 응답 제어 검사는 그대로 수행한다. 요청 본문은 오프라인 테스트로 확인했지만 실제 모델(`gemini-3.5-flash-lite` 등)의 호환성은 미검증이다. 모델이 400으로 거부하면 `STORY_RESPONSE_SCHEMA=false`로 끈다.
 
+선택지 문구의 `[호칭]`/`[닉네임]`: 프론트는 버튼·사용자 말풍선에 호칭을 채운 문구를 표시하고, 서버에는 장면 데이터의 원문 문구와 선택지 ID를 보낸다. 서버는 기존처럼 ID와 원문 정확 일치를 검증한 뒤에만 `safe_nickname()` 기준 호칭으로 채워 LLM 입력·저장 대화·장면 카드 선택지 목록에 쓴다. 자유 입력은 그대로 둔다. 화면 호칭(사용자 입력값)과 서버 호칭(20자 제한·대체 호칭)은 다를 수 있다.
+
 `GEMINI_THINKING_LEVEL`로 지원되는 모델의 추론 수준을 선택할 수 있다. 미지정 상태에서 기존 `gemini-3.5-flash`와 `thinkingBudget: 0` 조합은 `thinkingLevel: minimal`을 전송한다. Google은 해당 모델 ID의 생성 요청을 3.6 Flash로 라우팅한다고 안내한다. 앱은 모델 ID를 자동 변경하지 않는다. Flash Lite를 별도로 한 턴 검증할 때에는 기존 로컬 `.env` 수정 없이 위 1회 제한 실행 명령에 `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite GEMINI_THINKING_LEVEL=minimal`을 추가한다.
 
 #### 서비스 복구 후 냉장고 첫 턴 재검증
