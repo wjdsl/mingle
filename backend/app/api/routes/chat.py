@@ -22,6 +22,7 @@ from app.services.chat_service import (
 )
 from app.services.memory import PURUMA_PERSONA_SLUG, PurumaNote
 from app.services.llm import LLMError
+from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
 from app.services.presenters import chat_response
 
 logger = logging.getLogger(__name__)
@@ -67,9 +68,20 @@ async def send_message(
     except LocalMemoryNotAllowedError as exc:
         await db.rollback()
         raise HTTPException(status_code=422, detail=LOCAL_MEMORY_ONLY_PURUMA) from exc
+    except GeminiQuotaError as exc:
+        await db.rollback()
+        logger.warning("Gemini 사용량 초과: kind=%s", exc.kind)
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after is not None else None
+        raise HTTPException(429, detail={"code": f"gemini_quota_{exc.kind}"}, headers=headers) from exc
+    except GeminiTimeoutError as exc:
+        await db.rollback()
+        logger.warning("Gemini 응답 시간 초과")
+        raise HTTPException(504, detail="AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.") from exc
     except LLMError as exc:
         await db.rollback()
         logger.warning("LLM 호출 실패: %s", exc)
+        if isinstance(exc, GeminiHTTPError) and exc.status_code == 503:
+            raise HTTPException(503, detail={"code": "gemini_unavailable"}) from exc
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
