@@ -96,6 +96,16 @@ async def retrieve(
     if not query.strip():
         return []
 
+    # 검색할 지식 문서가 아예 없는 페르소나(예: 푸르마)는 질문 임베딩(외부 API 호출)을 건너뛴다.
+    # '문서는 있으나 점수 미달로 결과가 없음'과 구분하기 위해 실제 DB에서 문서 존재 여부를 확인한다.
+    has_documents = (
+        await db.execute(
+            select(PersonaKnowledge.id).where(PersonaKnowledge.persona_id == persona_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_documents is None:
+        return []
+
     llm = get_llm()
     query_vector = fit_embedding((await llm.embed([query]))[0], settings.embedding_dim)
 

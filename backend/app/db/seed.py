@@ -4,6 +4,7 @@
   엔딩, 마케팅 Trigger/CTA를 생성한다.
 - 관리자 계정도 여기서 생성한다.
 - 이미 페르소나가 존재하면 건너뛴다(멱등).
+- 푸르마(`seed_puruma.py`)는 기존 DB에도 slug 기준으로 없을 때만 추가한다.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from app.db.models import (
     PersonaKnowledge,
     StoryEventDef,
 )
+from app.db.seed_puruma import PURUMA_PERSONA
 from app.services.llm import LLMError
 from app.services.rag import index_documents
 
@@ -804,12 +806,14 @@ async def seed_database(force: bool = False) -> None:
         existing = (await db.execute(select(Persona))).scalars().all()
         if existing and not force:
             await _repair_missing_knowledge(db, existing)
+            await _ensure_puruma(db)
             await _ensure_admin(db)
             await db.commit()
             return
 
         for data in PERSONAS:
             await _create_persona(db, data)
+        await _ensure_puruma(db)
         await _ensure_admin(db)
         await db.commit()
         logger.info("시드 데이터 생성 완료: 페르소나 %d종", len(PERSONAS))
@@ -836,6 +840,16 @@ async def _repair_missing_knowledge(db, existing: list[Persona]) -> None:
             logger.info("누락된 RAG 지식 복구: %s", persona.slug)
         except LLMError as exc:
             logger.warning("RAG 지식 복구 실패: persona=%s, 원인=%s", persona.slug, exc)
+
+
+async def _ensure_puruma(db) -> None:
+    """푸르마가 없을 때만 만든다. 이미 있으면(비활성 포함) 설정을 덮어쓰지 않는다."""
+    existing = (
+        await db.execute(select(Persona.id).where(Persona.slug == PURUMA_PERSONA["slug"]))
+    ).scalar_one_or_none()
+    if existing is not None:
+        return
+    await _create_persona(db, PURUMA_PERSONA)
 
 
 async def _ensure_admin(db) -> None:

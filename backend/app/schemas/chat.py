@@ -7,9 +7,28 @@ from pydantic import BaseModel, Field
 from app.schemas.conversation import NoteOut, StateOut
 
 
+class ClientNote(BaseModel):
+    """브라우저 로컬에 저장된 푸르마 기억 1건. 서버는 매 요청마다 다시 검증한다."""
+
+    key: str = Field(min_length=1, max_length=120)
+    field: str = Field(min_length=1, max_length=40)
+    value: str = Field(min_length=1, max_length=200)
+    importance: str = Field(min_length=1, max_length=10)
+    created_at_turn: int = Field(default=0, ge=0, le=100000)
+    updated_at_turn: int = Field(default=0, ge=0, le=100000)
+
+
 class ChatRequest(BaseModel):
     conversation_id: str
     message: str = Field(min_length=1, max_length=2000)
+    notes: list[ClientNote] | None = Field(
+        default=None,
+        max_length=10,
+        description=(
+            "푸르마 전용 브라우저 로컬 기억 모드. 생략하면 기존 서버 DB 기억 모드, "
+            "빈 배열을 포함해 값을 보내면 로컬 모드(서버 user_notes 미사용)."
+        ),
+    )
 
 
 class SourceOut(BaseModel):
@@ -63,3 +82,6 @@ class ChatResponse(BaseModel):
     ending: EndingOut | None = None
     notes_updated: list[NoteOut] = []
     guardrail_triggered: bool = False
+    notes: list[ClientNote] | None = Field(
+        default=None, description="로컬 기억 모드에서만 갱신된 전체 기억 목록(최대 10개)."
+    )

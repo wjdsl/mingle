@@ -474,3 +474,23 @@ env -u GEMINI_API_KEY LLM_PROVIDER=gemini GEMINI_CHAT_MODEL=gemini-3.5-flash-lit
 확인 항목은 `provider=gemini`, `model=gemini-3.5-flash-lite`, 유효한 대사, `completed=1/10`, `replayed=True`다. 서버 로그에서 `generateContent` 1건 및 헤더 도착 시간·토큰 사용량을 확인한다. 첫 턴을 브라우저에서 확인할 경우 백엔드를 Vite 기본 프록시 포트인 8000번으로 시작하고 `VITE_STORY_CLIENT=api npm run dev`에서 한 번만 전송한다. 이 경우 CLI 생성 검증을 함께 실행하지 않는다.
 
 Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다. 채팅 화면에는 일시적으로 Gemini가 응답할 수 없다는 안내가 표시된다. 같은 화면에서 다시 시도하면 기존 입력과 요청 ID를 사용한다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.
+
+### 2026-11-18 푸르마 기억 시연 실행
+
+푸르마 대화(`/api/chat`)에 브라우저 로컬 기억을 쓰는 시연의 실행 방법이다. 기존 `backend/.env`는 수정하지 않고 환경변수로 덮어쓴다.
+
+```bash
+# 터미널 1: 백엔드(포트 8000). 처음 쓰는 DB면 시드로 푸르마가 최신 프롬프트로 만들어진다.
+cd backend
+LLM_TIMEOUT_SECONDS=60 GEMINI_HTTP_ATTEMPTS=1 LLM_PROBE_ON_STARTUP=false \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 터미널 2: 프론트. VITE_PURUMA_CLIENT=api일 때만 실제 API를 쓰며 기본은 Mock이다.
+cd frontend
+VITE_PURUMA_CLIENT=api npm run dev
+```
+
+- `LLM_TIMEOUT_SECONDS`의 기본값은 30초다. 2026-11-18 검증에서 Gemini 응답이 9~42초 걸렸으므로 시연에서는 60초로 지정한다. 지정한 값이 Gemini HTTP 클라이언트의 읽기 제한에 적용되는 것을 확인했다(설정 30.0 → 60.0).
+- 모델 기본 설정은 `.env`의 값을 따른다. 임베딩 호출은 푸르마에서 발생하지 않는다(지식 문서가 없으면 검색을 건너뛴다). 규칙 기반 기억 추출만 쓰고 별도 LLM 추출 호출은 없다.
+- 이미 푸르마가 만들어진 DB에는 최신 `seed_puruma.py` 프롬프트가 반영되지 않는다(있으면 덮어쓰지 않음). 새 DB이거나 푸르마 행이 없는 DB에서 서버를 시작하면 최신 값으로 생성된다.
+- Gemini 429·503·504는 `/api/chat`에서 각각 429·503·504로 응답하며 그 외 LLM 오류는 502다.
