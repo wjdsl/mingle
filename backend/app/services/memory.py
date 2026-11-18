@@ -309,6 +309,14 @@ PURUMA_VALUE_MAX_CHARS = 40
 PURUMA_FIELDS = ("nickname", "interest", "promise", "repeated_topic", "section_choice")
 PURUMA_EXTRACTED_FIELDS = ("nickname", "interest", "promise", "repeated_topic")
 IMPORTANCE_RANK = {"high": 3, "medium": 2, "low": 1}
+# 프롬프트 표시용 항목 이름
+PURUMA_FIELD_LABELS = {
+    "nickname": "호칭",
+    "interest": "관심사",
+    "promise": "약속/응원",
+    "repeated_topic": "반복 주제",
+    "section_choice": "구간 선택",
+}
 
 # 위기 신호: 기억 추출·저장과 (API 연결 후) 회상을 모두 건너뛴다.
 PURUMA_CRISIS_PATTERNS = (
@@ -334,6 +342,26 @@ _OTHER_PERSON = re.compile(
     r"[가-힣]{2,3}\s?씨(?:가|는|랑|한테|에게|도|의)?(?![가-힣])|"
     r"(?:한|했|하)대(?:요)?(?:$|[\s.!?])|한다더라|한다고\s?했"  # 남의 이야기를 전하는 말
 )
+
+# 기억 값은 시스템 프롬프트에 들어가므로 지시문·역할 변경·연애 표현으로 보이는 값은 저장·주입하지 않는다.
+_UNSAFE_NOTE_VALUE = re.compile(
+    r"무시|지시|지침|시스템|프롬프트|규칙|명령|역할|탈옥|개발자|관리자|해커|"
+    r"이제부터|너는\s?이제|인\s?척|처럼\s?행동|"
+    r"ignore|system|prompt|instruction|jailbreak|developer|"
+    r"[#`<>{}\[\]]|"
+    r"연애|연인|애인|사랑해|사귀|키스|섹스|야한",
+    re.IGNORECASE,
+)
+_ROMANTIC_NICKNAMES = {"자기", "자기야", "여보", "애기", "허니", "달링", "내사랑", "오빠", "누나"}
+
+
+def is_unsafe_note_value(field: str, value: str) -> bool:
+    """프롬프트 주입·페르소나 금지 규칙 우회로 쓰일 수 있는 기억 값이면 True."""
+    compact = re.sub(r"\s+", "", value or "")
+    if field == "nickname" and compact in _ROMANTIC_NICKNAMES:
+        return True
+    return bool(_UNSAFE_NOTE_VALUE.search(value or ""))
+
 
 _LEADING_NOISE = re.compile(
     r"^(?:(?:나는|난|나|저는|전|내가|제가|나도|요즘|원래|정말|진짜|그냥|앞으로|계속|오늘은|오늘만은|오늘만|지금은|지금|이번에는|그리고|근데)\s*)+"
@@ -430,6 +458,8 @@ def _note(field: str, topic: str, importance: str, turn: int, value: str | None 
         return None
     if topic in _STOPWORDS or _NOT_A_TOPIC.search(f" {topic} ") or is_sensitive_text(shown):
         return None
+    if is_unsafe_note_value(field, shown):
+        return None
     return PurumaNote(normalize_puruma_key(field, topic), field, shown, importance, turn, turn)
 
 
@@ -506,7 +536,7 @@ def sanitize_puruma_notes(notes: list[PurumaNote]) -> list[PurumaNote]:
         if note.field not in PURUMA_FIELDS or note.importance not in IMPORTANCE_RANK:
             continue
         value = _clean(note.value)[:PURUMA_VALUE_MAX_CHARS]
-        if not value or is_crisis_text(value) or is_sensitive_text(value):
+        if not value or is_crisis_text(value) or is_sensitive_text(value) or is_unsafe_note_value(note.field, value):
             continue
         clean.append(PurumaNote(note.key[:120], note.field, value, note.importance, note.created_at_turn, note.updated_at_turn))
     return clean

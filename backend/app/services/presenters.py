@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Conversation, Persona, RelationshipState
 from app.schemas.chat import (
+    ClientNote,
     ChatResponse,
     CTAOut,
     EndingOut,
@@ -158,4 +161,9 @@ def chat_response(outcome: ChatOutcome) -> ChatResponse:
         ending=ending,
         notes_updated=outcome.notes_updated,
         guardrail_triggered=outcome.guardrail_triggered,
+        notes=(
+            [ClientNote(**asdict(note)) for note in outcome.client_notes]
+            if outcome.client_notes is not None
+            else None
+        ),
     )

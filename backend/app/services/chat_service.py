@@ -34,7 +34,17 @@ from app.db.models import (
 )
 from app.services.llm import LLMError, get_llm
 from app.services.marketing import TriggerHit, evaluate_triggers
-from app.services.memory import load_notes, update_notes
+from app.services.memory import (
+    PURUMA_FIELD_LABELS,
+    PURUMA_MAX_NOTES,
+    PURUMA_PERSONA_SLUG,
+    PurumaNote,
+    load_notes,
+    merge_puruma_notes,
+    puruma_notes_for_prompt,
+    update_notes,
+    update_puruma_notes,
+)
 from app.services.persona_prompt import build_system_prompt
 from app.services.rag import RetrievedChunk, retrieve
 from app.services.story import StoryAdvance, advance_state, get_or_create_state
@@ -60,6 +70,18 @@ class ConversationCompletedError(RuntimeError):
     """이미 엔딩에 도달한 대화."""
 
 
+class LocalMemoryNotAllowedError(ValueError):
+    """푸르마가 아닌 페르소나에 브라우저 로컬 기억(notes)을 보낸 경우."""
+
+
+@dataclass(slots=True)
+class PromptNote:
+    """로컬 기억을 시스템 프롬프트의 '사용자 기억' 형식(key: value)으로 넘기기 위한 형태."""
+
+    key: str
+    value: str
+
+
 class PersonaNotFoundError(RuntimeError):
     pass
 
@@ -80,6 +102,8 @@ class ChatOutcome:
     ending: EndingDef | None = None
     notes_updated: list[UserNote] = field(default_factory=list)
     guardrail_triggered: bool = False
+    # 브라우저 로컬 기억 모드에서만 채운다(None이면 기존 서버 DB 기억 모드).
+    client_notes: list[PurumaNote] | None = None
 
 
 async def create_conversation(
@@ -169,13 +193,28 @@ async def process_message(
     user_text: str,
     *,
     emit: TokenEmitter | None = None,
+    client_notes: list[PurumaNote] | None = None,
 ) -> ChatOutcome:
     if conversation.status == "completed":
         raise ConversationCompletedError("이미 엔딩에 도달한 대화입니다.")
 
     persona = await load_persona(db, conversation.persona_id)
+    local_memory = client_notes is not None
+    if local_memory and persona.slug != PURUMA_PERSONA_SLUG:
+        raise LocalMemoryNotAllowedError("브라우저 로컬 기억(notes)은 푸르마 대화에서만 사용할 수 있습니다.")
     state = await get_or_create_state(db, conversation.id)
-    notes = await load_notes(db, conversation.session_id, persona.id)
+    if local_memory:
+        # 로컬 모드: 서버 user_notes를 읽지 않는다. 받은 기억은 매번 재검증하고 10개로 제한한다.
+        stored_notes = merge_puruma_notes(client_notes or [], [], limit=PURUMA_MAX_NOTES)
+        notes: list = []  # 스토리·마케팅 조건 판정에는 로컬 기억을 쓰지 않는다.
+        prompt_notes: list = [
+            PromptNote(PURUMA_FIELD_LABELS.get(note.field, note.field), note.value)
+            for note in puruma_notes_for_prompt(stored_notes, user_text)  # 위기 입력이면 빈 목록
+        ]
+    else:
+        stored_notes = []
+        notes = await load_notes(db, conversation.session_id, persona.id)
+        prompt_notes = notes
     history = await _load_history(db, conversation.id, settings.context_message_limit)
 
     user_message = Message(
@@ -203,7 +242,7 @@ async def process_message(
     system_prompt = build_system_prompt(
         persona,
         state,
-        notes,
+        prompt_notes,
         chunks,
         story_hints=hints,
     )
@@ -264,14 +303,20 @@ async def process_message(
 
     await db.flush()
 
-    notes_updated = await update_notes(
-        db, conversation.session_id, persona.id, user_text
-    )
-    disclosed = any(
-        note.category in ("profile", "preference") for note in notes_updated
-    )
-    if disclosed:
-        state.trust = min(100, state.trust + 1)
+    updated_client_notes: list[PurumaNote] | None = None
+    if local_memory:
+        # 위기·민감 입력이면 추출 없이 기존 기억만(재검증 후) 그대로 돌려준다. 삭제하지 않는다.
+        updated_client_notes = update_puruma_notes(stored_notes, user_text, state.turn_count)
+        notes_updated: list[UserNote] = []
+    else:
+        notes_updated = await update_notes(
+            db, conversation.session_id, persona.id, user_text
+        )
+        disclosed = any(
+            note.category in ("profile", "preference") for note in notes_updated
+        )
+        if disclosed:
+            state.trust = min(100, state.trust + 1)
 
     trigger_hits = await evaluate_triggers(
         db, conversation, state, user_text, notes
@@ -292,4 +337,5 @@ async def process_message(
         ending=advance.ending,
         notes_updated=notes_updated,
         guardrail_triggered=guardrail_triggered,
+        client_notes=updated_client_notes,
     )

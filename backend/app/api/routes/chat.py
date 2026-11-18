@@ -12,19 +12,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_session, get_owned_conversation
 from app.db.base import SessionLocal, get_db
-from app.db.models import Conversation, UserSession
+from app.db.models import Conversation, Persona, UserSession
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_service import (
     ConversationCompletedError,
+    LocalMemoryNotAllowedError,
     PersonaNotFoundError,
     process_message,
 )
+from app.services.memory import PURUMA_PERSONA_SLUG, PurumaNote
 from app.services.llm import LLMError
 from app.services.presenters import chat_response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+LOCAL_MEMORY_ONLY_PURUMA = "브라우저 로컬 기억(notes)은 푸르마 대화에서만 사용할 수 있습니다."
+
+
+async def _client_notes(db: AsyncSession, conversation: Conversation, payload: ChatRequest) -> list[PurumaNote] | None:
+    """notes 생략이면 None(기존 DB 기억 모드). 값이 있으면 푸르마 대화인지 먼저 확인한다."""
+    if payload.notes is None:
+        return None
+    persona = await db.get(Persona, conversation.persona_id)
+    if persona is None or persona.slug != PURUMA_PERSONA_SLUG:
+        raise HTTPException(status_code=422, detail=LOCAL_MEMORY_ONLY_PURUMA)
+    return [PurumaNote(**note.model_dump()) for note in payload.notes]
 
 
 @router.post("", response_model=ChatResponse, summary="메시지 전송")
@@ -40,8 +54,9 @@ async def send_message(
             detail="이미 엔딩에 도달한 대화입니다. 새 대화를 시작해 주세요.",
         )
 
+    client_notes = await _client_notes(db, conversation, payload)
     try:
-        outcome = await process_message(db, conversation, payload.message)
+        outcome = await process_message(db, conversation, payload.message, client_notes=client_notes)
         await db.commit()
     except ConversationCompletedError as exc:
         await db.rollback()
@@ -49,6 +64,9 @@ async def send_message(
     except PersonaNotFoundError as exc:
         await db.rollback()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except LocalMemoryNotAllowedError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=LOCAL_MEMORY_ONLY_PURUMA) from exc
     except LLMError as exc:
         await db.rollback()
         logger.warning("LLM 호출 실패: %s", exc)
@@ -93,6 +111,8 @@ async def stream_message(
         )
     conversation_id = conversation.id
     user_text = payload.message
+    # 스트리밍 시작 전에 확인해야 일반 응답과 같은 422를 돌려줄 수 있다.
+    client_notes = await _client_notes(db, conversation, payload)
 
     async def event_source():
         queue: asyncio.Queue = asyncio.Queue()
@@ -108,7 +128,7 @@ async def stream_message(
                         await queue.put(("error", {"detail": "대화를 찾을 수 없습니다."}))
                         return
                     outcome = await process_message(
-                        stream_db, conv, user_text, emit=emit
+                        stream_db, conv, user_text, emit=emit, client_notes=client_notes
                     )
                     await stream_db.commit()
                     await queue.put(
