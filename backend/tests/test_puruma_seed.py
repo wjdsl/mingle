@@ -275,16 +275,29 @@ async def test_opening_events_apply_on_turn_1_and_2_only(client, puruma_chat):
     assert sorted(logged) == ["opening_find_classroom", "opening_late_entry"]
 
 
-def test_response_format_and_no_save_promise_rules_are_present():
-    from app.db.seed_puruma import FORMAT_ADAPTED, MEMORY_ADAPTED, SPEECH_SOURCE
+def test_response_format_and_memory_promise_rules_are_last_lines():
+    from app.db.seed_puruma import FORMAT_ADAPTED, MEMORY_ADAPTED, PROMISE_ADAPTED, SPEECH_SOURCE
 
     prompt = PURUMA_PERSONA["system_prompt"]
+    lines = prompt.splitlines()
     assert SPEECH_SOURCE[1] == "한 번의 응답은 가급적 두세 문장으로 간결하게 한다."
-    assert prompt.rstrip().splitlines()[-1].startswith("[응답 형식]")  # 공통 규칙보다 뒤에 읽히도록 마지막 줄
-    for sentence in (SPEECH_SOURCE[1], *FORMAT_ADAPTED):
-        assert sentence in prompt.splitlines()[-1]
-    save_rule = next(s for s in MEMORY_ADAPTED if "저장 약속" in s)
-    assert save_rule in prompt
-    # 원문의 '저장을 완료했다고 말하지 않는다'와 모순되지 않고, 회상 규칙은 그대로다.
-    assert "저장을 완료했다고 말하지 않는다." in prompt
-    assert "회상 허용 여부를 알 수 없으면 먼저 과거 기억을 꺼내지 않는다." in prompt
+    assert lines[-2].startswith("[응답 형식]")
+    assert all(s in lines[-2] for s in (SPEECH_SOURCE[1], *FORMAT_ADAPTED))
+    # [기억 약속]은 독립 줄이며 시스템 프롬프트의 마지막이다(공통 규칙보다 뒤에 읽히도록).
+    assert lines[-1].startswith("[기억 약속]") and all(s in lines[-1] for s in PROMISE_ADAPTED)
+    # 긴 [기억] 문단에서는 빠지고 한 번만 존재한다.
+    memory_line = next(line for line in lines if line.startswith("[기억] "))
+    assert not any(s in memory_line for s in PROMISE_ADAPTED) and "약속" not in "".join(MEMORY_ADAPTED)
+    assert prompt.count(PROMISE_ADAPTED[0]) == 1
+    # 금지만이 아니라 대안(모른다고 말하고 되묻기)을 함께 제공한다.
+    assert "모른다고 솔직히 말한" in PROMISE_ADAPTED[1] and "되묻는" in PROMISE_ADAPTED[1]
+    # 원문 규칙·회상 정책은 그대로이며 모순되지 않는다.
+    assert "저장을 완료했다고 말하지 않는다." in memory_line
+    assert "회상 허용 여부를 알 수 없으면 먼저 과거 기억을 꺼내지 않는다." in memory_line
+
+
+def test_other_personas_and_prompt_source_file_are_untouched():
+    from app.db.seed import PERSONAS
+
+    assert all("[기억 약속]" not in p.get("system_prompt", "") for p in PERSONAS)
+    assert "[기억 약속]" not in PROMPT_SOURCE.read_text(encoding="utf-8")
