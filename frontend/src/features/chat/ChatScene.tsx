@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import { project } from '../../projects/puruma/config'
 import { choices } from '../../projects/puruma/mockConversation'
 import { useChat } from './useChat'
+import { createPurumaClient } from './chatClient'
+import { UserNotePanel } from './UserNotePanel'
 import type { ChatState, Choice, Emotion, Message } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
 import { useViewportHeight } from './useViewportHeight'
@@ -67,7 +69,8 @@ function ChoiceList({ items, disabled, selectedId, onChoose }: { items: Choice[]
 
 export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { nickname?: string; onHome(): void; onSurfaceChange(view: string, back: () => void): void }) {
   const viewportHeight = useViewportHeight()
-  const { state, draft, setDraft, validation, send, retry, reset } = useChat()
+  const [client] = useState(() => createPurumaClient(nickname))
+  const { state, draft, setDraft, validation, send, retry, reset } = useChat(client)
   const [view, setView] = useState<View>('chat')
   const returnView = useRef<View>('chat')
   const pageHeading = useRef<HTMLHeadingElement>(null)
@@ -77,7 +80,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
     if (view !== 'notes' && view !== 'endings') returnView.current = view
     setView(next)
   }
-  function restart() { reset(); setView('chat') }
+  function restart() { client.reset(); reset(); setView('chat') }
   const composing = useRef(false)
   const disabled = state.status !== 'idle'
   function submit() { if (!composing.current) send({ kind: 'text', text: draft }) }
@@ -85,7 +88,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
     <div className="diary-shell">
       {(view === 'notes' || view === 'endings' || view === 'result') && <section className="record-screen" aria-label={view === 'notes' ? '유저노트' : view === 'result' ? 'Mock 엔딩 카드' : '엔딩 도감'}>
         <button className="back-button" onClick={() => setView(returnView.current)}>← {returnView.current === 'chat' ? '대화로 돌아가기' : '이전 화면으로'}</button>
-        {view !== 'notes' ? <EndingCollection initialPreview={view === 'result'} onHome={onHome} onRestart={restart} /> : <>
+        {view !== 'notes' ? <EndingCollection initialPreview={view === 'result'} onHome={onHome} onRestart={restart} /> : client.mode === 'api' ? <UserNotePanel headingRef={pageHeading} /> : <>
           <p className="eyebrow">USER NOTE</p>
           <h2 ref={pageHeading} tabIndex={-1}>유저노트</h2>
           <div className="record-empty note-sheet"><div className="note-sheet-header"><span>나의 캠퍼스 메모</span><span aria-hidden="true">✎</span></div><div className="note-empty-content"><div className="note-doodle"><img src={project.images.happy} alt="" /><span aria-hidden="true">선배의 이야기가<br />궁금해요!</span></div><span className="note-status">아직 기록 없음</span><h3>우리의 이야기가<br />한 장씩 쌓일 곳.</h3><p>함께 나눈 중요한 이야기가 담길 공간이에요.<br />이번 시연에서는 기억을 추출하거나 저장하지 않아요.</p></div><p className="note-sheet-footer">USER NOTE · 비어 있는 첫 페이지</p></div>
@@ -97,8 +100,8 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
       <MessageList state={state} nickname={nickname} />
       <section className="composer" aria-label="메시지 보내기">
         {state.status === 'complete' ? <div className="completion" role="status"><b>첫 번째 기록, 여기까지!</b><p>개강 2턴 체험을 마쳤어요.</p><div className="completion-actions"><button className="restart" onClick={() => { returnView.current = 'chat'; setView('result') }}>결과 예시 보기 →</button><button className="restart" onClick={restart}>다시 체험하기 ↻</button></div></div> : <>
-          {state.status === 'error' && <div className="error-notice" role="alert">Mock 응답을 불러오지 못했어요. 진행은 그대로예요.<button onClick={retry}>다시 시도 ↻</button></div>}
-          <p className="input-hint">선택하거나 직접 답해 보세요.</p>
+          {state.status === 'error' && <div className="error-notice" role="alert">{client.lastErrorMessage()}<button onClick={retry}>다시 시도 ↻</button></div>}
+          <p className="input-hint">선택하거나 직접 답해 보세요.{client.mode === 'api' && ' (입력은 서버와 AI로 전송돼요)'}</p>
           <ChoiceList items={choices[state.completedTurns]} disabled={disabled} selectedId={state.pending?.input.kind === 'choice' ? state.pending.input.choiceId : undefined} onChoose={choice => send({ kind: 'choice', choiceId: choice.id, text: choice.label })} />
           <form onSubmit={event => { event.preventDefault(); submit() }}>
             <label className="sr-only" htmlFor="chat-input">푸르마에게 자유롭게 답하기</label>
