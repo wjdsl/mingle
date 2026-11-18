@@ -273,3 +273,18 @@ async def test_opening_events_apply_on_turn_1_and_2_only(client, puruma_chat):
             )
         ).scalars().all()
     assert sorted(logged) == ["opening_find_classroom", "opening_late_entry"]
+
+
+def test_response_format_and_no_save_promise_rules_are_present():
+    from app.db.seed_puruma import FORMAT_ADAPTED, MEMORY_ADAPTED, SPEECH_SOURCE
+
+    prompt = PURUMA_PERSONA["system_prompt"]
+    assert SPEECH_SOURCE[1] == "한 번의 응답은 가급적 두세 문장으로 간결하게 한다."
+    assert prompt.rstrip().splitlines()[-1].startswith("[응답 형식]")  # 공통 규칙보다 뒤에 읽히도록 마지막 줄
+    for sentence in (SPEECH_SOURCE[1], *FORMAT_ADAPTED):
+        assert sentence in prompt.splitlines()[-1]
+    save_rule = next(s for s in MEMORY_ADAPTED if "저장 약속" in s)
+    assert save_rule in prompt
+    # 원문의 '저장을 완료했다고 말하지 않는다'와 모순되지 않고, 회상 규칙은 그대로다.
+    assert "저장을 완료했다고 말하지 않는다." in prompt
+    assert "회상 허용 여부를 알 수 없으면 먼저 과거 기억을 꺼내지 않는다." in prompt
