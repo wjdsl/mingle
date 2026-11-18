@@ -290,3 +290,262 @@ async def load_notes(
             stmt = stmt.where(UserNote.persona_id == persona_id)
     stmt = stmt.order_by(UserNote.importance.desc(), UserNote.updated_at.desc()).limit(limit)
     return list((await db.execute(stmt)).scalars().all())
+
+
+# --------------------------------------------------------------------------- #
+# 푸르마 전용 User Note 정책 (브라우저 로컬 저장용, DB를 쓰지 않는 순수 함수)
+#
+# 근거: docs/Pruma_Data_Design.md 8장, data/usernote/pruma_usernote_importance.json,
+#       docs/AI_LLM_DESIGN.md 7장. 위의 일반 페르소나 기억 함수와 UserNote 스키마는 그대로 둔다.
+# - 허용 항목: 호칭/별명, 관심사·취향, 약속/응원, 반복 주제 (구간별 선택은 필드만 정의, 추출 미구현)
+# - 위기 입력·개인정보·민감정보·타인 정보로 보이는 입력은 해당 발화 전체에서 기억을 만들지 않는다.
+# - 중요도는 high/medium/low, 최대 10개. 넘치면 낮은 중요도·오래된 것부터 삭제하고 합치지 않는다.
+# --------------------------------------------------------------------------- #
+
+PURUMA_PERSONA_SLUG = "puruma"
+PURUMA_MAX_NOTES = 10
+PURUMA_VALUE_MAX_CHARS = 40
+
+PURUMA_FIELDS = ("nickname", "interest", "promise", "repeated_topic", "section_choice")
+PURUMA_EXTRACTED_FIELDS = ("nickname", "interest", "promise", "repeated_topic")
+IMPORTANCE_RANK = {"high": 3, "medium": 2, "low": 1}
+
+# 위기 신호: 기억 추출·저장과 (API 연결 후) 회상을 모두 건너뛴다.
+PURUMA_CRISIS_PATTERNS = (
+    "자살", "죽고 싶", "죽어버리", "죽을래", "자해", "사라지고 싶", "살기 싫", "살고 싶지 않",
+)
+# 개인정보·민감정보 신호: 중요도 판정 전에 제외한다(강한 기억 요청이 있어도 저장하지 않음).
+_PII_PATTERNS = (
+    re.compile(r"(?<!\d)(?:\+?82[- ]?)?0\d{1,2}[- .]?\d{3,4}[- .]?\d{4}(?!\d)"),  # 전화번호
+    re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),  # 이메일
+    re.compile(r"\d{6,}"),  # 학번·계좌 등 긴 숫자
+    re.compile(r"\d{2,4}[XxＸ*]{2,}"),  # 일부 가린 학번 (예: 20XXXXXX)
+)
+_SENSITIVE_KEYWORDS = re.compile(
+    r"학번|주민|실명|본명|(?:내|제)\s*이름|이름(?:은|이)\s|연락처|전화|번호|이메일|메일\s?주소|주소|사는\s?곳|집\s?위치|"
+    r"생일|생년월일|나이|"
+    r"건강|병원|질병|병명|진단|아파서|아픈\s|약을|약\s?먹|우울|공황|불안장애|장애|수술|임신|"
+    r"정치|정당|대통령|선거|투표|종교|교회|성당|불교|기독|천주|이슬람|"
+    r"성적\s?지향|성\s?정체성"
+)
+# 타인 정보로 보이는 입력(판정이 어려우면 저장하지 않는다).
+_OTHER_PERSON = re.compile(
+    r"엄마|아빠|부모|동생|오빠|언니|누나|남자\s?친구|여자\s?친구|남친|여친|친구|룸메|교수님|선생님|"
+    r"[가-힣]{2,3}\s?씨(?:가|는|랑|한테|에게|도|의)?(?![가-힣])|"
+    r"(?:한|했|하)대(?:요)?(?:$|[\s.!?])|한다더라|한다고\s?했"  # 남의 이야기를 전하는 말
+)
+
+_LEADING_NOISE = re.compile(
+    r"^(?:(?:나는|난|나|저는|전|내가|제가|나도|요즘|원래|정말|진짜|그냥|앞으로|계속|오늘은|오늘만은|오늘만|지금은|지금|이번에는|그리고|근데)\s*)+"
+)
+_TRAILING_PARTICLE = re.compile(r"\s*(?:을|를|은|는|이|가|에|에는|도|쪽을|쪽|이랑|랑)$")
+_PERSISTENT = re.compile(r"원래|앞으로|계속|자주|항상|늘\s|매일|기억해")
+_TRANSIENT = re.compile(r"오늘은|오늘만|지금은|지금\s|이번만|잠깐")
+
+_NICKNAME_PATTERNS = (
+    re.compile(r"(?:나를|날|저를|절)\s*([가-힣A-Za-z0-9]{1,10}?)(?:이)?(?:라고|로)\s*불러"),
+    re.compile(r"(?:내|제)\s*별명은\s*([가-힣A-Za-z0-9]{1,10}?)(?:이)?(?:야|예요|에요|입니다|이라고|라고)"),
+)
+_PROMISE_FUTURE = re.compile(r"꼭|다음에|나중에|끝나면|앞으로|계속|언제든|까지")
+_PROMISE_VERB = re.compile(r"(?:하|가|보)자|할게|줄게|갈게|도와줄게|응원해\s?줄게")
+_CHEER = re.compile(r"힘내|화이팅|파이팅|잘할\s?수\s?있어|할\s?수\s?있어|응원할게|응원해")
+_REPEAT_MARKER = re.compile(r"(?:^|\s)(?:또|아까도|다시)(?:\s|$)|또\s?했|아까도")
+_REPEAT_TOPIC = re.compile(r"([가-힣A-Za-z0-9]{1,10})\s*(?:얘기|이야기)")
+_INTEREST_PATTERNS = (
+    # (패턴, 순간 선호 여부). 대상 뒤의 "걸/거/것을"은 _topic에서 떼어 관형형("보는")을 보존한다.
+    (re.compile(r"(.{1,24}?)\s*(?:정말|진짜|제일|너무|많이)?\s*좋아(?:해|합니다|요|$|\s)"), False),
+    (re.compile(r"(.{1,24}?)\s*(?:정말|진짜|제일|너무)?\s*좋(?:더라|아)"), False),
+    (re.compile(r"(.{1,24}?)(?:에|에는)\s*(?:조금|좀|많이)?\s*관심(?:이)?\s*(?:있|생겼|생기)"), False),
+    (re.compile(r"(.{1,24}?)(?:이|가)\s*(?:조금|좀|많이)?\s*궁금"), False),
+    (re.compile(r"(.{1,24}?)\s*(?:을|를|쪽을)\s*(?:계속|더)?\s*알아보고\s*싶"), False),
+    (re.compile(r"(.{1,24}?(?:\s(?:걸|거|것을))?)\s*(?:을|를)?\s*자주"), False),
+    (re.compile(r"(.{1,24}?(?:\s(?:게|거))?)\s*(?:은|는|이|가)?\s*(?:제일|정말|진짜|너무)?\s*재밌"), False),
+    (re.compile(r"(.{1,20}?)(?:이|가|을|를)\s*먹고\s*싶"), True),
+)
+# 관심사 대상이 될 수 없는 말(대화 상대·관계 표현 등). 포함되면 저장하지 않는다.
+_NOT_A_TOPIC = re.compile(r"(?:^|\s)(?:너|너를|널|당신|푸르마|선배|그거|이거|저거|그것|이것)(?:$|\s)")
+
+
+@dataclass(slots=True)
+class PurumaNote:
+    """브라우저 로컬에 저장할 푸르마 기억 1건 (팀 설계의 key/value/importance/created_at_turn 대응)."""
+
+    key: str
+    field: str
+    value: str
+    importance: str = "medium"
+    created_at_turn: int = 0
+    updated_at_turn: int = 0
+
+
+def is_crisis_text(text: str) -> bool:
+    return any(pattern in (text or "") for pattern in PURUMA_CRISIS_PATTERNS)
+
+
+def is_sensitive_text(text: str) -> bool:
+    """개인정보·민감정보·타인 정보로 보이면 True (애매하면 저장하지 않는 쪽)."""
+    value = text or ""
+    if any(pattern.search(value) for pattern in _PII_PATTERNS):
+        return True
+    return bool(_SENSITIVE_KEYWORDS.search(value) or _OTHER_PERSON.search(value))
+
+
+def memory_skip_reason(text: str) -> str | None:
+    """기억 처리를 건너뛸 사유 코드("crisis" | "sensitive"). 원문은 반환·기록하지 않는다."""
+    if is_crisis_text(text):
+        return "crisis"
+    if is_sensitive_text(text):
+        return "sensitive"
+    return None
+
+
+def _topic(raw: str) -> str:
+    value = _clean(raw)
+    value = _LEADING_NOISE.sub("", value)
+    value = re.sub(r"^.*?보다\s+", "", value)  # "밥보다 빵" → "빵"
+    modifier = re.search(r"\s(?:걸|거|게|것을|것)$", value)
+    if modifier:
+        # "그림 보는 걸" → "그림 보는" (관형형 '는'을 조사로 떼지 않는다)
+        return value[: modifier.start()].strip()[:PURUMA_VALUE_MAX_CHARS]
+    previous = None
+    while previous != value:
+        previous = value
+        value = _TRAILING_PARTICLE.sub("", value).strip()
+    return value[:PURUMA_VALUE_MAX_CHARS]
+
+
+def _display(topic: str) -> str:
+    # "그림 보는" 처럼 관형형으로 끝나면 "그림 보는 것"으로 읽기 쉽게 만든다.
+    return f"{topic} 것" if re.search(r"[는던]$", topic) else topic
+
+
+def normalize_puruma_key(field: str, topic: str) -> str:
+    compact = re.sub(r"[\s\W_]+", "", topic or "")
+    return f"{field}:{compact}" if field != "nickname" else "nickname"
+
+
+def _note(field: str, topic: str, importance: str, turn: int, value: str | None = None) -> PurumaNote | None:
+    shown = _clean(value if value is not None else _display(topic))[:PURUMA_VALUE_MAX_CHARS]
+    if not topic or not shown or len(re.sub(r"[^가-힣A-Za-z0-9]", "", topic)) < 1:
+        return None
+    if topic in _STOPWORDS or _NOT_A_TOPIC.search(f" {topic} ") or is_sensitive_text(shown):
+        return None
+    return PurumaNote(normalize_puruma_key(field, topic), field, shown, importance, turn, turn)
+
+
+def extract_puruma_notes(text: str, turn: int = 0) -> list[PurumaNote]:
+    """사용자 발화 1개에서 허용 항목만 규칙으로 추출한다. 위기·민감 입력은 빈 목록."""
+    if not text or memory_skip_reason(text):
+        return []
+    sentence = _clean(text)
+    notes: list[PurumaNote] = []
+
+    for pattern in _NICKNAME_PATTERNS:
+        match = pattern.search(sentence)
+        if match:
+            nickname = match.group(1)
+            if not nickname.isdigit():
+                note = _note("nickname", nickname, "high", turn, value=nickname)
+                if note:
+                    notes.append(note)
+            break
+
+    if _PROMISE_VERB.search(sentence) and _PROMISE_FUTURE.search(sentence):
+        note = _note("promise", sentence, "high", turn, value=sentence)
+        if note:
+            notes.append(note)
+    elif _CHEER.search(sentence):
+        note = _note("promise", sentence, "medium", turn, value=sentence)
+        if note:
+            notes.append(note)
+
+    if _REPEAT_MARKER.search(sentence):
+        topic_match = _REPEAT_TOPIC.search(sentence)
+        if topic_match:
+            topic = _topic(topic_match.group(1))
+        else:
+            # "아까도 말했지만 …"처럼 주제어가 없으면 뒷부분을 주제로 쓴다.
+            topic = _topic(re.split(r"말했지만|말했는데|했지만", sentence, maxsplit=1)[-1])
+        note = _note("repeated_topic", topic, "high", turn)
+        if note:
+            notes.append(note)
+
+    persistent = bool(_PERSISTENT.search(sentence))
+    transient = bool(_TRANSIENT.search(sentence))
+    for clause in re.split(r"[.!?,]\s*|\s(?:그리고|근데)\s|(?:인데|지만|는데)\s", sentence):
+        for pattern, momentary in _INTEREST_PATTERNS:
+            match = pattern.search(clause)
+            if not match:
+                continue
+            topic = _topic(match.group(1))
+            if not topic:
+                continue
+            if momentary or transient:
+                importance = "low"
+            elif persistent:
+                importance = "high"
+            else:
+                importance = "medium"
+            note = _note("interest", topic, importance, turn)
+            if note:
+                notes.append(note)
+            break
+
+    unique: dict[str, PurumaNote] = {}
+    for note in notes:
+        current = unique.get(note.key)
+        if current is None or IMPORTANCE_RANK[note.importance] > IMPORTANCE_RANK[current.importance]:
+            unique[note.key] = note
+    return list(unique.values())
+
+
+def sanitize_puruma_notes(notes: list[PurumaNote]) -> list[PurumaNote]:
+    """외부(브라우저)에서 받은 기억을 다시 검증한다. 허용되지 않은 항목은 버린다."""
+    clean: list[PurumaNote] = []
+    for note in notes:
+        if note.field not in PURUMA_FIELDS or note.importance not in IMPORTANCE_RANK:
+            continue
+        value = _clean(note.value)[:PURUMA_VALUE_MAX_CHARS]
+        if not value or is_crisis_text(value) or is_sensitive_text(value):
+            continue
+        clean.append(PurumaNote(note.key[:120], note.field, value, note.importance, note.created_at_turn, note.updated_at_turn))
+    return clean
+
+
+def _sort_key(note: PurumaNote) -> tuple[int, int, int]:
+    return (IMPORTANCE_RANK[note.importance], note.updated_at_turn, note.created_at_turn)
+
+
+def merge_puruma_notes(
+    existing: list[PurumaNote], incoming: list[PurumaNote], *, limit: int = PURUMA_MAX_NOTES
+) -> list[PurumaNote]:
+    """같은 key는 갱신하고, 같은 관심사가 다시 나오면 high로 올린다. 상한을 넘으면 낮은 순으로 삭제(합치지 않음)."""
+    merged: dict[str, PurumaNote] = {note.key: note for note in sanitize_puruma_notes(existing)}
+    for note in sanitize_puruma_notes(incoming):
+        current = merged.get(note.key)
+        if current is None:
+            merged[note.key] = note
+            continue
+        rank = max(IMPORTANCE_RANK[current.importance], IMPORTANCE_RANK[note.importance])
+        if note.field in ("interest", "repeated_topic") and rank >= IMPORTANCE_RANK["medium"]:
+            rank = IMPORTANCE_RANK["high"]  # 같은 허용 관심사·주제가 2회 이상 → high
+        importance = next(name for name, value in IMPORTANCE_RANK.items() if value == rank)
+        merged[note.key] = PurumaNote(
+            note.key, note.field, note.value, importance, current.created_at_turn, note.updated_at_turn
+        )
+    ordered = sorted(merged.values(), key=_sort_key, reverse=True)
+    return ordered[:limit]
+
+
+def puruma_notes_for_prompt(
+    notes: list[PurumaNote], user_text: str, *, limit: int = PURUMA_MAX_NOTES
+) -> list[PurumaNote]:
+    """응답 맥락에 넣을 기억. 위기 입력이면 회상하지 않도록 빈 목록을 돌려준다."""
+    if is_crisis_text(user_text):
+        return []
+    return sorted(sanitize_puruma_notes(notes), key=_sort_key, reverse=True)[:limit]
+
+
+def update_puruma_notes(existing: list[PurumaNote], user_text: str, turn: int) -> list[PurumaNote]:
+    """한 턴의 기억 갱신. 위기·민감 입력이면 새 기억 없이 기존 목록(재검증 후)만 돌려준다."""
+    return merge_puruma_notes(existing, extract_puruma_notes(user_text, turn))
