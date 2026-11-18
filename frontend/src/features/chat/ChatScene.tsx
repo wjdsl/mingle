@@ -5,6 +5,7 @@ import { choices } from '../../projects/puruma/mockConversation'
 import { useChat } from './useChat'
 import { createPurumaClient } from './chatClient'
 import { UserNotePanel } from './UserNotePanel'
+import { PendingNotice } from './PendingNotice'
 import type { ChatState, Choice, Emotion, Message } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
 import { useViewportHeight } from './useViewportHeight'
@@ -57,7 +58,7 @@ function MessageList({ state, nickname }: { state: ChatState; nickname: string }
       <div className="message-stream" ref={stream}>
       <p className="conversation-date"><span>개강 첫날 · 첫 수업, 길을 잃었어요!</span></p>
       {state.messages.map((message, index) => <MessageBubble key={message.id} message={{ ...message, text: message.role === 'character' ? message.text.replaceAll('선배', nickname) : message.text }} latest={message.role === 'character' && index === state.messages.length - 1} currentEmotion={state.emotion} nickname={nickname} />)}
-      {state.status === 'responding' && <p className="typing" role="status"><span aria-hidden="true">● ● ●</span> 푸르마가 생각하고 있어요</p>}
+      {state.status === 'responding' && <PendingNotice />}
       </div>
     </div>
   </div>
