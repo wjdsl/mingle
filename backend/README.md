@@ -433,6 +433,8 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 
 같은 JSON 모드·출력 한도에서 오프라인으로 직렬화한 비교 요청은 짧은 프롬프트 213바이트, 냉장고 첫 장면(이력 없음) 9,516바이트였다. 바이트 수는 API 과금 토큰과 다르다. 서버 로그의 `headers_ms`는 응답 헤더 도착 시점이며, 실패 시 `phase=before_headers`와 `phase=response_body`로 구분한다. 읽기 타임아웃에서는 자동 재전송하지 않는다.
 
+스토리 응답이 JSON 형식 검사에서 실패하면 `스토리 응답 형식 오류` 경고에 `reason`(JSON 아님 / lines 없음 / 유효한 대사 없음)과 구조 요약을 기록한다. 구조 요약은 글자 수, 시작 문자(`{`·`[`·코드 펜스), JSON 오류 위치, 최상위 형태, 영문 식별자 형태의 키 이름만 담는다. 대사·값과 그 밖의 키는 남기지 않는다. 출력 형태 예시(실측값 아님): `reason=lines 없음 chars=120 start={ json=object keys=reaction,reply`. `chars`는 글자 수이며 토큰 수가 아니다.
+
 `GEMINI_THINKING_LEVEL`로 지원되는 모델의 추론 수준을 선택할 수 있다. 미지정 상태에서 기존 `gemini-3.5-flash`와 `thinkingBudget: 0` 조합은 `thinkingLevel: minimal`을 전송한다. Google은 해당 모델 ID의 생성 요청을 3.6 Flash로 라우팅한다고 안내한다. 앱은 모델 ID를 자동 변경하지 않는다. Flash Lite를 별도로 한 턴 검증할 때에는 기존 로컬 `.env` 수정 없이 위 1회 제한 실행 명령에 `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite GEMINI_THINKING_LEVEL=minimal`을 추가한다.
 
 #### 서비스 복구 후 냉장고 첫 턴 재검증

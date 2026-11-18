@@ -175,6 +175,53 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+_SAFE_KEY = re.compile(r"^[A-Za-z_]{1,24}$")
+
+
+def _key_names(value: dict) -> str:
+    # 키 이름도 모델 생성 문자열이므로 짧은 영문 식별자만 남기고 나머지는 개수로 센다.
+    names = sorted(key for key in value if _SAFE_KEY.match(str(key)))
+    other = len(value) - len(names)
+    return ",".join(names + ([f"other{other}"] if other else [])) or "-"
+
+
+def describe_output_shape(raw: str | None) -> str:
+    """형식 실패 진단용 구조 요약. 대사·값 원문은 포함하지 않는다."""
+    if not isinstance(raw, str):
+        return f"type={type(raw).__name__}"
+    stripped = raw.strip()
+    if not stripped:
+        return "chars=0 start=empty"
+    start = "fence" if stripped.startswith("```") else stripped[0] if stripped[0] in "{[" else "other"
+    parts = [f"chars={len(raw)}", f"start={start}"]
+    body = _strip_fences(raw)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as exc:
+        # msg는 json 모듈의 고정 문구라 원문을 담지 않는다.
+        parts.append(f"json=invalid({exc.msg}) at={exc.pos}/{len(body)}")
+        return " ".join(parts)
+    if isinstance(data, dict):
+        parts.append(f"json=object keys={_key_names(data)}")
+        lines = data.get("lines")
+        if isinstance(lines, list):
+            parts.append(f"lines=list[{len(lines)}]")
+            first = lines[0] if lines else None
+            if isinstance(first, dict):
+                parts.append(f"line0_keys={_key_names(first)}")
+            elif first is not None:
+                parts.append(f"line0={type(first).__name__}")
+        elif "lines" in data:
+            parts.append(f"lines={type(lines).__name__}")
+    elif isinstance(data, list):
+        parts.append(f"json=array[{len(data)}]")
+        if data and isinstance(data[0], dict):
+            parts.append(f"item0_keys={_key_names(data[0])}")
+    else:
+        parts.append(f"json={type(data).__name__}")
+    return " ".join(parts)
+
+
 def parse_story_output(project: StoryProjectDef, raw: str) -> tuple[list[ReplyLine], str]:
     try:
         data = json.loads(_strip_fences(raw))
@@ -336,8 +383,11 @@ async def _generate(
         )
         try:
             lines, reaction = parse_story_output(project, result.text)
-        except ValueError:
-            logger.warning("스토리 응답 형식 오류: project=%s provider=%s attempt=%d", project.id, result.provider, attempt)
+        except ValueError as exc:
+            logger.warning(
+                "스토리 응답 형식 오류: project=%s provider=%s attempt=%d reason=%s %s",
+                project.id, result.provider, attempt, exc, describe_output_shape(result.text),
+            )
             correction = "JSON 형식이 아니었다. 출력 형식의 JSON 객체 하나만 출력한다."
             seen.append("format")
             continue

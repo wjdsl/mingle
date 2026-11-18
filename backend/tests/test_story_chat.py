@@ -231,6 +231,35 @@ def test_output_parser_normalizes_fridge_display_and_rejects_empty():
         parse_story_output(project, json.dumps({"lines": [{"speaker": "냉장고 회장", "text": "  "}]}))
 
 
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("", "chars=0 start=empty"),
+        ("형식 없는 문장", "start=other json=invalid(Expecting value) at=0/"),
+        ('{"lines": [{"speaker": "냉장고 회장", "text": "비밀 대사', "start={ json=invalid(Unterminated string"),
+        ('[{"speaker": "냉장고 회장", "text": "비밀 대사"}]', "json=array[1] item0_keys=speaker,text"),
+        ('```json\n{"line": {"text": "비밀 대사"}}\n```', "start=fence json=object keys=line"),
+        ('{"lines": "비밀 대사", "비밀키": 1}', "keys=lines,other1 lines=str"),
+        ('{"lines": [{"화자": "냉장고 회장", "대사": "비밀 대사"}]}', "lines=list[1] line0_keys=other2"),
+    ],
+)
+def test_output_shape_reports_structure_without_text(raw, expected):
+    shape = story_turn_service.describe_output_shape(raw)
+    assert expected in shape
+    assert "비밀" not in shape and "냉장고" not in shape
+
+
+async def test_format_failure_log_has_reason_and_shape_only(client, monkeypatch, caplog):
+    fake = FakeGemini(['{"answer": "비밀 대사"}', _fridge_json()])
+    monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
+    headers, cid = await _start(client, "fridge")
+    caplog.set_level("WARNING", logger="app.services.story_turn_service")
+    ok = await client.post(f"/api/story-chat/conversations/{cid}/turns", json=_turn(0, "안녕하세요"), headers=headers)
+    assert ok.status_code == 200 and len(fake.calls) == 2
+    assert "reason=lines 없음" in caplog.text and "json=object keys=answer" in caplog.text
+    assert "비밀 대사" not in caplog.text
+
+
 def test_personal_info_masking_and_nickname_fallback():
     assert mask_personal_info("메일 a.b@test.com 번호 010 1234 5678") == "메일 [이메일 생략] 번호 [연락처 생략]"
     assert safe_nickname("010-1234-5678", "자네") == "자네"
