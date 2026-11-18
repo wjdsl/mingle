@@ -437,7 +437,17 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 
 응답 제어 위반 경고는 위반 코드와 줄별 문장 수만 남긴다(예: `codes=too_many_sentences sentences=4`). 문장 상한 3개와 `흠흠.` 같은 짧은 감탄을 한 문장으로 세는 기준은 그대로이며, 출력 형식 지시와 `too_many_sentences` 교정 메모에 이 기준과 실제 문장 수를 알린다. 냉장고 응답 맨 앞의 디스플레이 지문은 관측된 가타카나 오염(`[디ス플레이:`)과 반각 가타카나·전각 콜론·공백 차이만 `[디스플레이: …]`로 정규화한다.
 
-`STORY_RESPONSE_SCHEMA`(기본 true)는 Gemini 스토리 호출에 `generationConfig.responseJsonSchema`(lines 배열·화자 enum·최대 줄 수)를 지정한다. 스키마는 JSON 형태만 제한하며 기존 파서와 응답 제어 검사는 그대로 수행한다. 요청 본문은 오프라인 테스트로 확인했지만 실제 모델(`gemini-3.5-flash-lite` 등)의 호환성은 미검증이다. 모델이 400으로 거부하면 `STORY_RESPONSE_SCHEMA=false`로 끈다.
+`STORY_RESPONSE_SCHEMA`(기본 true)는 Gemini 스토리 호출에 `generationConfig.responseJsonSchema`(lines 배열·화자 enum·최대 줄 수)를 지정한다. 스키마는 JSON 형태만 제한하며 기존 파서와 응답 제어 검사는 그대로 수행한다. 요청 본문은 오프라인 테스트로 확인하고, 실제 `gemini-3.5-flash-lite`(`GEMINI_THINKING_LEVEL=minimal`)에서 스키마를 거부(400)하지 않는 것을 확인했다. 다른 모델은 확인하지 않았다. 모델이 400으로 거부하면 `STORY_RESPONSE_SCHEMA=false`로 끈다.
+
+2026-11-18 실제 Gemini 검증(`scenario_draft_v1`, CLI 스모크, `GEMINI_HTTP_ATTEMPTS=1`, `STORY_GENERATION_ATTEMPTS=2`, 턴 사이 5초): 냉장고·구름섬 모두 `responseJsonSchema`를 사용해 1~9턴 생성과 10턴 고정 엔딩까지 `completed=10/10`, `finished=True`, 같은 요청 ID 재생(`replayed=True`)을 확인했다. 실행마다 1회 결과다.
+- 냉장고: 생성 10회(8턴 `too_many_sentences sentences=4` 1회 → 교정 재시도로 통과), 형식 오류 0, 지문 표기 정규화 1회.
+- 구름섬: 생성 9회, 교정 재시도·형식 오류·응답 제어 위반 0.
+- 브라우저에서 실제 Gemini로 진행한 확인은 아직 없다.
+
+후속 개선 항목(코드 변경 없이 관찰만 기록, 구름섬 1회 실행 기준):
+- 호칭 혼용: 자유 입력으로 소개한 이름(테스트 입력)과 세션 호칭이 달라 응답에서 두 호칭이 섞였다. 스모크 입력 조건에서 생긴 것으로, 화면 입력 호칭과 자기소개가 다를 때의 처리 방향은 미정이다.
+- 대원 출연 편중: 1~9턴 응답 화자가 토토·비비 위주였고 나나는 등장하지 않았다. 현재 대원별 출연을 강제하는 규칙은 없으며 기획 의도 확인이 필요하다.
+- 띄어쓰기: 생성 대사에 사소한 띄어쓰기 오류 1건이 있었다. 현재 검사 대상이 아니다.
 
 선택지 문구의 `[호칭]`/`[닉네임]`: 프론트는 버튼·사용자 말풍선에 호칭을 채운 문구를 표시하고, 서버에는 장면 데이터의 원문 문구와 선택지 ID를 보낸다. 서버는 기존처럼 ID와 원문 정확 일치를 검증한 뒤에만 `safe_nickname()` 기준 호칭으로 채워 LLM 입력·저장 대화·장면 카드 선택지 목록에 쓴다. 자유 입력은 그대로 둔다. 화면 호칭(사용자 입력값)과 서버 호칭(20자 제한·대체 호칭)은 다를 수 있다.
 
