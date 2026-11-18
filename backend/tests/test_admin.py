@@ -50,7 +50,7 @@ async def test_dashboard_overview(client):
     assert body["totals"]["sessions"] >= 1
     assert body["totals"]["conversations"] >= 1
     assert body["totals"]["messages"] >= 2
-    assert len(body["personas"]) == 3
+    assert len(body["personas"]) == 4  # 시드 데모 3종 + 푸르마
     assert len(body["triggers"]) >= 8
     assert len(body["daily"]) == 14
     assert "totals" in body

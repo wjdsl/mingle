@@ -1,6 +1,6 @@
 """/api/chat 푸르마 브라우저 로컬 기억 모드 테스트 (Mock LLM, 외부 API 없음).
 
-푸르마 페르소나의 정식 DB 등록은 다음 단계이므로, 테스트 안에서 임시 페르소나를 만들고 끝나면 지운다.
+시드로 등록된 푸르마 페르소나를 쓰고, 테스트가 만든 세션·대화·기억만 끝나면 지운다.
 """
 
 from __future__ import annotations
@@ -12,7 +12,15 @@ import pytest_asyncio
 from sqlalchemy import delete, func, select
 
 from app.db.base import SessionLocal
-from app.db.models import Conversation, Message, Persona, RelationshipState, UserNote, UserSession
+from app.db.models import (
+    Conversation,
+    ConversationEventLog,
+    Message,
+    Persona,
+    RelationshipState,
+    UserNote,
+    UserSession,
+)
 from app.services import chat_service
 from app.services.chat_service import create_conversation
 from app.services.llm.base import LLMProvider, LLMResult
@@ -42,7 +50,7 @@ class CapturingLLM(LLMProvider):
 
 @pytest_asyncio.fixture
 async def puruma(client, monkeypatch):
-    """임시 푸르마 페르소나·세션·대화. 끝나면 만든 행을 모두 지운다."""
+    """시드된 푸르마와의 세션·대화. 끝나면 테스트가 만든 행만 지우고 페르소나는 남긴다."""
     llm = CapturingLLM()
     monkeypatch.setattr(chat_service, "get_llm", lambda: llm)
     session = await client.post("/api/sessions", json={"display_name": "선배"})
@@ -50,19 +58,17 @@ async def puruma(client, monkeypatch):
     code = session.json()["personal_code"]
     session_id = session.json()["session"]["id"]
     async with SessionLocal() as db:
-        persona = Persona(slug="puruma", name="푸르마", tagline="천마 신입생", is_active=True)
-        db.add(persona)
-        await db.flush()
+        persona = (await db.execute(select(Persona).where(Persona.slug == "puruma"))).scalar_one()
         conversation, _ = await create_conversation(db, session_id=session_id, persona=persona)
         await db.commit()
-        ids = (persona.id, conversation.id)
-    yield {"headers": {"X-Personal-Code": code}, "conversation_id": ids[1], "llm": llm, "session_id": session_id}
+        conversation_id = conversation.id
+    yield {"headers": {"X-Personal-Code": code}, "conversation_id": conversation_id, "llm": llm, "session_id": session_id}
     async with SessionLocal() as db:
-        await db.execute(delete(Message).where(Message.conversation_id == ids[1]))
-        await db.execute(delete(RelationshipState).where(RelationshipState.conversation_id == ids[1]))
-        await db.execute(delete(UserNote).where(UserNote.persona_id == ids[0]))
-        await db.execute(delete(Conversation).where(Conversation.id == ids[1]))
-        await db.execute(delete(Persona).where(Persona.id == ids[0]))
+        await db.execute(delete(Message).where(Message.conversation_id == conversation_id))
+        await db.execute(delete(RelationshipState).where(RelationshipState.conversation_id == conversation_id))
+        await db.execute(delete(ConversationEventLog).where(ConversationEventLog.conversation_id == conversation_id))
+        await db.execute(delete(UserNote).where(UserNote.session_id == session_id))
+        await db.execute(delete(Conversation).where(Conversation.id == conversation_id))
         await db.execute(delete(UserSession).where(UserSession.id == session_id))
         await db.commit()
 
