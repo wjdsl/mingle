@@ -479,16 +479,43 @@ Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다
 
 푸르마 대화(`/api/chat`)에 브라우저 로컬 기억을 쓰는 시연의 실행 방법이다. 기존 `backend/.env`는 수정하지 않고 환경변수로 덮어쓴다.
 
-```bash
-# 터미널 1: 백엔드(포트 8000). 처음 쓰는 DB면 시드로 푸르마가 최신 프롬프트로 만들어진다.
-cd backend
-LLM_TIMEOUT_SECONDS=60 GEMINI_HTTP_ATTEMPTS=1 LLM_PROBE_ON_STARTUP=false \
-  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+#### 안전 실행 절차 (실제 Gemini 시연, 푸르마와 냉장고·구름섬을 한 서버로)
 
-# 터미널 2: 프론트. VITE_PURUMA_CLIENT=api일 때만 실제 API를 쓰며 기본은 Mock이다.
-cd frontend
-VITE_PURUMA_CLIENT=api npm run dev
+**0) 개발 DB 백업.** 오래된 로컬 브랜치로 옮겨 다니면 `backend/data/app.db`가 덮어써지거나 삭제될 수 있다(과거 커밋이 이 파일을 추적했기 때문). 브랜치를 바꾸기 전에 복사해 둔다.
+
+```bash
+cp backend/data/app.db ~/Developer/mingle-backups/app.db.$(date +%Y%m%d-%H%M)   # 파일이 있을 때만
 ```
+
+**1) DB를 Mock으로 먼저 시드한다.** 새 DB에서 실제 공급자로 시드하면 서하린·카이·모모의 지식 문서를 Gemini 임베딩으로 색인하려고 호출한다. 푸르마는 지식 문서가 없어 호출이 없지만 같은 시드에 함께 만들어진다. 아래 로그에 `시드 데이터 생성 완료`가 나오면 Ctrl+C로 종료한다. 이미 페르소나가 있는 DB는 건너뛴다.
+
+```bash
+cd backend
+LLM_PROVIDER=mock LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=true \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+**2) 실제 Gemini 모드로 서버를 시작한다.** 시작 점검(`LLM_PROBE_ON_STARTUP`)은 기본으로 임베딩 1회·생성 1회를 호출하고, 실패하면 조용히 Mock으로 바꾸므로 끄고, 시드는 이미 했으므로 끈다.
+
+```bash
+cd backend
+LLM_PROVIDER=gemini LLM_TIMEOUT_SECONDS=60 GEMINI_HTTP_ATTEMPTS=1 \
+LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+**3) 프론트를 두 환경변수로 시작한다.** 푸르마는 `VITE_PURUMA_CLIENT=api`, 냉장고·구름섬은 `VITE_STORY_CLIENT=api`일 때만 실제 API를 쓰며 기본은 둘 다 Mock이다.
+
+```bash
+cd frontend
+VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
+```
+
+**4) 첫 호출 전에 확인한다.**
+- 서버 로그에 `GEMINI_API_KEY 없음 → mock 공급자로 대체` 경고가 없어야 한다(있으면 키가 읽히지 않은 것이다). 첫 요청 후에는 `LLM 공급자: gemini (model=...)`가 보여야 한다.
+- 냉장고·구름섬은 화면의 공급자·모델 표시로, 푸르마(화면에 표시 없음)는 서버 로그의 `provider=gemini ... operation=generateContent` 줄로 실제 Gemini 호출인지 구분한다.
+- 사전 리허설은 Mock으로 한다: 백엔드를 `LLM_PROVIDER=mock`으로, 프론트를 `VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=scenario-mock`으로 시작하면 Gemini를 호출하지 않고 푸르마 기억·냉장고·구름섬 10턴을 모두 확인할 수 있다.
+- 429나 시간 초과가 나면 즉시 멈추고 원인을 확인한다. 자동 재시도는 꺼져 있다(`GEMINI_HTTP_ATTEMPTS=1`).
 
 - `LLM_TIMEOUT_SECONDS`의 기본값은 30초다. 2026-11-18 검증에서 Gemini 응답이 9~42초 걸렸으므로 시연에서는 60초로 지정한다. 지정한 값이 Gemini HTTP 클라이언트의 읽기 제한에 적용되는 것을 확인했다(설정 30.0 → 60.0).
 - 모델 기본 설정은 `.env`의 값을 따른다. 임베딩 호출은 푸르마에서 발생하지 않는다(지식 문서가 없으면 검색을 건너뛴다). 규칙 기반 기억 추출만 쓰고 별도 LLM 추출 호출은 없다.
