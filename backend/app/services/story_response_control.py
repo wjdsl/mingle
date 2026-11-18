@@ -4,7 +4,7 @@
 - style_polite: 존댓말 어미(~요, ~습니다 등). 냉장고 하게체·구름섬 반말 위반
 - too_many_sentences: 한 줄 대사가 3문장 초과 (공식 페르소나/규칙의 상한)
 - stage_direction: 구름섬 대원 1명당 괄호 지문 2개 이상
-- forbidden_address: 성별을 가정하는 호칭(총각/아가씨 등)
+- forbidden_address: 성별을 가정하는 호칭(총각/아가씨 등, 사용자 호칭 뒤 군/양)
 - tentative_name: 화면에 아직 나오지 않은 가칭 고유명사 사용
 - real_finance: 실존 기업 이름·투자 권유 표현
 - prompt_leak: 시스템 프롬프트·내부 규칙 표기 노출
@@ -27,6 +27,9 @@ POLITE_END = re.compile(r"(요|니다|습니까|십니까|세요|죠|십시오)\
 SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 PAREN = re.compile(r"\([^)]*\)")
 GENDER_ADDRESS = ("총각", "아가씨")
+# 사용자 호칭 바로 뒤에 붙는 성별 호칭(예: "민준 군", "민트 양,"). 하게체 어미 "~군"과 구분하려고
+# 호칭 직후(공백 0~1개)이면서 뒤가 한글이 아닌 경우(문장부호·공백·끝)만 본다.
+GENDER_SUFFIXES = ("군", "양")
 TENTATIVE_NAMES = ("가람그룹", "윤 실장", "한빛전자", "방울섬", "소복이")
 REAL_COMPANIES = ("삼성전자", "삼성", "현대자동차", "현대차", "SK하이닉스", "LG전자", "카카오", "네이버", "애플", "테슬라", "엔비디아", "구글", "아마존", "마이크로소프트")
 INVEST_PHRASES = ("매수", "매도", "사세요", "투자하세요", "투자해", "종목 추천", "주식을 사")
@@ -53,6 +56,13 @@ def _spoken(text: str) -> str:
 
 def sentences(text: str) -> list[str]:
     return [s for s in SENTENCE_SPLIT.split(_spoken(text).replace("\n", " ")) if len(re.sub(r"[^가-힣A-Za-z0-9]", "", s)) >= 2]
+
+
+def _gendered_nickname(text: str, nickname: str) -> bool:
+    if not nickname:
+        return False
+    suffix = "|".join(GENDER_SUFFIXES)
+    return re.search(rf"{re.escape(nickname)} ?(?:{suffix})(?![가-힣])", text) is not None
 
 
 def visible_texts_until(project: StoryProjectDef, turn: int) -> str:
@@ -99,7 +109,7 @@ def validate_lines(
         if project.id == "cloud" and speaker == "두두" and nickname and nickname in text and not is_last_input_scene:
             found.append(Violation("dudu_nickname", "마지막 장면 전 두두의 호칭 사용"))
 
-    if any(word in joined for word in GENDER_ADDRESS):
+    if any(word in joined for word in GENDER_ADDRESS) or _gendered_nickname(joined, nickname):
         found.append(Violation("forbidden_address", "성별을 가정하는 호칭"))
     unseen = [name for name in TENTATIVE_NAMES if name in joined and name not in visible]
     if unseen:
