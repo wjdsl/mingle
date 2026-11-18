@@ -38,6 +38,7 @@ REPEAT_RATIO = 0.9
 class Violation:
     code: str
     detail: str
+    count: int | None = None  # too_many_sentences의 실제 문장 수(교정 메모·진단 로그용 숫자)
 
 
 def _norm(text: str) -> str:
@@ -92,7 +93,7 @@ def validate_lines(
         if polite:
             found.append(Violation("style_polite", f"{speaker}: {polite[0][:30]}"))
         if len(spoken_sentences) > MAX_SENTENCES:
-            found.append(Violation("too_many_sentences", f"{speaker}: {len(spoken_sentences)}문장"))
+            found.append(Violation("too_many_sentences", f"{speaker}: {len(spoken_sentences)}문장", len(spoken_sentences)))
         if project.id == "cloud" and len(PAREN.findall(text)) > 1:
             found.append(Violation("stage_direction", f"{speaker}: 지문 {len(PAREN.findall(text))}개"))
         if project.id == "cloud" and speaker == "두두" and nickname and nickname in text and not is_last_input_scene:
@@ -135,4 +136,11 @@ def correction_note(violations: list[Violation]) -> str:
         "repetition": "이전 대사를 반복했다. 새로운 말로 답한다.",
         "dudu_nickname": "두두는 아직 사용자 호칭을 부르지 않는다.",
     }
+    counts = [v.count for v in violations if v.code == "too_many_sentences" and v.count]
+    if counts:
+        # 원문 없이 숫자만 알려 준다. 판정 기준(감탄 포함·상한 MAX_SENTENCES)은 그대로다.
+        labels["too_many_sentences"] = (
+            f"문장이 {max(counts)}개였다. '흠흠.' 같은 짧은 감탄도 한 문장으로 센다. "
+            f"{MAX_SENTENCES}문장 이하로 줄인다."
+        )
     return " ".join(dict.fromkeys(labels.get(v.code, v.code) for v in violations))

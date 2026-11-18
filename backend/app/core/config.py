@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-001"
     gemini_http_attempts: int = Field(default=2, ge=1, le=2)
     story_generation_attempts: int = Field(default=2, ge=1, le=2)
+    # 스토리 응답에 Gemini responseJsonSchema를 지정한다. 모델이 거부(400)하면 false로 끈다.
+    story_response_schema: bool = True
     gemini_thinking_level: Literal["", "minimal", "low", "medium", "high"] = ""
     gemini_thinking_budget: int = 0  # 구형 옵션. -1이면 공급자 기본값을 사용한다.
     llm_timeout_seconds: float = 30.0

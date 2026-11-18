@@ -19,6 +19,8 @@ from app.services.story_scenes import Scene, SceneChoice, StoryProjectDef
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
 MAX_REACTION_CHARS = 16
+# 응답 제어(story_response_control.sentences)와 같은 기준을 모델에 알린다. 3문장 상한은 그대로다.
+SENTENCE_COUNT_NOTE = "'흠흠.'처럼 마침표·물음표·느낌표로 끝나는 짧은 감탄도 한 문장으로 센다"
 HISTORY_TURNS = 10
 SCORE_PATTERNS = (
     re.compile(r"[^.]*채점은[^.]*\.\s*"),  # "채점은 … 기준." 문장
@@ -203,10 +205,10 @@ def scene_card(project: StoryProjectDef, index: int, scene: Scene, nickname: str
 def output_contract(project: StoryProjectDef, scene: Scene) -> str:
     if project.max_lines == 1:
         speakers = f'"{project.speakers[0]}" 한 명, lines는 정확히 1개'
-        shape = "대사는 1~3문장. 디스플레이 지문은 쓰려면 대사 맨 앞에 [디스플레이: …] 한 개만."
+        shape = f"대사는 1~3문장({SENTENCE_COUNT_NOTE}). 디스플레이 지문은 쓰려면 대사 맨 앞에 [디스플레이: …] 한 개만."
     else:
         speakers = f"{', '.join(project.speakers)} 중 1~{project.max_lines}명, 한 대원당 1줄"
-        shape = "각 대원의 대사는 1~3문장. 지문은 대원당 (괄호) 한 개까지."
+        shape = f"각 대원의 대사는 1~3문장({SENTENCE_COUNT_NOTE}). 지문은 대원당 (괄호) 한 개까지."
     intent = ""
     if scene.intents:
         ids = ", ".join(it.id for it in scene.intents)

@@ -28,7 +28,7 @@ from app.db.models import Conversation, Message, Persona, StoryTurnRecord, UserS
 from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
 from app.services.story_prompt import build_story_messages
-from app.services.story_response_control import correction_note, validate_lines
+from app.services.story_response_control import correction_note, sentences, validate_lines
 from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, get_project, project_for_slug
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,9 @@ _PHONE = re.compile(r"(?<!\d)(?:\+?82[- ]?)?0\d{1,2}[- .]?\d{3,4}[- .]?\d{4}(?!\
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _LONG_DIGITS = re.compile(r"\d{6,}")
 _DISPLAY = re.compile(r"\[디스플레이:[^\]]*\]")
+# 응답 맨 앞 디스플레이 지문의 오염 표기만 표준형으로 고친다.
+# 관측: '스' 자리에 가타카나 'ス'(U+30B9). 안전 변형: 반각 'ｽ'(U+FF7D), 전각 콜론, 콜론 앞뒤 공백 차이.
+_DISPLAY_VARIANT = re.compile(r"^\[디[스スｽ]플레이\s*[:：]\s*([^\[\]\n]*)\]")
 
 
 class StoryTurnError(Exception):
@@ -222,6 +225,42 @@ def describe_output_shape(raw: str | None) -> str:
     return " ".join(parts)
 
 
+def normalize_display_tag(text: str) -> tuple[str, bool]:
+    """대사 맨 앞의 디스플레이 지문 표기만 `[디스플레이: 내용]`으로 맞춘다. 다른 대괄호·대사는 그대로 둔다."""
+    match = _DISPLAY_VARIANT.match(text)
+    if not match:
+        return text, False
+    canonical = f"[디스플레이: {match.group(1).strip()}]"
+    if match.group(0) == canonical:
+        return text, False
+    return canonical + text[match.end():], True
+
+
+def story_response_schema(project: StoryProjectDef) -> dict:
+    """Gemini `responseJsonSchema`용 출력 형태. 문장 수 등 값 규칙은 파서·응답 제어가 계속 검사한다."""
+    return {
+        "type": "object",
+        "properties": {
+            "lines": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": project.max_lines,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "speaker": {"type": "string", "enum": list(project.speakers)},
+                        "text": {"type": "string"},
+                    },
+                    "required": ["speaker", "text"],
+                },
+            },
+            "reaction": {"type": "string"},
+            "intent_id": {"type": "string"},
+        },
+        "required": ["lines"],
+    }
+
+
 def parse_story_output(project: StoryProjectDef, raw: str) -> tuple[list[ReplyLine], str]:
     try:
         data = json.loads(_strip_fences(raw))
@@ -243,6 +282,9 @@ def parse_story_output(project: StoryProjectDef, raw: str) -> tuple[list[ReplyLi
         if text.startswith(f"{speaker}:"):
             text = text[len(speaker) + 1 :].strip()
         if project.id == "fridge":
+            text, normalized = normalize_display_tag(text)
+            if normalized:
+                logger.info("스토리 지문 표기 정규화: project=%s count=1", project.id)
             # 디스플레이 지문은 한 턴에 최대 1개 (첫 번째만 유지)
             first = _DISPLAY.search(text)
             if first:
@@ -373,6 +415,12 @@ async def _generate(
     started = time.perf_counter()
     correction: str | None = None
     seen: list[str] = []
+    # 스키마를 받는 공급자(Gemini)에만 전달한다. 다른 공급자·테스트 대역의 호출 형태는 그대로다.
+    schema_kwargs = (
+        {"json_schema": story_response_schema(project)}
+        if settings.story_response_schema and getattr(llm, "supports_json_schema", False)
+        else {}
+    )
     for attempt in range(1, min(settings.story_generation_attempts, MAX_ATTEMPTS) + 1):
         messages, versions = build_story_messages(project, nickname, turn, history, user_text, choice, correction)
         result = await llm.generate(
@@ -380,6 +428,7 @@ async def _generate(
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
             json_mode=True,
+            **schema_kwargs,
         )
         try:
             lines, reaction = parse_story_output(project, result.text)
@@ -396,7 +445,12 @@ async def _generate(
             latency = int((time.perf_counter() - started) * 1000)
             return GeneratedReply(lines, reaction, result.provider, result.model, latency, parse_intent(result.text, scene), attempt, seen, versions)
         seen += [v.code for v in violations]
-        logger.warning("스토리 응답 제어 위반: project=%s turn=%d attempt=%d codes=%s", project.id, turn, attempt, ",".join(v.code for v in violations))
+        # 원문·위반 상세(detail)는 남기지 않고 코드와 줄별 문장 수만 기록한다.
+        logger.warning(
+            "스토리 응답 제어 위반: project=%s turn=%d attempt=%d codes=%s sentences=%s",
+            project.id, turn, attempt, ",".join(v.code for v in violations),
+            ",".join(str(len(sentences(l.text))) for l in lines),
+        )
         correction = correction_note(violations)
     raise LLMError(f"스토리 응답 검증 실패: {','.join(seen)}")
 

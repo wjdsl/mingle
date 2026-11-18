@@ -435,6 +435,10 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 
 스토리 응답이 JSON 형식 검사에서 실패하면 `스토리 응답 형식 오류` 경고에 `reason`(JSON 아님 / lines 없음 / 유효한 대사 없음)과 구조 요약을 기록한다. 구조 요약은 글자 수, 시작 문자(`{`·`[`·코드 펜스), JSON 오류 위치, 최상위 형태, 영문 식별자 형태의 키 이름만 담는다. 대사·값과 그 밖의 키는 남기지 않는다. 출력 형태 예시(실측값 아님): `reason=lines 없음 chars=120 start={ json=object keys=reaction,reply`. `chars`는 글자 수이며 토큰 수가 아니다.
 
+응답 제어 위반 경고는 위반 코드와 줄별 문장 수만 남긴다(예: `codes=too_many_sentences sentences=4`). 문장 상한 3개와 `흠흠.` 같은 짧은 감탄을 한 문장으로 세는 기준은 그대로이며, 출력 형식 지시와 `too_many_sentences` 교정 메모에 이 기준과 실제 문장 수를 알린다. 냉장고 응답 맨 앞의 디스플레이 지문은 관측된 가타카나 오염(`[디ス플레이:`)과 반각 가타카나·전각 콜론·공백 차이만 `[디스플레이: …]`로 정규화한다.
+
+`STORY_RESPONSE_SCHEMA`(기본 true)는 Gemini 스토리 호출에 `generationConfig.responseJsonSchema`(lines 배열·화자 enum·최대 줄 수)를 지정한다. 스키마는 JSON 형태만 제한하며 기존 파서와 응답 제어 검사는 그대로 수행한다. 요청 본문은 오프라인 테스트로 확인했지만 실제 모델(`gemini-3.5-flash-lite` 등)의 호환성은 미검증이다. 모델이 400으로 거부하면 `STORY_RESPONSE_SCHEMA=false`로 끈다.
+
 `GEMINI_THINKING_LEVEL`로 지원되는 모델의 추론 수준을 선택할 수 있다. 미지정 상태에서 기존 `gemini-3.5-flash`와 `thinkingBudget: 0` 조합은 `thinkingLevel: minimal`을 전송한다. Google은 해당 모델 ID의 생성 요청을 3.6 Flash로 라우팅한다고 안내한다. 앱은 모델 ID를 자동 변경하지 않는다. Flash Lite를 별도로 한 턴 검증할 때에는 기존 로컬 `.env` 수정 없이 위 1회 제한 실행 명령에 `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite GEMINI_THINKING_LEVEL=minimal`을 추가한다.
 
 #### 서비스 복구 후 냉장고 첫 턴 재검증

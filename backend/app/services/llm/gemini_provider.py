@@ -78,6 +78,7 @@ def _quota_error(response: httpx.Response) -> GeminiQuotaError | None:
 
 class GeminiProvider(LLMProvider):
     name = "gemini"
+    supports_json_schema = True  # generationConfig.responseJsonSchema 전달 가능
 
     def __init__(
         self,
@@ -153,14 +154,18 @@ class GeminiProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
         json_mode: bool = False,
+        json_schema: dict | None = None,
     ) -> LLMResult:
         system, contents = self._convert(messages)
         generation_config: dict = {
             "temperature": temperature if temperature is not None else 0.8,
             "maxOutputTokens": max_tokens or 700,
         }
-        if json_mode:
+        if json_mode or json_schema is not None:
             generation_config["responseMimeType"] = "application/json"
+        if json_schema is not None:
+            # REST generateContent의 JSON Schema 필드(구형 responseSchema와 함께 쓰지 않는다).
+            generation_config["responseJsonSchema"] = json_schema
         if self.thinking_level is not None:
             generation_config["thinkingConfig"] = {"thinkingLevel": self.thinking_level}
         elif self.thinking_budget >= 0:
