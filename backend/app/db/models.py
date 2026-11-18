@@ -331,3 +331,36 @@ class AdminUser(Base):
     role: Mapped[str] = mapped_column(String(20), default="admin")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# --------------------------------------------------------------------------- #
+# 냉장고·구름섬 장면형 스토리 턴 (재시도 중복 방지 장부)
+# --------------------------------------------------------------------------- #
+class StoryTurnRecord(Base):
+    """장면 하나에 대한 사용자 입력 1회와 캐릭터 응답을 연결한다.
+
+    (conversation_id, turn_index)와 (conversation_id, request_id) 고유 제약으로
+    같은 장면의 중복 응답과 재시도에 의한 메시지 중복 생성을 DB에서 막는다.
+    대화 원문은 messages 테이블에만 있고 이 표에는 진행/메타데이터만 둔다.
+    """
+
+    __tablename__ = "story_turns"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "turn_index", name="uq_story_turn_index"),
+        UniqueConstraint("conversation_id", "request_id", name="uq_story_turn_request"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    project: Mapped[str] = mapped_column(String(20))
+    turn_index: Mapped[int] = mapped_column(Integer)
+    request_id: Mapped[str] = mapped_column(String(64))
+    choice_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    user_message_id: Mapped[str] = mapped_column(String(36))
+    assistant_message_id: Mapped[str] = mapped_column(String(36))
+    provider: Mapped[str] = mapped_column(String(40))
+    model: Mapped[str] = mapped_column(String(80))
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

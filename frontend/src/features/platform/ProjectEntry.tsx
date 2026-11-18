@@ -1,3 +1,4 @@
+import { storyClientMode } from '../../services/storyClient'
 import { useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait, DemoNotice } from './shared'
@@ -10,7 +11,7 @@ export function ProjectIntro({ project, onStart }: { project: StoryProject; onSt
   return <main className="p-intro">
     <div className="p-entry-heading"><p className="p-kicker">{project.genre}</p><h1>{project.title}</h1></div>
     <div className="p-intro-art"><CharacterPortrait project={project} /><span className="p-art-caption">{project.hook}</span></div>
-    <div className="p-intro-copy"><p>{project.description}</p><div className="p-intro-facts"><span>{roles[project.id]}</span><span>{project.id === 'puruma' ? '개강 2턴 체험' : project.id === 'cloud' ? '3개 미션 체험' : '10턴 Mock 체험'}</span></div><ActionButton onClick={onStart}>체험 준비하기 <span aria-hidden="true">→</span></ActionButton>{project.id !== 'fridge' && <DemoNotice />}</div>
+    <div className="p-intro-copy"><p>{project.description}</p><div className="p-intro-facts"><span>{roles[project.id]}</span><span>{project.id === 'puruma' ? '개강 2턴 체험' : storyClientMode() === 'api' ? '10턴 Gemini 체험' : project.id === 'cloud' && storyClientMode() === 'mock' ? '3개 미션 체험' : '10턴 Mock 체험'}</span></div><ActionButton onClick={onStart}>체험 준비하기 <span aria-hidden="true">→</span></ActionButton>{project.id !== 'fridge' && <DemoNotice project={project} />}</div>
   </main>
 }
 export function ProjectSetup({ project, initialName, onStart }: { project: StoryProject; initialName: string; onStart(name: string): void }) {

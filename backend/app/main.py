@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("서비스 시작: %s v%s", settings.app_name, settings.app_version)
-    await ensure_llm_ready()
+    if settings.llm_probe_on_startup:
+        await ensure_llm_ready()
     await init_db()
     if settings.seed_on_startup:
         await seed_database()

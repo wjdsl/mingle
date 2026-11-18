@@ -286,3 +286,44 @@
 - 이미지 확대창은 제목 중앙/닫기 오른쪽의 독립 상단 바와 12px 간격을 사용한다. 기존 확대·Escape·스크롤 복귀는 유지한다.
 - 의견은 작성/검증/복사까지만 제공한다. 저장 API/실제 전송·AI·관계 분석·영구 저장은 미연결이다.
 - 최종 build 및 기존 테스트 9개 통과. 사용자 원본 Images/와 .backups/는 커밋 대상에서 제외한다. 백엔드/data/prompts 변경 없음.
+
+
+## 2026-11-15 냉장고·구름섬 Gemini 연동 (feature/gemini-story-fridge-cloud)
+
+- origin/main@103d05a 기반 독립 브랜치. 백엔드 `/api/story-chat`(장면 정의·턴 처리·`story_turns` 중복 방지 표), 프론트 `apiStoryClient.ts`와 `VITE_STORY_CLIENT=api` 모드를 추가했다. 기본은 Mock이며 API 모드 실패 시 Mock으로 대체하지 않는다. 푸르마·Qwen 실험 브랜치 파일은 변경하지 않았다. 새 의존성 없음.
+- GeminiProvider는 키를 헤더(x-goog-api-key)로 보낸다. 관계 점수·성향 분석·결과 판정은 구현하지 않았다. 상세·PR #4 비교·미완료는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절과 `frontend/STORY_CHAT_GEMINI_REVIEW.md`.
+- 커밋/푸시/PR 없음.
+
+## 2026-11-15 냉장고·구름섬 10턴 데이터 구조화 (코드 미변경)
+
+- 사용자 요청에 따라 Gemini 호출·API·프론트 UI·DB는 수정하지 않고 데이터만 구조화했다. 원본은 `docs/stories/{fridge,cloud}/*-story-bible.md`, `*-scenario.md`.
+- 신규 `data/fridge_data/scenario/fridge_scene_cards_draft.json`(v0.1)과 `data/cloud_data/scenario/cloud_scene_cards_draft.json`은 공식 개요 `fridge_story_outline.json`, `cloud_story_outline.json`과 별개인 시나리오 초안 추출본이다. 2026-11-17 작업 트리 확인에서 공식 `cloud_story_outline.json`의 변경은 없었다. 각 10턴의 장면·첫 대사·화자·지문·시스템 메시지·버튼·의도표·고정 연출을 원문 그대로 옮겼고 출처 수준을 bible_confirmed / bible_draft / scenario_draft / unconfirmed로 구분한다.
+- 점수·관계 단계·성향 판정은 시나리오 제안값만 '미확정'으로 보관한다. `cloud_trait_axes.json` 등 다른 cloud_data 파일은 변경하지 않았다.
+- 검증: `python data/validate_story_outlines.py`(스키마·원문 일치·미확정 유지 52항목), `python data/cloud_data/tests/validate_cloud_chat_data.py`(폴더 이름 변경 후 깨진 경로를 수정, 80항목).
+- 커밋/푸시 없음.
+
+## 2026-11-15 냉장고·구름섬 P1: 공식 데이터 프롬프트·응답 제어·시나리오 초안 10턴
+
+- 범위: 백엔드 LLM·프롬프트·응답 제어·장면 컨텍스트만. 프론트·공식 데이터·시나리오 원본·팀원 검증 스크립트는 변경하지 않았다. 점수·관계 단계·엔딩 판정은 미구현.
+- `story_data.py`가 저장소 루트 `data/` 또는 `STORY_DATA_DIR`에서 공식 JSON과 장면 카드 초안을 읽는다. 현재 프론트 API 모드는 기본 `ui_mock_v1`(냉장고 10장면·구름섬 3미션)을 사용한다. 두 작품의 `scenario_draft_v1` 10턴은 API에서 선택할 수 있으며 프론트에는 연결되어 있지 않다. 상세는 `backend/README.md` 해당 절.
+- 당시 백엔드 테스트 55개(신규 17), 프론트 20개·빌드, 초안 검증 52개가 통과했다. 앞선 기본 세트의 실제 Gemini 검증은 작품별 첫 2장면과 구름섬 브라우저 1미션이었다. P1 적용 후 실제 Gemini 전체 진행은 미실행이다. 커밋/푸시 없음.
+
+## 2026-11-17 서버 장면 세트 및 Gemini 할당량 검증
+
+- 냉장고·구름섬 API 모드와 명시적 서버 Mock 모드에서 동일한 `scenario_draft_v1` 장면 10개를 사용한다. 1~9턴은 설정 공급자가 응답하고 10턴은 스토리 JSON 고정 연출이다. 응답 공급자를 검사하며 API 모드에서 Mock을 표시하지 않는다.
+- 스토리 실패는 진행을 저장하지 않으며 같은 요청 ID로 재시도한다. 동일 서버 프로세스의 동시 턴 요청은 대화별로 순서대로 처리한다. 멀티 프로세스는 DB의 중복 저장 제약을 적용한다.
+- Gemini 모델과 시도 횟수는 환경변수로 설정한다. 일일 429·알 수 없는 할당량 오류·읽기 타임아웃은 자동 재전송하지 않는다. 분당 한도가 확인되면 제한된 횟수와 대기 시간으로 재시도한다. 로그는 대사나 키 없이 호출 상태·소요 시간·공급자가 반환한 토큰 수만 기록한다.
+- Chromium에서 두 작품 서버 Mock 10턴 및 엔딩, Docker/PostgreSQL에서 두 작품 10턴 완료·같은 요청 ID 재생을 확인했다. 기존 `.env`의 `gemini-3.5-flash` 모델 메타데이터 조회는 성공했다. 실제 생성은 냉장고 첫 턴 1회만 시도했으며 30초 읽기 타임아웃으로 유효 응답 0건이다.
+- 실행과 호출 수 설정은 `backend/README.md`에 기록한다.
+
+### Gemini 읽기 타임아웃 후속 조사
+
+- 기존 `gemini-3.5-flash`의 요청은 HTTPX 30초 읽기 제한에 도달했다. 메타데이터 200과 빠른 DNS/TLS는 Google API 호스트에 대한 기본 연결을 확인했다. 기존 생성 요청의 30초 지연 원인은 미확정이다.
+- 추론 옵션 `GEMINI_THINKING_LEVEL` 및 응답 헤더·본문 구간 로그를 추가했다. 제한 시간과 재시도 횟수는 유지한다. Google은 기존 3.5 Flash 모델 ID의 생성 요청을 3.6 Flash로 라우팅한다고 안내한다.
+- 기존 키의 모델 목록/메타데이터에서 Flash Lite의 `generateContent` 지원을 확인했다. 기존 `.env`를 유지한 채 검증 프로세스에만 모델을 지정했다. 냉장고 UI에서 실제 생성 1회는 Google HTTP 503(응답 헤더 9.0초)으로 실패했다. 브라우저에서 오류 표시와 Mock 미표시를 확인했다. 재시도·모델 자동 전환·임베딩 호출은 없었다.
+- 백엔드 65개와 프론트 20개 테스트 및 Compose 설정 검증 통과. 기존 Mock/Docker 전체 검증 기록은 위에 유지한다.
+
+### 503 안내와 로컬 보존
+
+- 기존 Flash는 HTTPX 읽기 타임아웃, Flash Lite는 Google HTTP 503 후 기존 앱 HTTP 502로 기록됐다. 스토리 API에서 공급자 503을 전용 코드로 전달하고 화면에 재시도 안내를 표시한다. 실패 시 진행은 저장되지 않으며 재시도는 같은 요청 ID를 사용한다.
+- 이번 정리에서는 실제 Gemini를 호출하지 않았다. 복구 후 1회 확인 방법은 `backend/README.md`를 따른다.

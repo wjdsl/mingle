@@ -4,18 +4,81 @@ from __future__ import annotations
 
 import asyncio
 import time
+import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from collections.abc import AsyncIterator
 
 import httpx
 
 from app.services.llm.base import LLMError, LLMProvider, LLMResult, fit_embedding
 
-# 재시도 대상: 일시적인 과부하/레이트리밋 응답
-RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+logger = logging.getLogger(__name__)
+RETRYABLE_STATUS = {500, 502, 503, 504}
+MAX_RETRY_WAIT = 15
+
+
+class GeminiTimeoutError(LLMError):
+    """Gemini 응답 시간 초과."""
+
+
+class GeminiHTTPError(LLMError):
+    def __init__(self, status_code: int):
+        super().__init__(f"Gemini 오류 {status_code}")
+        self.status_code = status_code
+
+
+class GeminiQuotaError(LLMError):
+    def __init__(self, kind: str, retry_after: int | None):
+        super().__init__(f"Gemini quota: {kind}")
+        self.kind = kind
+        self.retry_after = retry_after
+
+
+def _quota_error(response: httpx.Response) -> GeminiQuotaError | None:
+    try:
+        error = response.json().get("error") or {}
+    except (ValueError, AttributeError):
+        error = {}
+    if response.status_code != 429 and error.get("status") != "RESOURCE_EXHAUSTED":
+        return None
+    details = error.get("details") or []
+    identifiers = " ".join(
+        str(violation.get(key, ""))
+        for detail in details
+        for violation in detail.get("violations", [])
+        for key in ("quotaId", "quotaMetric", "description")
+    )
+    quota_text = (identifiers + " " + str(error.get("message", ""))).lower()
+    if any(marker in quota_text for marker in ("perday", "per_day", "per day", "daily", "rpd")):
+        return GeminiQuotaError("daily", None)
+
+    delay = None
+    header = response.headers.get("Retry-After")
+    if header:
+        try:
+            delay = max(0, int(header))
+        except ValueError:
+            try:
+                delay = max(0, int((parsedate_to_datetime(header) - datetime.now(timezone.utc)).total_seconds()) + 1)
+            except (ValueError, TypeError, OverflowError):
+                pass
+    if delay is None:
+        for detail in details:
+            hint = detail.get("retryDelay")
+            if isinstance(hint, str) and hint.endswith("s"):
+                try:
+                    delay = max(0, int(float(hint[:-1])) + 1)
+                except (ValueError, OverflowError):
+                    continue
+                break
+    minute = any(marker in quota_text for marker in ("perminute", "per_minute", "per minute", "rpm"))
+    return GeminiQuotaError("minute" if minute else "unknown", delay)
 
 
 class GeminiProvider(LLMProvider):
     name = "gemini"
+    supports_json_schema = True  # generationConfig.responseJsonSchema 전달 가능
 
     def __init__(
         self,
@@ -27,11 +90,17 @@ class GeminiProvider(LLMProvider):
         timeout: float,
         embedding_dim: int,
         thinking_budget: int = 0,
+        http_attempts: int = 2,
+        thinking_level: str | None = None,
     ) -> None:
         self.chat_model = chat_model
         self.embedding_model = embedding_model
         self.embedding_dim = embedding_dim
         self.thinking_budget = thinking_budget
+        self.thinking_level = thinking_level
+        if self.thinking_level is None and chat_model == "gemini-3.5-flash" and thinking_budget == 0:
+            self.thinking_level = "minimal"
+        self.http_attempts = http_attempts
         self._api_key = api_key
         self._base = base_url.rstrip("/")
         self._client = httpx.AsyncClient(timeout=timeout)
@@ -39,33 +108,44 @@ class GeminiProvider(LLMProvider):
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def _post(
-        self,
-        url: str,
-        *,
-        json: dict,
-        params: dict | None = None,
-        attempts: int = 3,
-    ) -> httpx.Response:
-        """일시적 오류(429/5xx/타임아웃)는 짧은 백오프로 재시도한다."""
-        params = params or {"key": self._api_key}
-        last_error: Exception | None = None
+    async def _post(self, url: str, *, json: dict) -> httpx.Response:
+        headers = {"x-goog-api-key": self._api_key}
+        operation = url.rsplit(":", 1)[-1]
+        model = self.chat_model if operation == "generateContent" else self.embedding_model
+        attempts = self.http_attempts
         for attempt in range(1, attempts + 1):
+            started = time.perf_counter()
+            delay = 2 ** (attempt - 1)
+            headers_ms = None
             try:
-                response = await self._client.post(url, params=params, json=json)
-            except httpx.TimeoutException as exc:
-                last_error = exc
+                async with self._client.stream("POST", url, json=json, headers=headers) as response:
+                    headers_ms = int((time.perf_counter() - started) * 1000)
+                    await response.aread()
             except httpx.HTTPError as exc:
-                raise LLMError(f"Gemini 연결 실패: {exc}") from exc
-            else:
-                if response.status_code not in RETRYABLE_STATUS:
-                    return response
-                last_error = LLMError(
-                    f"Gemini 오류 {response.status_code}: {response.text[:200]}"
+                # 타임아웃 뒤에는 공급자가 이미 생성했을 수 있으므로 자동 재전송하지 않는다.
+                logger.warning(
+                    "provider=gemini model=%s operation=%s attempt=%d error=%s phase=%s headers_ms=%s latency_ms=%d",
+                    model, operation, attempt, type(exc).__name__,
+                    "before_headers" if headers_ms is None else "response_body",
+                    headers_ms, (time.perf_counter() - started) * 1000,
                 )
-            if attempt < attempts:
-                await asyncio.sleep(0.7 * attempt)
-        raise LLMError(f"Gemini 재시도 실패: {last_error}") from last_error
+                if isinstance(exc, httpx.TimeoutException):
+                    raise GeminiTimeoutError("Gemini 응답 시간 초과") from exc
+                raise LLMError("Gemini 연결 실패") from exc
+            logger.info(
+                "provider=gemini model=%s operation=%s attempt=%d status=%d headers_ms=%s latency_ms=%d",
+                model, operation, attempt, response.status_code, headers_ms, (time.perf_counter() - started) * 1000,
+            )
+            quota = _quota_error(response) if response.is_error else None
+            if quota:
+                delay = quota.retry_after if quota.retry_after is not None else max(2, delay)
+                logger.warning("provider=gemini model=%s quota=%s retry_after=%s", model, quota.kind, quota.retry_after)
+                if quota.kind != "minute" or delay > MAX_RETRY_WAIT or attempt == attempts:
+                    raise quota
+            elif response.status_code not in RETRYABLE_STATUS or attempt == attempts:
+                return response
+            await asyncio.sleep(delay)
+        raise AssertionError("Gemini retry loop exhausted")
 
     async def generate(
         self,
@@ -74,15 +154,21 @@ class GeminiProvider(LLMProvider):
         temperature: float | None = None,
         max_tokens: int | None = None,
         json_mode: bool = False,
+        json_schema: dict | None = None,
     ) -> LLMResult:
         system, contents = self._convert(messages)
         generation_config: dict = {
             "temperature": temperature if temperature is not None else 0.8,
             "maxOutputTokens": max_tokens or 700,
         }
-        if json_mode:
+        if json_mode or json_schema is not None:
             generation_config["responseMimeType"] = "application/json"
-        if self.thinking_budget is not None and self.thinking_budget >= 0:
+        if json_schema is not None:
+            # REST generateContent의 JSON Schema 필드(구형 responseSchema와 함께 쓰지 않는다).
+            generation_config["responseJsonSchema"] = json_schema
+        if self.thinking_level is not None:
+            generation_config["thinkingConfig"] = {"thinkingLevel": self.thinking_level}
+        elif self.thinking_budget >= 0:
             generation_config["thinkingConfig"] = {
                 "thinkingBudget": self.thinking_budget
             }
@@ -96,18 +182,21 @@ class GeminiProvider(LLMProvider):
         started = time.perf_counter()
         url = f"{self._base}/models/{self.chat_model}:generateContent"
         response = await self._post(url, json=payload)
-        if response.status_code == 400 and "thinkingConfig" in generation_config:
-            # thinking 설정을 지원하지 않는 모델은 설정을 빼고 재시도한다.
-            generation_config.pop("thinkingConfig", None)
-            response = await self._post(url, json=payload)
         self._raise_for_status(response)
         data = response.json()
-        try:
-            parts = data["candidates"][0]["content"]["parts"]
-            text = "".join(part.get("text", "") for part in parts)
-        except (KeyError, IndexError) as exc:
-            raise LLMError("Gemini 응답 형식이 올바르지 않습니다.") from exc
         usage = data.get("usageMetadata") or {}
+        candidates = data.get("candidates") or []
+        candidate = candidates[0] if candidates else {}
+        logger.info(
+            "provider=gemini model=%s input_tokens=%s output_tokens=%s thinking_tokens=%s finish_reason=%s",
+            self.chat_model, usage.get("promptTokenCount"), usage.get("candidatesTokenCount"),
+            usage.get("thoughtsTokenCount"), candidate.get("finishReason"),
+        )
+        try:
+            parts = candidate["content"]["parts"]
+            text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+        except (KeyError, TypeError) as exc:
+            raise LLMError("Gemini 응답 형식이 올바르지 않습니다.") from exc
         return LLMResult(
             text=text.strip(),
             provider=self.name,
@@ -176,4 +265,4 @@ class GeminiProvider(LLMProvider):
     @staticmethod
     def _raise_for_status(response: httpx.Response) -> None:
         if response.status_code >= 400:
-            raise LLMError(f"Gemini 오류 {response.status_code}: {response.text[:300]}")
+            raise GeminiHTTPError(response.status_code)
