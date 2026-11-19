@@ -12,9 +12,20 @@ export class StoryApiError extends Error {
   readonly kind: StoryApiErrorKind
   readonly status?: number
   readonly retryAfter?: number
-  constructor(kind: StoryApiErrorKind, message: string, status?: number, retryAfter?: number) {
-    super(message); this.name = 'StoryApiError'; this.kind = kind; this.status = status; this.retryAfter = retryAfter
+  readonly retryable: boolean
+  constructor(kind: StoryApiErrorKind, message: string, status?: number, retryAfter?: number, retryable = kind !== 'conflict' && kind !== 'auth') {
+    super(message); this.name = 'StoryApiError'; this.kind = kind; this.status = status; this.retryAfter = retryAfter; this.retryable = retryable
   }
+}
+
+// Gemini 503(일시 과부하)은 같은 요청 ID로 다시 보낼 수 있지만, 연속 클릭으로 부하를 키우지 않도록 잠시 기다린다.
+// 429·504 등 다른 오류의 대기 정책은 바꾸지 않는다.
+export const GEMINI_UNAVAILABLE_COOLDOWN_SECONDS = 15
+
+// 화면의 '다시 시도' 노출 여부와 대기 시간. StoryApiError가 아닌 오류(Mock 실패 등)는 기존처럼 즉시 재시도할 수 있다.
+export function storyRetryPolicy(error: unknown): { canRetry: boolean; waitSeconds: number } {
+  if (!(error instanceof StoryApiError)) return { canRetry: true, waitSeconds: 0 }
+  return error.retryable ? { canRetry: true, waitSeconds: error.retryAfter ?? 0 } : { canRetry: false, waitSeconds: 0 }
 }
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
@@ -73,8 +84,15 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
     if (response.status === 503) {
       const data: unknown = await response.json().catch(() => null)
       if (isRecord(data) && isRecord(data.detail) && data.detail.code === 'gemini_unavailable') {
-        throw new StoryApiError('server', 'Gemini가 일시적으로 응답할 수 없어요. 잠시 후 같은 답변을 다시 보낼 수 있어요.', 503)
+        throw new StoryApiError('server', `Gemini가 일시적으로 응답할 수 없어요. 잠시 후 같은 답변을 다시 보낼 수 있어요. ${GEMINI_UNAVAILABLE_COOLDOWN_SECONDS}초 뒤 한 번만 눌러 주세요.`, 503, GEMINI_UNAVAILABLE_COOLDOWN_SECONDS)
       }
+      // 공급자 불일치·장면 데이터 없음 등 서버 설정 문제는 같은 요청을 반복해도 해결되지 않는다.
+      throw new StoryApiError('server', '서버 설정 문제로 이야기를 이어갈 수 없어요. 설정을 확인한 뒤 새로 시작해 주세요.', 503, undefined, false)
+    }
+    if (response.status === 422) {
+      // 장면에 없는 선택지·요청 형식 오류처럼 서버가 요청 자체를 거부한 경우다. 같은 요청을 반복해도 결과가 같다.
+      // 정상 응답(200)의 형식 오류는 기존처럼 'invalid'로 다시 시도할 수 있다.
+      throw new StoryApiError('invalid', '보낸 답변을 서버가 처리할 수 없어요. 새로 시작해 주세요.', 422, undefined, false)
     }
     if (!response.ok) {
       const kind: StoryApiErrorKind = response.status === 409 ? 'conflict' : response.status === 401 || response.status === 403 || response.status === 404 ? 'auth' : response.status === 422 ? 'invalid' : response.status === 504 ? 'timeout' : 'server'

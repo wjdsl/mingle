@@ -54,7 +54,7 @@ function Experience({ project }: { project: StoryProject }) {
     <AppShell immersive={chatting} project={project} onBack={stage === 'intro' ? undefined : back} onHome={home}>
       {stage === 'intro' && <ProjectIntro project={project} onStart={() => go('setup')} />}
       {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { setName(n); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }} />}
-      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} onResult={() => go('result')} />}</ChatIntro></div>}
+      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} onResult={() => go('result')} onRestart={() => setSession(s => s + 1)} />}</ChatIntro></div>}
       {stage === 'result' && <StoryResult project={project} name={name} onRestart={() => go('setup')} onHome={openHome} />}
     </AppShell>
     {exit && <ExitDialog onCancel={() => setExit(false)} onLeave={openHome} />}

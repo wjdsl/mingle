@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { mockStoryClient } from '../../services/storyClient'
 import type { StoryClient } from '../../services/storyClient'
-import { StoryApiError } from '../../services/apiStoryClient'
+import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string }
 export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
@@ -29,18 +29,20 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   const [selected, setSelected] = useState<number>()
   const [errorMessage, setErrorMessage] = useState<string>()
   const [retryBlocked, setRetryBlocked] = useState(false)
+  const [retryWait, setRetryWait] = useState(0)
+  const [canRetry, setCanRetry] = useState(true)
   const controller = useRef<AbortController | null>(null)
   const pending = useRef<{ requestId: string; text: string; choice?: number } | null>(null)
   const busy = useRef(false)
   const failedTurns = useRef(new Set<number>())
   const step = project.steps[turn]
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const retryTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   useEffect(() => () => {
     controller.current?.abort()
-    clearTimeout(retryTimer.current)
+    clearInterval(retryTimer.current)
   }, [])
   async function run() {
-    if (busy.current || retryBlocked || !pending.current) return
+    if (busy.current || retryBlocked || !canRetry || !pending.current) return
     busy.current = true
     setStatus('loading')
     const abort = new AbortController()
@@ -60,9 +62,19 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
       if (!abort.signal.aborted) {
         setErrorMessage(error instanceof StoryApiError ? error.message : undefined)
         setStatus('error')
-        if (error instanceof StoryApiError && error.retryAfter) {
-          setRetryBlocked(true)
-          retryTimer.current = setTimeout(() => setRetryBlocked(false), error.retryAfter * 1000)
+        // 대기 중에는 버튼을 잠그고 남은 초를 보여 준다. 재시도해도 해결되지 않는 오류는 버튼을 숨긴다.
+        // 재시도는 pending.current의 같은 requestId를 다시 보내므로 서버에 같은 턴이 두 번 저장되지 않는다.
+        const policy = storyRetryPolicy(error)
+        setCanRetry(policy.canRetry)
+        if (policy.canRetry && policy.waitSeconds > 0) {
+          const until = Date.now() + policy.waitSeconds * 1000
+          setRetryBlocked(true); setRetryWait(policy.waitSeconds)
+          clearInterval(retryTimer.current)
+          retryTimer.current = setInterval(() => {
+            const left = Math.ceil((until - Date.now()) / 1000)
+            if (left > 0) { setRetryWait(left); return }
+            clearInterval(retryTimer.current); setRetryWait(0); setRetryBlocked(false)
+          }, 250)
         }
       }
     }
@@ -81,5 +93,5 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }
-  return { turn, messages, status, selected, step, send, retry: run, advance, errorMessage, retryBlocked }
+  return { turn, messages, status, selected, step, send, retry: run, advance, errorMessage, retryBlocked, retryWait, canRetry }
 }
