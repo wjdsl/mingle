@@ -445,7 +445,8 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 2026-11-18 실제 Gemini 검증(`scenario_draft_v1`, CLI 스모크, `GEMINI_HTTP_ATTEMPTS=1`, `STORY_GENERATION_ATTEMPTS=2`, 턴 사이 5초): 냉장고·구름섬 모두 `responseJsonSchema`를 사용해 1~9턴 생성과 10턴 고정 엔딩까지 `completed=10/10`, `finished=True`, 같은 요청 ID 재생(`replayed=True`)을 확인했다. 실행마다 1회 결과다.
 - 냉장고: 생성 10회(8턴 `too_many_sentences sentences=4` 1회 → 교정 재시도로 통과), 형식 오류 0, 지문 표기 정규화 1회.
 - 구름섬: 생성 9회, 교정 재시도·형식 오류·응답 제어 위반 0.
-- 브라우저에서 실제 Gemini로 진행한 확인은 아직 없다.
+- 위 CLI 기록 시점(2026-11-18)에는 브라우저에서 실제 Gemini로 진행한 확인이 없었다.
+- 이후 사용자가 브라우저(`VITE_STORY_CLIENT=api`)에서 실제 Gemini로 냉장고·구름섬 각각 10턴 완주를 확인했다(2026-11-19 보고). 이 문서에는 해당 실행의 모델·생성 횟수·재시도 여부가 기록되지 않았으며, 위 CLI 수치와 별개다.
 
 후속 개선 항목(코드 변경 없이 관찰만 기록, 구름섬 1회 실행 기준):
 - 호칭 혼용: 자유 입력으로 소개한 이름(테스트 입력)과 세션 호칭이 달라 응답에서 두 호칭이 섞였다. 스모크 입력 조건에서 생긴 것으로, 화면 입력 호칭과 자기소개가 다를 때의 처리 방향은 미정이다.
