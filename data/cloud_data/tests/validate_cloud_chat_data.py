@@ -1,7 +1,7 @@
 """구름섬 채팅 데이터 정적 검증 (Python 표준 라이브러리만 사용).
 
 프로젝트 루트에서 실행:
-    python data/tests/validate_cloud_chat_data.py
+    python data/cloud_data/tests/validate_cloud_chat_data.py
 
 이 검사는 JSON 문법/필드/파일 간 참조와 일부 기획서 핵심 값만 검사합니다.
 LLM의 실제 응답 품질이나 프론트·백엔드·DB 연동은 검사하지 않습니다.
@@ -12,7 +12,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# 작품 데이터 폴더(data/cloud_data). FILES의 "data/..."는 JSON이 서로 참조하는 논리 경로이고,
+# 실제 파일은 이 폴더 아래에 "data/" 없이 놓여 있다.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FILES = {
     "personas": "data/persona/cloud_personas.json",
     "world": "data/rag/cloud_world_knowledge.json",
@@ -88,7 +90,7 @@ def run() -> int:
         checks.append((name, ok is True or (isinstance(ok, bool) and ok), detail))
 
     for name, relative in FILES.items():
-        filepath = PROJECT_ROOT / relative
+        filepath = PROJECT_ROOT / relative.removeprefix("data/")
         try:
             value = json.loads(filepath.read_text(encoding="utf-8"))
             if not isinstance(value, dict):
