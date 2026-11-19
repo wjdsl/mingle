@@ -173,3 +173,62 @@ test('구름섬 시나리오 선택지와 기본 Mock 선택지는 그대로다'
   await client.sendTurn({ requestId: 'req-0000-cccc', project: cloud, turn: 0, input: { text: cloud.steps[0].choices[0].label, choice: 0 } }, signal())
   assert.deepEqual(backend.calls[2].body.input, { text: cloud.steps[0].choices[0].label, choice_id: 'cloud-01-a' })
 })
+
+import { GEMINI_UNAVAILABLE_COOLDOWN_SECONDS, storyRetryPolicy } from '../src/services/apiStoryClient.ts'
+
+async function failingTurn(response: () => Response) {
+  const backend = fakeBackend(fridge, { turn: response })
+  const client = createApiStoryClient({ displayName: '민트', fetch: backend.fetch })
+  const error = await client.sendTurn({ requestId: 'req-policy-0001', project: fridge, turn: 0, input: { text: '안녕' } }, signal()).then(() => null, (e: unknown) => e)
+  assert.ok(error instanceof StoryApiError)
+  return error
+}
+
+test('Gemini 503은 15초 쿨타임 뒤 같은 요청으로 다시 시도하도록 안내한다', async () => {
+  assert.equal(GEMINI_UNAVAILABLE_COOLDOWN_SECONDS, 15)
+  const error = await failingTurn(() => Response.json({ detail: { code: 'gemini_unavailable' } }, { status: 503 }))
+  assert.equal(error.status, 503)
+  assert.equal(error.retryAfter, 15)
+  assert.match(error.message, /15초 뒤 한 번만/)
+  assert.deepEqual(storyRetryPolicy(error), { canRetry: true, waitSeconds: 15 })
+})
+
+test('429·504의 기존 재시도 정책에는 503 쿨타임을 적용하지 않는다', async () => {
+  const minute = await failingTurn(() => Response.json({ detail: { code: 'gemini_quota_minute' } }, { status: 429, headers: { 'Retry-After': '7' } }))
+  assert.deepEqual(storyRetryPolicy(minute), { canRetry: true, waitSeconds: 7 })
+  const daily = await failingTurn(() => Response.json({ detail: { code: 'gemini_quota_daily' } }, { status: 429 }))
+  assert.deepEqual(storyRetryPolicy(daily), { canRetry: true, waitSeconds: 0 })
+  const timeout = await failingTurn(() => Response.json({ detail: 'Gemini 응답 시간이 초과되었습니다.' }, { status: 504 }))
+  assert.equal(timeout.kind, 'timeout')
+  assert.deepEqual(storyRetryPolicy(timeout), { canRetry: true, waitSeconds: 0 })
+  const bad = await failingTurn(() => Response.json({ detail: 'x' }, { status: 502 }))
+  assert.deepEqual(storyRetryPolicy(bad), { canRetry: true, waitSeconds: 0 })
+  assert.deepEqual(storyRetryPolicy(new Error('Mock 응답 실패')), { canRetry: true, waitSeconds: 0 })
+})
+
+test('재시도해도 해결되지 않는 오류는 다시 시도를 제공하지 않는다', async () => {
+  const mismatch = await failingTurn(() => Response.json({ detail: '요청한 스토리 공급자를 사용할 수 없습니다.' }, { status: 503 }))
+  assert.equal(mismatch.retryAfter, undefined)
+  assert.match(mismatch.message, /새로 시작/)
+  assert.deepEqual(storyRetryPolicy(mismatch), { canRetry: false, waitSeconds: 0 })
+  for (const status of [409, 401, 404]) {
+    assert.equal(storyRetryPolicy(await failingTurn(() => Response.json({ detail: 'x' }, { status }))).canRetry, false)
+  }
+})
+
+test('요청 검증 422는 재시도 불가이며 정상 응답의 형식 오류는 다시 시도할 수 있다', async () => {
+  const rejected = await failingTurn(() => Response.json({ detail: '현재 장면의 선택지가 아닙니다.' }, { status: 422 }))
+  assert.equal(rejected.kind, 'invalid')
+  assert.equal(rejected.status, 422)
+  assert.match(rejected.message, /새로 시작/)
+  assert.deepEqual(storyRetryPolicy(rejected), { canRetry: false, waitSeconds: 0 })
+  const pydantic = await failingTurn(() => Response.json({ detail: [{ type: 'string_too_short', loc: ['body', 'request_id'] }] }, { status: 422 }))
+  assert.equal(storyRetryPolicy(pydantic).canRetry, false)
+  const malformed = await failingTurn(() => Response.json({ unexpected: true }, { status: 200 }))
+  assert.equal(malformed.kind, 'invalid')
+  assert.deepEqual(storyRetryPolicy(malformed), { canRetry: true, waitSeconds: 0 })
+  // 기존 정책은 그대로다.
+  assert.deepEqual(storyRetryPolicy(await failingTurn(() => Response.json({ detail: { code: 'gemini_unavailable' } }, { status: 503 }))), { canRetry: true, waitSeconds: 15 })
+  assert.deepEqual(storyRetryPolicy(await failingTurn(() => Response.json({ detail: 'x' }, { status: 504 }))), { canRetry: true, waitSeconds: 0 })
+  assert.deepEqual(storyRetryPolicy(await failingTurn(() => Response.json({ detail: 'x' }, { status: 502 }))), { canRetry: true, waitSeconds: 0 })
+})

@@ -9,3 +9,6 @@ backend/.venv/
 *.sqlite
 *.sqlite3
 *.pyc
+
+# Local LLM failure logs (LLM_FAILURE_LOG_FILE)
+backend/logs/

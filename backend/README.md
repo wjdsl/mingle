@@ -304,6 +304,7 @@ Marketing Trigger(3개)와 CTA가 포함됩니다.
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | 미설정 | 명시한 계정만 최초 생성(비밀번호 12자 이상). 기존 계정 자동 변경 없음 |
 | `LLM_PROVIDER` | `auto` | `auto/openai/gemini/mock` |
 | `OPENAI_API_KEY` | – | 있으면 OpenAI 사용 |
+| `LLM_FAILURE_LOG_FILE` | 비어 있음(사용 안 함) | 지정하면 Gemini 공급자·스토리 API 로거의 WARNING 이상만 회전 파일(1MB×4개)에 추가로 남긴다. 예: `logs/llm-failures.log` |
 | `GEMINI_API_KEY` | – | OpenAI 키가 없을 때 Gemini 사용 |
 | `GEMINI_CHAT_MODEL` | `gemini-3.8-flash` | Gemini 채팅 모델 |
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini 임베딩 모델 |
@@ -424,6 +425,8 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 
 - 전체 시연의 기본 생성은 18회다. 10턴 고정 연출과 저장된 요청 ID 재생은 생성하지 않는다. 기본 설정은 턴당 검증 교정 최대 1회, 생성당 일시 오류 HTTP 재시도 최대 1회다. 제한된 검증에서는 위 1회 설정을 적용한다.
 - 429에서 일일 한도 또는 판단할 수 없는 한도는 자동 재시도하지 않는다. 확인된 분당 한도는 `Retry-After` 또는 공급자 재시도 힌트를 우선하며 대기가 15초를 넘으면 클라이언트에 반환한다. UI는 대화와 요청 ID를 유지한다.
+- 5xx 응답(할당량 오류 제외)은 시도마다 경고 한 줄을 남긴다: `operation=<generateContent|…> attempt=<n>/<최대> status=<503 등> will_retry=<true|false> error_status=<UNAVAILABLE 등> error_code=<…> detail_types=<ErrorInfo,RetryInfo 등> reason=<ErrorInfo.reason> retry_delay=<RetryInfo.retryDelay> retry_after_header=<Retry-After>`. `-`는 해당 필드나 헤더가 없다는 뜻이다(`retry_after_header=-`는 Retry-After 헤더 없음). 오류 메시지 원문·ErrorInfo metadata·키·프롬프트·사용자 입력은 남기지 않으며 값은 429 로그와 같은 허용 문자·120자 규칙을 따른다. 재시도 정책(5xx 1회 재시도, 429 판정)은 바꾸지 않았다.
+- 할당량 오류 로그는 `quota=<daily|minute|unknown>` 판정과 함께 Google 응답의 식별 필드를 한 줄에 남긴다: `violations=[{metric=<quotaMetric> id=<quotaId> dims=<quotaDimensions> value=<quotaValue>} …] retry_delay=<RetryInfo.retryDelay> retry_after_header=<Retry-After>`. 없는 필드는 `-`다. 오류 메시지 원문·키·대화 내용은 남기지 않으며 값은 영숫자와 `._:/-` 외 문자를 `?`로 바꾸고 120자로 자른다. RPD/RPM/TPM 구분은 `id`(예: `…PerDay…`, `…PerMinute…`)와 `metric`(요청 수인지 토큰 수인지)으로 확인한다. `quota=daily`일 때 `retry_after=None`은 재시도 대기를 계산하지 않았다는 뜻이며, Google이 준 값은 `retry_delay`에 있다. 일일 한도는 태평양 시간 자정(표준시 기간 KST 17:00, 서머타임 기간 KST 16:00)에 초기화되므로 전날 저녁 호출과 다음 날 오후 호출이 같은 하루 한도를 공유한다.
 - 서버 로그에서 모델·HTTP 시도·소요 시간과 Google이 반환한 입력·출력·추론 토큰 수를 확인한다. 스토리 턴에는 임베딩 호출이 없고 `LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false`로 시작 점검과 시드 비용을 피할 수 있다.
 - Docker는 `backend/`에서 같은 환경변수와 함께 `docker compose up --build`를 사용한다. Compose는 저장소 `data/`를 읽기 전용으로 마운트한다. 기존 검증 환경과 분리하려면 별도 `-p` 이름과 `API_HOST_PORT`·`POSTGRES_HOST_PORT`를 사용한다.
 
@@ -442,7 +445,8 @@ LLM_PROVIDER=gemini LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
 2026-11-18 실제 Gemini 검증(`scenario_draft_v1`, CLI 스모크, `GEMINI_HTTP_ATTEMPTS=1`, `STORY_GENERATION_ATTEMPTS=2`, 턴 사이 5초): 냉장고·구름섬 모두 `responseJsonSchema`를 사용해 1~9턴 생성과 10턴 고정 엔딩까지 `completed=10/10`, `finished=True`, 같은 요청 ID 재생(`replayed=True`)을 확인했다. 실행마다 1회 결과다.
 - 냉장고: 생성 10회(8턴 `too_many_sentences sentences=4` 1회 → 교정 재시도로 통과), 형식 오류 0, 지문 표기 정규화 1회.
 - 구름섬: 생성 9회, 교정 재시도·형식 오류·응답 제어 위반 0.
-- 브라우저에서 실제 Gemini로 진행한 확인은 아직 없다.
+- 위 CLI 기록 시점(2026-11-18)에는 브라우저에서 실제 Gemini로 진행한 확인이 없었다.
+- 이후 사용자가 브라우저(`VITE_STORY_CLIENT=api`)에서 실제 Gemini로 냉장고·구름섬 각각 10턴 완주를 확인했다(2026-11-19 보고). 이 문서에는 해당 실행의 모델·생성 횟수·재시도 여부가 기록되지 않았으며, 위 CLI 수치와 별개다.
 
 후속 개선 항목(코드 변경 없이 관찰만 기록, 구름섬 1회 실행 기준):
 - 호칭 혼용: 자유 입력으로 소개한 이름(테스트 입력)과 세션 호칭이 달라 응답에서 두 호칭이 섞였다. 스모크 입력 조건에서 생긴 것으로, 화면 입력 호칭과 자기소개가 다를 때의 처리 방향은 미정이다.
@@ -473,7 +477,9 @@ env -u GEMINI_API_KEY LLM_PROVIDER=gemini GEMINI_CHAT_MODEL=gemini-3.5-flash-lit
 
 확인 항목은 `provider=gemini`, `model=gemini-3.5-flash-lite`, 유효한 대사, `completed=1/10`, `replayed=True`다. 서버 로그에서 `generateContent` 1건 및 헤더 도착 시간·토큰 사용량을 확인한다. 첫 턴을 브라우저에서 확인할 경우 백엔드를 Vite 기본 프록시 포트인 8000번으로 시작하고 `VITE_STORY_CLIENT=api npm run dev`에서 한 번만 전송한다. 이 경우 CLI 생성 검증을 함께 실행하지 않는다.
 
-Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다. 채팅 화면에는 일시적으로 Gemini가 응답할 수 없다는 안내가 표시된다. 같은 화면에서 다시 시도하면 기존 입력과 요청 ID를 사용한다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.
+Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다. 채팅 화면에는 일시적으로 Gemini가 응답할 수 없다는 안내가 표시되고, 다시 시도 버튼은 15초 동안 잠기며 남은 초를 표시한다. 대기 후 다시 시도하면 기존 입력과 요청 ID를 사용하므로 실패한 턴은 저장되지 않고 성공한 턴만 한 번 저장된다. 429는 기존처럼 `Retry-After`가 있으면 그 시간만 잠그고, 504·502는 즉시 다시 시도할 수 있다. `gemini_unavailable`이 아닌 503(공급자 불일치·장면 데이터 없음), 409·401·403·404, 요청 검증 422(장면에 없는 선택지·요청 형식 오류)는 다시 시도해도 해결되지 않으므로 다시 시도 버튼 대신 '새로 시작' 버튼을 표시한다. 새로 시작은 같은 호칭으로 새 세션·새 서버 대화를 만들며 서버의 기존 대화 기록은 삭제하지 않는다. 화면에 보이던 이전 대화는 새 세션에서 다시 표시되지 않는다. 정상 응답(200)의 형식 오류는 기존처럼 다시 시도할 수 있다.
+
+실패 로그를 서버 재시작 후에도 보존하려면 서버 시작 시 `LLM_FAILURE_LOG_FILE=logs/llm-failures.log`를 추가한다. 상대 경로는 서버 프로세스를 시작한 작업 디렉터리 기준으로 해석된다. 이 문서의 실행 명령처럼 `backend/`에서 시작하면 `backend/logs/llm-failures.log`가 되며 `backend/logs/`는 Git에서 제외된다. 다른 디렉터리에서 시작하면 그 디렉터리 아래에 만들어지고(Docker 이미지는 작업 디렉터리 `/app` 기준) Git 제외 대상이 아닐 수 있으므로, 위치를 고정하려면 절대 경로를 지정한다. 여러 서버 프로세스(`--workers` 등)가 같은 파일을 쓰면 회전이 어긋날 수 있으므로 프로세스마다 다른 파일을 지정한다. 파일에는 검토한 두 로거(`app.services.llm.gemini_provider`, `app.api.routes.story_chat`)의 WARNING 이상만 남고 성공 호출의 INFO 줄과 다른 라우트의 로그는 들어가지 않는다. 1MB마다 회전하며 최대 4개 파일을 유지한다. Docker Compose에는 이 변수와 볼륨을 추가하지 않았으므로 컨테이너를 다시 만들면 파일이 사라진다. 컨테이너에서 보존하려면 별도 볼륨 마운트가 필요하다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.
 
 ### 2026-11-18 푸르마 기억 시연 실행
 

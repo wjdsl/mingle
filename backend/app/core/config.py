@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     gemini_thinking_level: Literal["", "minimal", "low", "medium", "high"] = ""
     gemini_thinking_budget: int = 0  # 구형 옵션. -1이면 공급자 기본값을 사용한다.
     llm_timeout_seconds: float = 30.0
+    # 비우면 파일 로그를 쓰지 않는다. 지정하면 Gemini·스토리 API의 WARNING 이상만 회전 파일에 남긴다.
+    llm_failure_log_file: str = ""
     llm_temperature: float = 0.8
     llm_max_tokens: int = 700
 
