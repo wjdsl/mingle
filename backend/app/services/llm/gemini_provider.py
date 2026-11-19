@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 import logging
 from datetime import datetime, timezone
@@ -33,6 +34,92 @@ class GeminiQuotaError(LLMError):
         super().__init__(f"Gemini quota: {kind}")
         self.kind = kind
         self.retry_after = retry_after
+
+
+_SAFE_LOG_VALUE = re.compile(r"[^A-Za-z0-9._:/\-]")
+
+
+def _safe(value: object) -> str:
+    """할당량 식별자만 로그에 남기도록 허용 문자 외에는 '?'로 바꾸고 길이를 제한한다."""
+    return _SAFE_LOG_VALUE.sub("?", str(value))[:120]
+
+
+def quota_log_fields(response: httpx.Response) -> str:
+    """429 응답의 할당량 식별 필드만 요약한다(오류 메시지 원문·요청 내용은 남기지 않는다).
+
+    QuotaFailure.violations[]의 quotaMetric·quotaId·quotaDimensions·quotaValue와
+    RetryInfo.retryDelay, Retry-After 헤더. 필드가 없으면 '-'로 표시한다.
+    """
+    try:
+        error = response.json().get("error") or {}
+    except (ValueError, AttributeError):
+        error = {}
+    details = error.get("details") if isinstance(error.get("details"), list) else []
+    violations: list[str] = []
+    retry_delay = "-"
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        if "retryDelay" in detail:
+            retry_delay = _safe(detail["retryDelay"])
+        for violation in detail.get("violations") or []:
+            if not isinstance(violation, dict):
+                continue
+            dims = violation.get("quotaDimensions")
+            dims_text = (
+                ",".join(f"{_safe(k)}:{_safe(v)}" for k, v in sorted(dims.items()))
+                if isinstance(dims, dict) and dims else "-"
+            )
+            violations.append(
+                "{metric=%s id=%s dims=%s value=%s}" % (
+                    _safe(violation.get("quotaMetric", "-")),
+                    _safe(violation.get("quotaId", "-")),
+                    dims_text,
+                    _safe(violation.get("quotaValue", "-")),
+                )
+            )
+    header = response.headers.get("Retry-After")
+    return "violations=[%s] retry_delay=%s retry_after_header=%s" % (
+        " ".join(violations) or "-", retry_delay, _safe(header) if header else "-",
+    )
+
+
+def server_error_log_fields(response: httpx.Response) -> str:
+    """5xx 응답의 분류 필드만 요약한다(오류 메시지 원문·metadata·요청 내용은 남기지 않는다).
+
+    error.status(예: UNAVAILABLE)·error.code, details[]의 @type 이름과 ErrorInfo.reason,
+    RetryInfo.retryDelay, Retry-After 헤더. 필드가 없으면 '-'로 표시한다.
+    """
+    try:
+        body = response.json()
+        error = (body.get("error") if isinstance(body, dict) else None) or {}
+    except (ValueError, AttributeError):
+        error = {}
+    if not isinstance(error, dict):
+        error = {}
+    details = error.get("details") if isinstance(error.get("details"), list) else []
+    types: list[str] = []
+    reason = "-"
+    retry_delay = "-"
+    for detail in details:
+        if not isinstance(detail, dict):
+            continue
+        kind = str(detail.get("@type", "")).rsplit(".", 1)[-1]
+        if kind:
+            types.append(_safe(kind))
+        if "reason" in detail:
+            reason = _safe(detail["reason"])
+        if "retryDelay" in detail:
+            retry_delay = _safe(detail["retryDelay"])
+    header = response.headers.get("Retry-After")
+    return "error_status=%s error_code=%s detail_types=%s reason=%s retry_delay=%s retry_after_header=%s" % (
+        _safe(error.get("status", "-")),
+        _safe(error.get("code", "-")),
+        ",".join(types) or "-",
+        reason,
+        retry_delay,
+        _safe(header) if header else "-",
+    )
 
 
 def _quota_error(response: httpx.Response) -> GeminiQuotaError | None:
@@ -139,9 +226,21 @@ class GeminiProvider(LLMProvider):
             quota = _quota_error(response) if response.is_error else None
             if quota:
                 delay = quota.retry_after if quota.retry_after is not None else max(2, delay)
-                logger.warning("provider=gemini model=%s quota=%s retry_after=%s", model, quota.kind, quota.retry_after)
+                logger.warning(
+                    "provider=gemini model=%s quota=%s retry_after=%s %s",
+                    model, quota.kind, quota.retry_after, quota_log_fields(response),
+                )
                 if quota.kind != "minute" or delay > MAX_RETRY_WAIT or attempt == attempts:
                     raise quota
+            elif response.status_code >= 500:
+                will_retry = response.status_code in RETRYABLE_STATUS and attempt < attempts
+                logger.warning(
+                    "provider=gemini model=%s operation=%s attempt=%d/%d status=%d will_retry=%s %s",
+                    model, operation, attempt, attempts, response.status_code,
+                    str(will_retry).lower(), server_error_log_fields(response),
+                )
+                if not will_retry:
+                    return response
             elif response.status_code not in RETRYABLE_STATUS or attempt == attempts:
                 return response
             await asyncio.sleep(delay)

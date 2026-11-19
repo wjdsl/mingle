@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import routers
 from app.core.config import settings
-from app.core.logging import configure_logging
+from app.core.logging import configure_failure_log, configure_logging
 from app.db.base import engine, init_db
 from app.db.seed import seed_database
 from app.services.llm import ensure_llm_ready
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
+    configure_failure_log(settings.llm_failure_log_file)
     logger.info("서비스 시작: %s v%s", settings.app_name, settings.app_version)
     if settings.llm_probe_on_startup:
         await ensure_llm_ready()
