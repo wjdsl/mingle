@@ -2,9 +2,9 @@
 """냉장고 회장님 데이터 정적 검증기. 실제 LLM/DB 동작 검증 아님.
 
 프로젝트 루트에서 실행:
-    python data/tests/validate_fridge_data.py
+    python data/fridge_data/tests/validate_fridge_data.py
 데이터 폴더를 따로 테스트할 때:
-    python data/tests/validate_fridge_data.py --root /path/to/project
+    python data/fridge_data/tests/validate_fridge_data.py --root /path/to/fridge_data
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def validate(root: Path, verbose: bool = False) -> int:
 
     docs: dict[str, dict] = {}
     for name, path in DATA_FILES.items():
-        p = root / path
+        p = root / path.removeprefix('data/')
         if not p.is_file():
             check(f'{name}: 파일 존재', False)
             continue
@@ -210,7 +210,7 @@ def validate(root: Path, verbose: bool = False) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2], help='데이터 프로젝트 루트 경로')
+    parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1], help='작품 데이터 폴더 경로(기본: data/fridge_data)')
     parser.add_argument('--verbose', action='store_true', help='통과한 점검 항목도 모두 출력')
     args=parser.parse_args()
     return validate(args.root.resolve(), args.verbose)
