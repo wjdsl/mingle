@@ -1,4 +1,6 @@
-"""Explicit admin provisioning/reset: python -m scripts.create_admin --email ...
+"""Explicit admin provisioning/reset: python -m scripts.create_admin --id <아이디> ...
+
+- 아이디는 이메일일 필요가 없다(예: --id puruma-school). 예전 --email도 같은 뜻으로 계속 쓸 수 있다.
 
 - --project 없이 만들면 플랫폼 관리자(role="admin", 모든 작품).
 - --project를 붙이면 작품 담당자(role="project")가 되고 지정한 작품만 볼 수 있다.
@@ -21,6 +23,7 @@ from app.services.admin_access import (
     PROJECT_IDS,
     PROJECT_ROLE,
     load_projects,
+    normalize_login_id,
     normalize_projects,
     replace_projects,
 )
@@ -63,7 +66,7 @@ async def provision(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="관리자 계정 발급 (비밀번호는 숨김 입력)")
-    parser.add_argument("--email", required=True)
+    parser.add_argument("--id", "--email", dest="login_id", required=True, help="로그인 아이디 (이메일이 아니어도 됨)")
     parser.add_argument("--name", default="관리자")
     parser.add_argument("--reset", action="store_true")
     parser.add_argument(
@@ -73,9 +76,10 @@ if __name__ == "__main__":
         help="작품 담당자 계정으로 만들고 볼 수 있는 작품을 지정한다(여러 번 사용 가능).",
     )
     args = parser.parse_args()
-    email = args.email.strip().lower()
-    if "@" not in email or len(email) > 200:
-        parser.error("유효한 이메일을 입력하세요.")
+    try:
+        email = normalize_login_id(args.login_id)
+    except ValueError as exc:
+        parser.error(str(exc))
     password = getpass("새 비밀번호 (12자 이상): ")
     if len(password) < 12 or len(password) > 200 or password != getpass("비밀번호 확인: "):
         parser.error("비밀번호 길이 또는 확인 입력이 올바르지 않습니다.")

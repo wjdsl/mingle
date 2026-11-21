@@ -82,3 +82,22 @@ async def test_existing_account_without_reset_is_rejected(client):
     await provision("dup@cloud", "담당자", PASSWORD, False, ["cloud"])
     with pytest.raises(ValueError):
         await provision("dup@cloud", "담당자", PASSWORD, False, ["cloud"])
+
+
+def test_login_id_does_not_need_email():
+    from app.services.admin_access import normalize_login_id
+
+    assert normalize_login_id("  Puruma-School ") == "puruma-school"
+    assert normalize_login_id("admin@mingle") == "admin@mingle"  # 기존 이메일 형식도 허용
+    for bad in ["ab", "-admin", "관리자", "admin school", "admin/1", ""]:
+        with pytest.raises(ValueError):
+            normalize_login_id(bad)
+
+
+async def test_plain_id_account_can_login(client):
+    await provision("mingle-team", "팀", PASSWORD, False)
+    response = await client.post("/api/admin/login", json={"email": "Mingle-Team", "password": PASSWORD})
+    assert response.status_code == 200, response.text
+    wrong = await client.post("/api/admin/login", json={"email": "mingle-team", "password": "wrong-password-1"})
+    assert wrong.status_code == 401
+    assert wrong.json()["detail"] == "아이디 또는 비밀번호가 올바르지 않습니다."
