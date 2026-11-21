@@ -29,6 +29,7 @@ from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
 from app.services.story_dialogue import DialogueInfo, info_from_extra, rewrite_fridge_dialogue
 from app.services.story_prompt import build_story_messages
+from app.services.story_safety import COMPANION_LINES, is_story_crisis
 from app.services.story_response_control import correction_note, sentences, validate_lines
 from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, get_project, project_for_slug
 
@@ -62,6 +63,18 @@ class StoryTurnError(Exception):
 class ReplyLine:
     speaker: str
     text: str
+
+
+@dataclass(slots=True)
+class StorySafetyOutcome:
+    """위기 신호 입력의 결과. 턴 기록·메시지를 저장하지 않으며 장면은 그대로다."""
+
+    conversation: Conversation
+    project: StoryProjectDef
+    request_id: str
+    turn: int
+    lines: list[ReplyLine]
+    completed_turns: int
 
 
 @dataclass(slots=True)
@@ -573,11 +586,23 @@ async def process_story_turn(
     text: str,
     choice_id: str | None,
     expected_provider: str | None = None,
-) -> StoryTurnOutcome:
+) -> StoryTurnOutcome | StorySafetyOutcome:
     project = await resolve_project(db, conversation)
     replay = await _check_turn(db, conversation, project, request_id, turn)
     if replay is not None:
         return replay
+    # 위기 신호(자유 입력만): LLM 호출·저장·장면 진행 없이 안내 신호와 곁말만 돌려준다. 입력 원문은 기록하지 않는다.
+    if choice_id is None and is_story_crisis(text):
+        logger.warning("스토리 위기 신호 안내: project=%s turn=%d", project.id, turn)
+        speaker, line = COMPANION_LINES.get(project.id, (project.speakers[0], ""))
+        return StorySafetyOutcome(
+            conversation=conversation,
+            project=project,
+            request_id=request_id,
+            turn=turn,
+            lines=[ReplyLine(speaker, line)] if line else [],
+            completed_turns=await count_completed(db, conversation.id),
+        )
     if expected_provider and get_llm().name != expected_provider:
         raise StoryTurnError(503, "요청한 스토리 공급자를 사용할 수 없습니다.")
     scene = project.scenes[turn]

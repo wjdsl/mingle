@@ -110,3 +110,5 @@ class StoryTurnResponse(BaseModel):
     qwen_used: bool = False
     qwen_latency_ms: int | None = None
     fallback_reason: str | None = None
+    # 위기 신호 입력이면 true: 장면을 진행하지 않았고 입력은 저장하지 않았다(completed_turns는 그대로).
+    safety_notice: bool = False

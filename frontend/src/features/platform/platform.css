@@ -222,6 +222,9 @@
 .p-image-dialog img { display:block; width:100%; max-height:72dvh; object-fit:contain; }
 .p-image-dialog p { font-size:13px; }
 .p-event-message { white-space:pre-wrap; padding:12px; margin:12px 0; border:1px dashed var(--w-primary); border-radius:10px; font-size:13px; line-height:1.6; }
+.p-safety-notice { margin:12px 0; padding:12px 14px; border:1.5px solid var(--w-primary); border-radius:10px; background:color-mix(in srgb, var(--w-primary) 8%, transparent); font-size:13px; line-height:1.7; }
+.p-safety-notice p { margin:0; }
+.p-safety-notice a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
 .p-event-message span { display:block; font-size:11px; font-weight:700; margin-bottom:5px; }
 .p-bubble p { white-space:pre-wrap; }
 

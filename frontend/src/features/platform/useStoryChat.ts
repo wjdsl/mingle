@@ -4,9 +4,14 @@ import { mockStoryClient } from '../../services/storyClient'
 import { newRequestId } from '../../services/requestId'
 import type { StoryClient } from '../../services/storyClient'
 import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
+import { companionLine, isCrisisText } from '../../services/storySafety'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string; dialogueProvider?: string }
-export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
+export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string } | { kind: 'safety' }
+function safetyMessages(projectId: string, reply?: { speaker: string; text: string }): StoryMessage[] {
+ const line = reply?.text ? reply : companionLine(projectId)
+ return [{ kind: 'safety' }, ...(line ? [{ role: 'character' as const, speaker: line.speaker, text: line.text }] : [])]
+}
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
  if (step.openingLines) {
@@ -52,7 +57,11 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     failedTurns.current.add(turn)
     try {
       const reply = await client.sendTurn({ requestId: pending.current.requestId, project, turn, input: { text: pending.current.text, choice: pending.current.choice }, mockFailure: fail }, abort.signal)
-      if (!abort.signal.aborted) {
+      if (!abort.signal.aborted && reply.safety) {
+        // 서버가 위기 신호로 판단한 경우: 장면은 진행하지 않는다. 안내와 곁말만 보여 주고 같은 장면에서 이어 입력한다.
+        setMessages(old => [...old, ...safetyMessages(project.id, reply)])
+        pending.current = null; setSelected(undefined); setErrorMessage(undefined); setStatus('idle')
+      } else if (!abort.signal.aborted) {
         // 실제 API는 구름섬에서 여러 대원의 대사를 돌려줄 수 있다. 반응 표시는 마지막 말풍선에 둔다.
         const lines = [{ speaker: reply.speaker, text: reply.text }, ...(reply.followUps ?? [])]
         const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model, dialogueProvider: reply.meta.dialogueProvider } : {}
@@ -83,6 +92,11 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   }
   function send(text: string, choice?: number) {
     if (busy.current || status !== 'idle' || (step.inputMode !== 'none' && !text.trim())) return
+    // 위기 신호(자유 입력만): 서버·LLM에 보내지 않고 바로 안내한다. 입력은 이 화면의 메모리에만 있다. 장면은 진행하지 않는다.
+    if (choice === undefined && step.inputMode !== 'none' && isCrisisText(text)) {
+      setMessages(old => [...old, { role: 'user', speaker: name, text }, ...safetyMessages(project.id)])
+      return
+    }
     pending.current = { requestId: newRequestId(), text, choice }; setSelected(choice)
     if (step.inputMode !== 'none') setMessages(old => [...old, { role: 'user', speaker: name, text }])
     void run()

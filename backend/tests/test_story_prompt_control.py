@@ -332,5 +332,7 @@ async def test_default_scene_set_keeps_existing_frontend_contract(client, monkey
         "latency_ms", "completed_turns", "total_turns", "finished", "replayed", "guardrail_triggered",
         # 하이브리드 추적용 추가 필드(기존 필드는 그대로)
         "story_provider", "dialogue_provider", "qwen_used", "qwen_latency_ms", "fallback_reason",
+        # 위기 신호 안내(기본 false)
+        "safety_notice",
     }
     assert "하게체" in fake.calls[0][0]["content"]  # 기본 세트도 공식 페르소나 규칙을 쓴다
