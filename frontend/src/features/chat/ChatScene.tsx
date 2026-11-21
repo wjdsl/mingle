@@ -4,6 +4,7 @@ import { project } from '../../projects/puruma/config'
 import { choices } from '../../projects/puruma/mockConversation'
 import { useChat } from './useChat'
 import { createPurumaClient } from './chatClient'
+import { DevSourceBadge } from '../platform/DevSourceBadge'
 import { UserNotePanel } from './UserNotePanel'
 import { PendingNotice } from './PendingNotice'
 import type { ChatState, Choice, Emotion, Message } from './types'
@@ -87,6 +88,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange }: { ni
   function submit() { if (!composing.current) send({ kind: 'text', text: draft }) }
   return <main className={`desktop-canvas integrated-puruma ${view !== 'chat' ? 'puruma-record-view' : ''}`} data-short-viewport={viewportHeight <= 560} style={{ '--viewport-height': `${viewportHeight}px` } as CSSProperties}>
     <div className="diary-shell">
+      <DevSourceBadge trace={client.trace} />
       {(view === 'notes' || view === 'endings' || view === 'result') && <section className="record-screen" aria-label={view === 'notes' ? '유저노트' : view === 'result' ? 'Mock 엔딩 카드' : '엔딩 도감'}>
         <button className="back-button" onClick={() => setView(returnView.current)}>← {returnView.current === 'chat' ? '대화로 돌아가기' : '이전 화면으로'}</button>
         {view !== 'notes' ? <EndingCollection initialPreview={view === 'result'} onHome={onHome} onRestart={restart} /> : client.mode === 'api' ? <UserNotePanel headingRef={pageHeading} /> : <>

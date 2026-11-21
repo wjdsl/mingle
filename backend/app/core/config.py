@@ -50,7 +50,7 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     # auto: openai 키 -> gemini 키 -> mock 순서로 자동 선택
-    llm_provider: str = "auto"  # auto | openai | gemini | mock
+    llm_provider: str = "auto"  # auto | openai | gemini | qwen | mock (qwen은 명시 지정 시에만 선택)
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     openai_chat_model: str = "gpt-4o-mini"
@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     story_response_schema: bool = True
     gemini_thinking_level: Literal["", "minimal", "low", "medium", "high"] = ""
     gemini_thinking_budget: int = 0  # 구형 옵션. -1이면 공급자 기본값을 사용한다.
+    # Colab에서 실행하는 Qwen EXP-004 추론 API. LLM_PROVIDER=qwen 일 때만 사용한다.
+    qwen_api_url: str | None = None
+    qwen_api_key: str | None = None
+    qwen_timeout_seconds: float = 120.0
+    # 냉장고 회장님 대사만 Qwen EXP-004로 다시 쓰는 하이브리드 모드(기본 꺼짐). 스토리·JSON·선택지·상태는 계속 Gemini가 만든다.
+    # 켜면 QWEN_API_URL/QWEN_API_KEY가 필요하며, 실패하면 Gemini 원본 대사를 쓴다.
+    fridge_qwen_dialogue_enabled: bool = False
+    fridge_qwen_timeout_seconds: float = Field(default=25.0, gt=0, le=120)
+    fridge_qwen_max_tokens: int = Field(default=200, ge=1, le=300)
     llm_timeout_seconds: float = 30.0
     # 비우면 파일 로그를 쓰지 않는다. 지정하면 Gemini·스토리 API의 WARNING 이상만 회전 파일에 남긴다.
     llm_failure_log_file: str = ""

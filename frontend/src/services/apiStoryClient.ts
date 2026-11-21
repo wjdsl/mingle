@@ -158,7 +158,15 @@ export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnReq
     speaker: first.speaker, text: first.text,
     reaction: typeof data.reaction === 'string' && data.reaction ? data.reaction : '이야기가 이어져요',
     followUps: rest.map(line => ({ speaker: line.speaker, text: line.text })),
-    meta: { provider: data.provider, model: data.model, latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0, replayed: data.replayed === true, finished: data.finished === true },
+    meta: {
+      provider: data.provider,
+      model: data.model,
+      latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
+      replayed: data.replayed === true,
+      finished: data.finished === true,
+      ...(typeof data.dialogue_provider === 'string' ? { dialogueProvider: data.dialogue_provider } : {}),
+      ...(typeof data.fallback_reason === 'string' ? { fallbackReason: data.fallback_reason } : {}),
+    },
   }
 }
 

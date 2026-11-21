@@ -1,6 +1,8 @@
 import type { ConversationClient, TurnRequest, TurnResponse } from '../features/chat/types.ts'
 import { userNoteStore } from './userNoteStore.ts'
 import type { UserNoteStore } from './userNoteStore.ts'
+import { createTrace, recordSource } from './devSource.ts'
+import type { SourceTrace } from './devSource.ts'
 
 // 푸르마 실제 백엔드(/api/chat) 클라이언트. VITE_PURUMA_CLIENT=api일 때만 chatClient.ts가 선택한다.
 // - 개인 코드·대화 ID는 이 객체의 메모리에만 둔다(localStorage·로그에 저장하지 않음). API 키는 서버만 보유한다.
@@ -50,7 +52,7 @@ type Options = {
   timeoutMs?: number
   store?: UserNoteStore
 }
-export type ApiChatClient = ConversationClient & { lastErrorMessage(): string; reset(): void }
+export type ApiChatClient = ConversationClient & { lastErrorMessage(): string; reset(): void; trace: SourceTrace }
 
 const DEFAULT_EMOTION: TurnResponse['emotion'] = 'happy'
 
@@ -59,6 +61,7 @@ export function createApiChatClient({
 }: Options): ApiChatClient {
   let session: { code: string; conversationId: string } | null = null
   let lastError: ApiChatError | null = null
+  const trace = createTrace('puruma', 'api')
   const done = new Map<string, TurnResponse>()
   const inFlight = new Map<string, Promise<TurnResponse>>()
 
@@ -95,8 +98,9 @@ export function createApiChatClient({
     const current = await ensureSession(signal)
     const data = await call('/api/chat', {
       conversation_id: current.conversationId, message: request.input.text, notes: store.read(),
-    }, signal, current.code) as { reply?: unknown; notes?: unknown }
+    }, signal, current.code) as { reply?: unknown; notes?: unknown; provider?: unknown }
     if (typeof data.reply !== 'string' || !data.reply.trim() || !Array.isArray(data.notes)) throw new ApiChatError('server', MESSAGES.server)
+    recordSource(trace, { provider: typeof data.provider === 'string' ? data.provider : undefined })
     if (store.getEpoch() === epoch) store.write(data.notes) // 요청 중 사용자가 기억을 지웠다면 되살리지 않는다.
     return { text: data.reply.trim(), emotion: DEFAULT_EMOTION }
   }
@@ -111,13 +115,17 @@ export function createApiChatClient({
       const promise = run(request, signal).then(
         response => { done.set(request.requestId, response); return response },
         error => {
-          if (!signal?.aborted) lastError = error instanceof ApiChatError ? error : new ApiChatError('server', MESSAGES.server)
+          if (!signal?.aborted) {
+            lastError = error instanceof ApiChatError ? error : new ApiChatError('server', MESSAGES.server)
+            recordSource(trace, { error: lastError.kind + (lastError.status ? ` ${lastError.status}` : '') }) // API 실패를 Mock으로 대체하지 않고 그대로 기록
+          }
           throw error
         },
       ).finally(() => { inFlight.delete(request.requestId) })
       inFlight.set(request.requestId, promise)
       return promise
     },
+    trace,
     lastErrorMessage: () => lastError?.message ?? MESSAGES.server,
     reset() { session = null; lastError = null; done.clear(); inFlight.clear() }, // 다시 체험하기: 새 서버 대화. 기억은 유지
   }

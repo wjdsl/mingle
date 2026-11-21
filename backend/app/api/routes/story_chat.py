@@ -69,6 +69,7 @@ def _http_error(exc: StoryTurnError) -> HTTPException:
 
 def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
     record = outcome.record
+    dialogue = outcome.dialogue
     return StoryTurnResponse(
         conversation_id=outcome.conversation.id,
         project=outcome.project.id,
@@ -84,6 +85,11 @@ def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
         finished=outcome.completed_turns >= outcome.project.total_turns,
         replayed=outcome.replayed,
         guardrail_triggered=outcome.guardrail_triggered,
+        story_provider=dialogue.story_provider if dialogue else record.provider,
+        dialogue_provider=dialogue.dialogue_provider if dialogue else record.provider,
+        qwen_used=dialogue.qwen_used if dialogue else False,
+        qwen_latency_ms=dialogue.qwen_latency_ms if dialogue else None,
+        fallback_reason=dialogue.fallback_reason if dialogue else None,
     )
 
 

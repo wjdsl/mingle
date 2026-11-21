@@ -257,20 +257,27 @@ async def process_message(
 
     llm = get_llm()
     started = time.perf_counter()
-    if emit is None:
+    max_tokens = settings.llm_max_tokens
+    token_limit = getattr(llm, "max_tokens_limit", None)
+    if token_limit is not None:
+        max_tokens = min(max_tokens, token_limit)
+    if emit is None or not getattr(llm, "supports_streaming", True):
         result = await llm.generate(
             messages,
             temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
+            max_tokens=max_tokens,
         )
         reply = result.text
         provider = result.provider
+        if emit is not None:
+            # 스트리밍 미지원 공급자: 실제 생성 결과를 한 번에 전달한다.
+            await emit(reply)
     else:
         parts: list[str] = []
         async for token in llm.stream(
             messages,
             temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
+            max_tokens=max_tokens,
         ):
             parts.append(token)
             await emit(token)

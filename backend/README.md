@@ -527,3 +527,20 @@ VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
 - 모델 기본 설정은 `.env`의 값을 따른다. 임베딩 호출은 푸르마에서 발생하지 않는다(지식 문서가 없으면 검색을 건너뛴다). 규칙 기반 기억 추출만 쓰고 별도 LLM 추출 호출은 없다.
 - 이미 푸르마가 만들어진 DB에는 최신 `seed_puruma.py` 프롬프트가 반영되지 않는다(있으면 덮어쓰지 않음). 새 DB이거나 푸르마 행이 없는 DB에서 서버를 시작하면 최신 값으로 생성된다.
 - Gemini 429·503·504는 `/api/chat`에서 각각 429·503·504로 응답하며 그 외 LLM 오류는 502다.
+
+## 2026-11-20 Qwen EXP-004 선택적 통합 (`feature/qwen-integration`)
+
+- `LLM_PROVIDER=qwen` + `QWEN_API_URL` + `QWEN_API_KEY`를 모두 설정했을 때만 Qwen(Colab `/generate`)을 사용한다. `auto`는 기존대로 OpenAI → Gemini → Mock이며 Qwen을 고르지 않는다. 설정이 빠지면 Mock으로 대체하지 않고 시작 시 오류를 낸다.
+- 지원: 일반 채팅(`/api/chat`, `/api/chat/stream`)의 비스트리밍 텍스트 생성. 스트리밍 엔드포인트는 생성 결과 전체를 token 이벤트 1개로 보낸다. 생성 토큰은 300으로 제한한다.
+- 미지원 기능은 임베딩, JSON 출력, 스트리밍, temperature 설정이다. 앱의 입력 상한은 메시지 20개, 메시지당 12,000자다. Colab 서버에도 이 길이를 허용하는 설정이 필요하다.
+- 시작 점검은 생성만 1회 호출한다. 명시적으로 선택한 Qwen은 점검 실패 후에도 유지되므로 다음 채팅 요청에서 다시 연결을 시도한다. `GET /api/health`의 `llm.degraded_reason`은 시작 점검 실패 사유이며 서버 재시작 때 다시 확인한다. 실제 생성 여부는 채팅 응답의 `provider=qwen`으로 확인한다.
+- 실제 연결 확인은 `backend/`에서 `.venv/bin/python -m scripts.check_qwen`으로 실행한다. `ERR_NGROK_3200`이면 Colab에서 추론 서버와 터널을 켠 뒤 새 주소를 `QWEN_API_URL`에 설정하고 다시 확인한다.
+
+### 냉장고 회장님 대사 하이브리드 (Gemini 기본 + Qwen EXP-004 선택)
+
+- 기본은 꺼짐(`FRIDGE_QWEN_DIALOGUE_ENABLED=false`)이며 이때 동작은 기존 Gemini 전용과 같다. 푸르마·구름섬은 이 설정과 무관하게 항상 Gemini다. 전역 `get_llm()`은 바꾸지 않았고 냉장고 전용 Qwen 클라이언트(`story_dialogue.get_dialogue_llm`, 타임아웃 `FRIDGE_QWEN_TIMEOUT_SECONDS`)를 따로 둔다.
+- 켜기: `backend/.env`에 `LLM_PROVIDER=gemini`(또는 auto) + Gemini 키 + `QWEN_API_URL`·`QWEN_API_KEY` + `FRIDGE_QWEN_DIALOGUE_ENABLED=true` 후 서버 재시작. 끄기: 값을 `false`로 되돌리고 재시작.
+- 순서: ① Gemini가 스토리 JSON 생성(기존 재시도·응답 제어 포함) → ② 가드레일 → ③ 냉장고 `lines[0].text`의 본문만 Qwen에 전달(장면·감정·페르소나 규칙·사용자 입력은 JSON 자료로) → ④ 검증 통과 시 본문만 교체, 맨 앞 `[디스플레이: …]` 지문은 Gemini 원본 유지 → ⑤ 저장. `speaker`·`reaction`·`intent_id`·선택지·장면 진행·고정 대사·엔딩 연출은 수정하지 않는다.
+- Fallback(Gemini 재호출 없이 원본 사용): 연결 실패·타임아웃·HTTP 오류·응답 형식 오류·검증 실패·설정 누락·줄 구조가 예상과 다른 경우. 검증은 존댓말, 3문장 초과, JSON/마크다운 잔재, 일본어/한자 혼입, 개인정보, 차단어, 성별 호칭, 가칭, 실존 기업·투자, 프롬프트 노출, 이후 장면 선공개, 직전 대사 반복이다.
+- 응답 `/api/story-chat/.../turns`에 `story_provider`, `dialogue_provider`(gemini|qwen), `qwen_used`, `qwen_latency_ms`, `fallback_reason`을 추가했다(기존 필드·의미 동일, `provider`는 스토리 생성 공급자). 같은 값이 저장 메시지 `extra.dialogue`에도 남아 재시도 재생 때 그대로 반환된다. 로그에는 사유·지연시간만 남기고 대사·사용자 입력·키는 남기지 않는다.
+- 제한: Qwen 호출은 Gemini 뒤에 직렬이라 턴 지연이 최대 `FRIDGE_QWEN_TIMEOUT_SECONDS`만큼 늘 수 있다. 의미 수준 일관성(초안과의 사실 일치)은 프롬프트에 의존하며 결정적 검증은 위 목록뿐이다. 실제 Colab 연동 품질은 자동 테스트가 아니라 브라우저 확인이 필요하다.

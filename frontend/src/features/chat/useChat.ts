@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { chatReducer, initialState, validateInput } from './chatReducer'
 import { mockConversationClient } from '../../services/mockConversationClient'
+import { newRequestId } from '../../services/requestId'
 import type { ConversationClient, TurnInput, TurnRequest } from './types'
 
 export function useChat(client: ConversationClient = mockConversationClient) {
@@ -25,7 +26,7 @@ export function useChat(client: ConversationClient = mockConversationClient) {
     const error = validateInput(input.text)
     setValidation(error)
     if (error) return
-    const request: TurnRequest = { requestId: crypto.randomUUID(), turn: state.completedTurns + 1, input: { ...input, text: input.text.trim() } }
+    const request: TurnRequest = { requestId: newRequestId(), turn: state.completedTurns + 1, input: { ...input, text: input.text.trim() } }
     inFlight.current = true
     dispatch({ type: 'send', request })
     setDraft('')

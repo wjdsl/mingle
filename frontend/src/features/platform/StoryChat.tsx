@@ -1,5 +1,6 @@
 import type { StoryClient } from '../../services/storyClient'
 import { createSessionStoryClient, storyClientMode } from '../../services/storyClient'
+import { DevSourceBadge } from './DevSourceBadge'
 import { useContext } from 'react'
 import { ChatEntryMessages } from './ChatIntro'
 import { SceneImage } from './SceneImage'
@@ -33,7 +34,6 @@ export function ChatBubble({ message, project, latest }: { message: StoryMessage
   return <div className={`p-bubble p-${message.role}`} data-provider={message.provider} data-model={message.model}>
     <div className="p-speaker">{message.role === 'character' && <span className="p-speaker-symbol" aria-hidden="true">{project.id === 'fridge' ? <span className="p-mini-fridge"><CharacterPortrait project={project} compact /></span> : character?.symbol ?? '✦'}</span>}<b>{message.speaker}</b></div>
     <p>{display && <span className="p-display-direction">{display}</span>}{spokenText}</p>{latest && message.reaction && <span className="p-reaction">{message.reaction}</span>}
-    {message.provider === 'gemini' && <small className="p-provider-note">Gemini · {message.model}</small>}
     {message.provider === 'fixed' && <small className="p-provider-note">고정 연출</small>}
     {unlinked && <small className="p-provider-note">AI 미연결 · 서버 고정 응답</small>}
   </div>
@@ -68,6 +68,7 @@ function StoryConversation({ project, name, onResult, client, onRestart }: { cli
   const visibleMessages = useContext(ChatEntryMessages)
   // 세션(key)마다 새 클라이언트 → 새 서버 대화. 기본은 Mock, VITE_STORY_CLIENT=api일 때 실제 API.
   const [sessionClient] = useState(() => client ?? createSessionStoryClient(name))
+  const trace = 'trace' in sessionClient ? (sessionClient as { trace: import('../../services/devSource').SourceTrace }).trace : undefined
   const { turn, messages, status, selected, step, send, retry, advance, errorMessage, retryBlocked, retryWait, canRetry } = useStoryChat(project, name, onResult, sessionClient)
   const log = useRef<HTMLDivElement>(null)
   const stream = useRef<HTMLDivElement>(null)
@@ -89,6 +90,7 @@ function StoryConversation({ project, name, onResult, client, onRestart }: { cli
     return () => observer.disconnect()
   }, [messages.length, status])
   return <main className="p-chat-layout">
+    {trace && <DevSourceBadge trace={trace} />}
     <header className="p-scene-header"><div><span className="p-kicker">{unit} {turn + 1}/{project.steps.length}{status === 'replied' ? ' · 완료' : ''}</span><h1 ref={heading} tabIndex={-1}>{step.title}</h1></div><details className="p-story-details"><summary aria-label="전체 이야기 진행 보기">진행 보기</summary><ol>{project.steps.map((s, i) => <li key={s.title} aria-current={i === turn ? 'step' : undefined}>{i < turn || (i === turn && status === 'replied') ? '✓' : `0${i + 1}`} <span>{s.title}</span>{i === turn && <small>현재 {unit}</small>}</li>)}</ol></details><progress max={project.steps.length} value={turn + (status === 'replied' ? 1 : 0)} aria-label={`${project.steps.length}개 중 ${turn + (status === 'replied' ? 1 : 0)}개 완료`} /></header>
     <div className="p-chat-log" ref={log} tabIndex={0} role="log" aria-label="대화 목록" aria-live="polite" aria-relevant="additions" onScroll={() => { const el = log.current!; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64 }}><div className="p-chat-stream" ref={stream}>{project.id === 'cloud' && <div className="p-team-story-portrait"><CharacterPortrait project={project} name={step.speaker} /></div>}
       {messages.map((message, i) => <div key={i} hidden={i >= visibleMessages}>{(message.kind === undefined || message.kind === 'text') && message.situation && <p className="p-scene-note">{message.situation}</p>}<ChatBubble project={project} message={message} latest={i === messages.length - 1} /></div>)}

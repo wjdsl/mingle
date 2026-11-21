@@ -27,6 +27,7 @@ from app.core.config import settings
 from app.db.models import Conversation, Message, Persona, StoryTurnRecord, UserSession, utcnow
 from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
+from app.services.story_dialogue import DialogueInfo, info_from_extra, rewrite_fridge_dialogue
 from app.services.story_prompt import build_story_messages
 from app.services.story_response_control import correction_note, sentences, validate_lines
 from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, get_project, project_for_slug
@@ -73,6 +74,7 @@ class StoryTurnOutcome:
     completed_turns: int
     replayed: bool
     guardrail_triggered: bool
+    dialogue: DialogueInfo | None = None  # 스토리/대사 생성 공급자 기록(냉장고 Qwen 하이브리드)
 
 
 # --------------------------------------------------------------------------- #
@@ -348,6 +350,7 @@ async def _replay(
         completed_turns=await count_completed(db, conversation.id),
         replayed=True,
         guardrail_triggered=bool(message and (message.extra or {}).get("guardrail")),
+        dialogue=info_from_extra(message.extra if message else None, record.provider),
     )
 
 
@@ -499,6 +502,7 @@ async def _save_turn(
     latency_ms: int,
     extra: dict,
     guardrail_triggered: bool,
+    dialogue: DialogueInfo | None = None,
 ) -> StoryTurnOutcome:
     assistant_message = Message(
         conversation_id=conversation.id,
@@ -555,6 +559,7 @@ async def _save_turn(
         completed_turns=turn + 1,
         replayed=False,
         guardrail_triggered=guardrail_triggered,
+        dialogue=dialogue or DialogueInfo(story_provider=provider, dialogue_provider=provider),
     )
 
 
@@ -595,6 +600,24 @@ async def process_story_turn(
     await db.commit()
     generated = await _generate(project, turn, nickname, history, user_text, choice, previous)
     lines, guardrail_triggered = apply_story_guardrail(project, generated.lines)
+    dialogue = DialogueInfo(story_provider=generated.provider, dialogue_provider=generated.provider)
+    if not guardrail_triggered:
+        # 냉장고 전용·선택 기능(기본 꺼짐): 대사 본문만 Qwen으로 다시 쓴다. 실패하면 Gemini 원본을 그대로 쓴다.
+        rewrite = await rewrite_fridge_dialogue(
+            project,
+            turn,
+            story_provider=generated.provider,
+            lines=lines,
+            reaction=generated.reaction,
+            nickname=nickname,
+            user_text=user_text,
+            from_choice=choice is not None,
+            previous_replies=previous,
+            conversation_id=conversation.id,
+        )
+        dialogue = rewrite.info
+        if rewrite.text is not None:
+            lines = [ReplyLine(lines[0].speaker, rewrite.text)]
     appended = fixed_reply_lines(project, scene.follow_up_lines + scene.closing_lines, nickname) if not guardrail_triggered else []
     user_message = Message(
         conversation_id=conversation.id,
@@ -621,8 +644,10 @@ async def process_story_turn(
             "control_violations": generated.violations,
             "fixed_lines_appended": len(appended),
             "prompt_data_versions": generated.prompt_versions,
+            "dialogue": dialogue.as_extra(),
         },
         guardrail_triggered=guardrail_triggered,
+        dialogue=dialogue,
     )
 
 

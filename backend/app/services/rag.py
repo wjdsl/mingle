@@ -107,6 +107,9 @@ async def retrieve(
         return []
 
     llm = get_llm()
+    # 임베딩 미지원 공급자(Qwen)는 가짜 벡터 없이 검색을 건너뛴다(RAG 문맥 없이 응답).
+    if not getattr(llm, "supports_embedding", True):
+        return []
     query_vector = fit_embedding((await llm.embed([query]))[0], settings.embedding_dim)
 
     if settings.is_postgres:

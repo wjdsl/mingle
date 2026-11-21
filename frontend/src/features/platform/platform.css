@@ -341,3 +341,7 @@
 .p-chat-stream > div[hidden] { display:none !important; }
 .p-chat-entry[data-message-entrance="true"][data-phase="chatReveal"] .p-composer { visibility:hidden; }
 @keyframes p-message-rise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:none; } }
+
+/* 개발 빌드 전용 응답 출처 배지(프로덕션에서는 렌더하지 않음) */
+.dev-source-badge { position: fixed; left: 6px; bottom: 6px; z-index: 50; margin: 0; padding: 2px 8px; border-radius: 6px; background: rgba(20, 20, 20, 0.82); color: #fff; font: 11px/1.4 ui-monospace, monospace; pointer-events: none; }
+.dev-source-badge[data-mode="api"] { background: rgba(10, 100, 50, 0.9); }

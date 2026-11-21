@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { mockStoryClient } from '../../services/storyClient'
+import { newRequestId } from '../../services/requestId'
 import type { StoryClient } from '../../services/storyClient'
 import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
 
-type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string }
+type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string; dialogueProvider?: string }
 export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
@@ -54,7 +55,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
       if (!abort.signal.aborted) {
         // 실제 API는 구름섬에서 여러 대원의 대사를 돌려줄 수 있다. 반응 표시는 마지막 말풍선에 둔다.
         const lines = [{ speaker: reply.speaker, text: reply.text }, ...(reply.followUps ?? [])]
-        const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model } : {}
+        const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model, dialogueProvider: reply.meta.dialogueProvider } : {}
         setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
         setErrorMessage(undefined); setStatus('replied')
       }
@@ -82,7 +83,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   }
   function send(text: string, choice?: number) {
     if (busy.current || status !== 'idle' || (step.inputMode !== 'none' && !text.trim())) return
-    pending.current = { requestId: crypto.randomUUID(), text, choice }; setSelected(choice)
+    pending.current = { requestId: newRequestId(), text, choice }; setSelected(choice)
     if (step.inputMode !== 'none') setMessages(old => [...old, { role: 'user', speaker: name, text }])
     void run()
   }
