@@ -1,4 +1,5 @@
 import { opening } from '../../projects/puruma/mockConversation.ts'
+import { crisisCareLine } from '../../services/crisisSafety.ts'
 import type { ChatState, TurnRequest, TurnResponse } from './types'
 
 export const initialState = (): ChatState => ({
@@ -7,7 +8,8 @@ export const initialState = (): ChatState => ({
 })
 type Action = { type: 'send'; request: TurnRequest } | { type: 'retry' } |
   { type: 'success'; requestId: string; response: TurnResponse } |
-  { type: 'failure'; requestId: string } | { type: 'reset' }
+  { type: 'failure'; requestId: string } | { type: 'reset' } |
+  { type: 'crisis'; id: string; text: string }
 
 export function validateInput(text: string): string | null {
   if (!text.trim()) return '한 글자라도 적어 주세요.'
@@ -28,5 +30,12 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         status: state.completedTurns + 1 === 2 ? 'complete' : 'idle', emotion: action.response.emotion,
         messages: [...state.messages, { id: `${action.requestId}-reply`, role: 'character', text: action.response.text, emotion: action.response.emotion }] }
     case 'reset': return initialState()
+    case 'crisis':
+      // 위기 신호: 턴·상태를 바꾸지 않고 안내와 캐릭터의 짧은 반응만 붙인다(서버 호출 없음).
+      if (state.status !== 'idle' || validateInput(action.text)) return state
+      return { ...state, messages: [...state.messages,
+        { id: action.id, role: 'user', text: action.text.trim() },
+        { id: `${action.id}-notice`, role: 'notice', text: '' },
+        { id: `${action.id}-care`, role: 'character', text: crisisCareLine('puruma').text, emotion: 'confused', calm: true }] }
   }
 }
