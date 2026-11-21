@@ -29,6 +29,7 @@ from app.schemas.admin import (
     TokenOut,
     TriggerStats,
 )
+from app.services.admin_access import PLATFORM_ROLE, PROJECT_DASHBOARD_NOT_READY, PROJECT_ROLE
 from app.services.analytics import build_overview
 from app.services.memory import load_notes
 
@@ -52,7 +53,9 @@ async def login(
             detail="이메일 또는 비밀번호가 올바르지 않습니다.",
         )
 
-    if admin.role != "admin":
+    if admin.role == PROJECT_ROLE:
+        raise HTTPException(status_code=403, detail=PROJECT_DASHBOARD_NOT_READY)
+    if admin.role != PLATFORM_ROLE:
         raise HTTPException(status_code=403, detail="전체 관리자 권한이 필요합니다.")
     if verify_password("admin1234!", admin.password_hash):
         raise HTTPException(status_code=403, detail="기본 비밀번호를 변경한 뒤 로그인해 주세요.")

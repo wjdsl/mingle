@@ -11,6 +11,7 @@ from app.core.security import decode_access_token, hash_personal_code, verify_pa
 from app.core.config import settings
 from app.db.base import get_db
 from app.db.models import AdminUser, Conversation, UserSession, utcnow
+from app.services.admin_access import PLATFORM_ROLE, PROJECT_DASHBOARD_NOT_READY, PROJECT_ROLE
 
 bearer_scheme = HTTPBearer(auto_error=False, description="관리자 JWT")
 
@@ -81,7 +82,10 @@ async def get_current_admin(
     admin = await db.get(AdminUser, admin_id)
     if admin is None or not admin.is_active:
         raise _unauthorized("관리자 계정을 찾을 수 없습니다.")
-    if admin.role != "admin":
+    if admin.role == PROJECT_ROLE:
+        # 작품별 필터·권한 검사가 없으므로 작품 담당자는 전체 데이터 API에 접근할 수 없다.
+        raise HTTPException(status_code=403, detail=PROJECT_DASHBOARD_NOT_READY)
+    if admin.role != PLATFORM_ROLE:
         raise HTTPException(status_code=403, detail="전체 관리자 권한이 필요합니다.")
     if verify_password("admin1234!", admin.password_hash):
         raise HTTPException(status_code=403, detail="기본 비밀번호를 변경해야 합니다.")
