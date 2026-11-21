@@ -327,3 +327,11 @@
 
 - 기존 Flash는 HTTPX 읽기 타임아웃, Flash Lite는 Google HTTP 503 후 기존 앱 HTTP 502로 기록됐다. 스토리 API에서 공급자 503을 전용 코드로 전달하고 화면에 재시도 안내를 표시한다. 실패 시 진행은 저장되지 않으며 재시도는 같은 요청 ID를 사용한다.
 - 이번 정리에서는 실제 Gemini를 호출하지 않았다. 복구 후 1회 확인 방법은 `backend/README.md`를 따른다.
+
+## 2026-11-21 관리자 계정 작품 지정
+
+- 기획 요청으로 관리자 계정에 볼 수 있는 작품을 지정하는 기반만 추가했다. 계정 종류는 플랫폼 관리자(`role=admin`, 전체)와 작품 담당자(`role=project`) 두 가지다.
+- 마이그레이션 도구가 없어 `admin_users`에 칸을 추가하지 않고 새 표 `admin_project_access`(admin_id, project_id)를 만들었다. 기존 SQLite DB 사본에서 서버 시작 시 새 표가 생성되고 기존 계정이 유지됨을 확인했다. PostgreSQL은 실행하지 않았다.
+- `scripts.create_admin`에 `--project {puruma,fridge,cloud}`(반복 가능)를 추가했다. `--reset`에 `--project`가 없으면 기존 종류·작품을 유지해 작품 담당자가 전체 관리자로 바뀌지 않게 했다.
+- 작품별 통계 필터·작품 권한 검사·프론트 작품 선택은 **미구현**이다. 그때까지 작품 담당자는 로그인과 모든 관리자 API에서 403으로 거부한다. 대화 원문 API를 작품 담당자에게 열지 않는 방향은 기획 제안이며 팀 확정 전이다.
+- 수정: `backend/app/db/models.py`, `backend/app/services/admin_access.py`(신규), `backend/app/api/deps.py`, `backend/app/api/routes/admin.py`, `backend/scripts/create_admin.py`, `backend/tests/test_admin_project_access.py`(신규), `frontend/ADMIN_GUIDE.md`, 본 문서. 백엔드 pytest 218개 통과(Mock). 프론트 코드는 변경하지 않았다.
