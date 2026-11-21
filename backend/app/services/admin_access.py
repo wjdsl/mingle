@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,20 @@ PROJECT_ROLE = "project"
 PROJECT_IDS: tuple[str, ...] = ("puruma", "fridge", "cloud")
 
 PROJECT_DASHBOARD_NOT_READY = "작품 담당자용 대시보드는 아직 준비 중입니다. 밍글 팀에 문의해 주세요."
+
+
+# 관리자 아이디(기획서 FR-70). 이메일일 필요가 없다. 기존 이메일 형식 아이디도 그대로 허용한다.
+# DB 칸 이름은 호환을 위해 admin_users.email을 그대로 쓴다.
+_LOGIN_ID = re.compile(r"[a-z0-9][a-z0-9._+@-]{2,199}")
+LOGIN_ID_RULE = "아이디는 3~200자의 영문 소문자·숫자와 . _ - + @ 만 쓸 수 있고, 영문이나 숫자로 시작해야 합니다."
+
+
+def normalize_login_id(value: str) -> str:
+    """앞뒤 공백을 지우고 소문자로 바꾼다. 규칙에 맞지 않으면 ValueError."""
+    login_id = (value or "").strip().lower()
+    if not _LOGIN_ID.fullmatch(login_id):
+        raise ValueError(LOGIN_ID_RULE)
+    return login_id
 
 
 def normalize_projects(projects: list[str] | None) -> list[str]:
