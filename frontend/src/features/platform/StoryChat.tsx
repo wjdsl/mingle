@@ -3,6 +3,7 @@ import { createSessionStoryClient, storyClientMode } from '../../services/storyC
 import { useContext } from 'react'
 import { ChatEntryMessages } from './ChatIntro'
 import { SceneImage } from './SceneImage'
+import { CrisisNotice } from '../safety/CrisisNotice'
 import { useLayoutEffect, useRef } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait } from './shared'
@@ -26,6 +27,7 @@ export function MessageComposer({ disabled, onSend }: { disabled: boolean; onSen
 export function ChatBubble({ message, project, latest }: { message: StoryMessage; project: StoryProject; latest: boolean }) {
   if (message.kind === 'scene_image') return <SceneImage asset={message.asset} />
   if (message.kind === 'system') return <p className="p-event-message"><span>사건 알림</span>{message.text}</p>
+  if (message.kind === 'crisis') return <CrisisNotice />
   const display = message.text.match(/\[디스플레이: ([^\]]+)\]/)?.[1]
   const spokenText = message.text.replace(/\[디스플레이: [^\]]+\]\s*/g, '').trim()
   const character = project.characters.find(c => c.name === message.speaker)

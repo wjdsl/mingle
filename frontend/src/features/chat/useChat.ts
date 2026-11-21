@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { chatReducer, initialState, validateInput } from './chatReducer'
 import { mockConversationClient } from '../../services/mockConversationClient'
+import { isCrisisText } from '../../services/crisisSafety'
 import type { ConversationClient, TurnInput, TurnRequest } from './types'
 
 export function useChat(client: ConversationClient = mockConversationClient) {
@@ -25,6 +26,12 @@ export function useChat(client: ConversationClient = mockConversationClient) {
     const error = validateInput(input.text)
     setValidation(error)
     if (error) return
+    if (input.kind === 'text' && isCrisisText(input.text)) {
+      // 위기 신호는 서버(AI·기억)로 보내지 않는다.
+      dispatch({ type: 'crisis', id: crypto.randomUUID(), text: input.text })
+      setDraft('')
+      return
+    }
     const request: TurnRequest = { requestId: crypto.randomUUID(), turn: state.completedTurns + 1, input: { ...input, text: input.text.trim() } }
     inFlight.current = true
     dispatch({ type: 'send', request })

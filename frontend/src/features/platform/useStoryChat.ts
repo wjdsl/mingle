@@ -3,9 +3,11 @@ import type { StoryProject } from '../../projects/stories/catalog'
 import { mockStoryClient } from '../../services/storyClient'
 import type { StoryClient } from '../../services/storyClient'
 import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
+import { crisisCareLine, isCrisisText } from '../../services/crisisSafety'
+import type { CrisisProject } from '../../services/crisisSafety'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string }
-export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string }
+export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string } | { kind: 'crisis' }
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
  if (step.openingLines) {
@@ -82,6 +84,13 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   }
   function send(text: string, choice?: number) {
     if (busy.current || status !== 'idle' || (step.inputMode !== 'none' && !text.trim())) return
+    if (step.inputMode !== 'none' && choice === undefined && isCrisisText(text)) {
+      // 위기 신호: AI를 부르지 않고 서버로 보내지 않는다. 장면은 그대로 두고 다음 입력을 기다린다.
+      const care = crisisCareLine(project.id as CrisisProject)
+      setSelected(undefined)
+      setMessages(old => [...old, { role: 'user', speaker: name, text }, { kind: 'crisis' }, { role: 'character', speaker: care.speaker, text: care.text }])
+      return
+    }
     pending.current = { requestId: crypto.randomUUID(), text, choice }; setSelected(choice)
     if (step.inputMode !== 'none') setMessages(old => [...old, { role: 'user', speaker: name, text }])
     void run()
