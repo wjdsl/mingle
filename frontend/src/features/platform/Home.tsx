@@ -4,6 +4,8 @@ import fridgeScene from '../../assets/fridge/fridge-smug.webp'
 import { projects } from '../../projects/stories/catalog'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { CharacterPortrait } from './shared'
+import { storyClientMode } from '../../services/storyClient'
+import { loadProgress } from '../../services/storyProgress'
 
 export const summaries: Record<string, string> = {
   puruma: '길을 잃은 신입생 푸르마의 선배가 되어 주세요.',
@@ -11,7 +13,11 @@ export const summaries: Record<string, string> = {
   cloud: '다섯 대원과 힘을 모아 흔들리는 하늘섬을 구해요.',
 }
 export function ProjectCard({ project, onSelect }: { project: StoryProject; onSelect(): void }) {
-  return <button className={`p-project-card theme-${project.id}`} onClick={onSelect} aria-label={`${project.title} 작품 보기`}>
+  // 이 기기에 진행 중인 기록이 있으면 표시한다(FR-04). 이어하기 버튼은 작품 소개 화면에 있다.
+  const saved = project.id === 'puruma' ? null : loadProgress(project.id, storyClientMode())
+  const resumeText = saved ? `이어서 하기 · ${project.id === 'cloud' ? '미션' : '장면'} ${saved.completedTurns + 1}부터` : ''
+  return <button className={`p-project-card theme-${project.id}`} onClick={onSelect} aria-label={`${project.title} 작품 보기${saved ? `, ${resumeText}` : ''}`}>
+    {saved && <span className="p-progress-badge" aria-hidden="true">{resumeText}</span>}
     <span className="p-book-label">STORY {project.number} / {project.genre}</span>
     <div className="p-poster">{project.id === 'fridge' ? <img className="p-fridge-cover" src={fridgeScene} alt="원룸에서 자신만만한 표정을 짓는 냉장고 회장" /> : <CharacterPortrait project={project} />}</div>
     <h3>{project.id === 'fridge' ? <>우리 집 냉장고가<br />재벌 회장님이다</> : project.title}</h3><p className="p-book-description">{summaries[project.id]}</p>

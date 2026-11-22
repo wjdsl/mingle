@@ -65,7 +65,7 @@ export function AdminApp() {
   return <div className="a-app">
     <header className="a-header"><a href="#/" className="a-brand">mingle<span> / ADMIN</span></a>{admin && <div><span>{admin.name}</span><button onClick={() => logout()}>로그아웃</button></div>}</header>
     {!session ? <main className="a-login"><p className="a-eyebrow">MINGLE WORKSPACE</p><h1>관리자 로그인</h1><p>발급받은 계정으로 로그인해 주세요.</p>
-      <form onSubmit={login}><label htmlFor="admin-email">이메일</label><input id="admin-email" type="email" autoComplete="username" required maxLength={200} value={email} onChange={e => setEmail(e.target.value)} disabled={busy} />
+      <form onSubmit={login}><label htmlFor="admin-email">아이디</label><input id="admin-email" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={200} value={email} onChange={e => setEmail(e.target.value)} disabled={busy} />
         <label htmlFor="admin-password">비밀번호</label><input id="admin-password" type="password" autoComplete="current-password" required maxLength={200} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} />
         {error && <p role="alert" className="a-error">{error}</p>}<button className="a-primary" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button></form><a href="#/">서비스로 돌아가기</a>
     </main> : <main className="a-main">

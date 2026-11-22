@@ -3,7 +3,8 @@ import type { StoryClient, StoryTurnRequest } from './storyClient.ts'
 import type { StoryReply } from './mockStoryClient.ts'
 
 // 냉장고·구름섬 실제 백엔드(/api/story-chat) 클라이언트.
-// - 개인 코드·대화 ID는 이 객체의 메모리에만 둔다(새로고침하면 새 세션). API 키는 서버만 보유한다.
+// - 개인 코드·대화 ID는 이 객체의 메모리에 두고, 이어하기용으로 storyProgress.ts가 이 기기 브라우저에만 저장한다.
+//   이어하기는 resume으로 같은 대화를 다시 쓰고 progress()로 서버 진행 장면을 먼저 확인한다. API 키는 서버만 보유한다.
 // - requestId는 재시도 동안 유지되며 서버가 같은 requestId의 저장된 응답을 돌려준다(중복 방지).
 // - 서버 진행 장면과 응답 장면이 다르면 오류로 처리해 화면 진행과 서버 상태가 어긋나지 않게 한다.
 
@@ -31,7 +32,7 @@ export function storyRetryPolicy(error: unknown): { canRetry: boolean; waitSecon
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export const SCENARIO_SET = 'scenario_draft_v1'
 
-type Options = { displayName: string; sceneSet?: typeof SCENARIO_SET; provider?: 'gemini' | 'mock'; fetch?: FetchLike; baseUrl?: string; timeoutMs?: number }
+type Options = { displayName: string; sceneSet?: typeof SCENARIO_SET; provider?: 'gemini' | 'mock'; fetch?: FetchLike; baseUrl?: string; timeoutMs?: number; resume?: { code: string; conversationId: string; project: string; totalTurns: number } }
 type Conversation = { code: string; id: string; project: string; totalTurns: number }
 
 const MESSAGES: Record<StoryApiErrorKind, string> = {
@@ -59,14 +60,16 @@ function linkSignals(signal: AbortSignal, timeoutMs: number) {
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null }
 
-export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini', fetch: doFetch = (input, init) => globalThis.fetch(input, init), baseUrl = '', timeoutMs = 180_000 }: Options): StoryClient {
-  let conversation: Promise<Conversation> | null = null
+export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini', fetch: doFetch = (input, init) => globalThis.fetch(input, init), baseUrl = '', timeoutMs = 180_000, resume }: Options): StoryClient {
+  let resolved: Conversation | null = resume ? { code: resume.code, id: resume.conversationId, project: resume.project, totalTurns: resume.totalTurns } : null
+  let conversation: Promise<Conversation> | null = resolved ? Promise.resolve(resolved) : null
 
   async function call(path: string, body: unknown, signal: AbortSignal, code?: string): Promise<unknown> {
     const linked = linkSignals(signal, timeoutMs)
     let response: Response
     try {
-      response = await doFetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(code ? { 'X-Personal-Code': code } : {}), ...(sceneSet ? { 'X-Story-Provider': provider } : {}) }, body: JSON.stringify(body), signal: linked.signal })
+      const get = body === undefined
+      response = await doFetch(`${baseUrl}${path}`, { method: get ? 'GET' : 'POST', headers: { ...(get ? {} : { 'Content-Type': 'application/json' }), ...(code ? { 'X-Personal-Code': code } : {}), ...(sceneSet ? { 'X-Story-Provider': provider } : {}) }, ...(get ? {} : { body: JSON.stringify(body) }), signal: linked.signal })
     } catch {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       if (linked.timedOut()) throw new StoryApiError('timeout', MESSAGES.timeout)
@@ -113,12 +116,19 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
   function ensure(projectId: string, signal: AbortSignal) {
     if (!conversation) {
       // 실패하면 다음 재시도에서 세션/대화를 다시 만든다. 성공한 대화는 이 클라이언트 동안 재사용한다.
-      conversation = start(projectId, signal).catch(error => { conversation = null; throw error })
+      conversation = start(projectId, signal).then(created => { resolved = created; return created }).catch(error => { conversation = null; throw error })
     }
     return conversation
   }
 
   return {
+    session: () => resolved ? { code: resolved.code, conversationId: resolved.id } : null,
+    async progress(signal: AbortSignal) {
+      if (!resolved) return null
+      const data = await call(`/api/story-chat/conversations/${encodeURIComponent(resolved.id)}`, undefined, signal, resolved.code)
+      if (!isRecord(data) || data.conversation_id !== resolved.id || data.project !== resolved.project || typeof data.completed_turns !== 'number' || typeof data.total_turns !== 'number') throw new StoryApiError('invalid', MESSAGES.invalid)
+      return { completedTurns: data.completed_turns, totalTurns: data.total_turns, finished: data.finished === true }
+    },
     async sendTurn(request: StoryTurnRequest, signal: AbortSignal): Promise<StoryReply> {
       const projectId = request.project.id
       const current = await ensure(projectId, signal)

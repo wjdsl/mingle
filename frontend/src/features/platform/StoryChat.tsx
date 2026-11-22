@@ -9,7 +9,9 @@ import { useLayoutEffect, useRef } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait } from './shared'
 import { useStoryChat } from './useStoryChat'
-import type { StoryMessage } from './useStoryChat'
+import type { StoryChatOptions, StoryMessage } from './useStoryChat'
+import { clearProgress } from '../../services/storyProgress'
+import type { SavedProgress } from '../../services/storyProgress'
 import { useEffect, useState } from 'react'
 import { loadStoryScenario } from '../../services/apiStoryClient'
 
@@ -27,7 +29,7 @@ export function MessageComposer({ disabled, onSend }: { disabled: boolean; onSen
 }
 export function ChatBubble({ message, project, latest }: { message: StoryMessage; project: StoryProject; latest: boolean }) {
   if (message.kind === 'scene_image') return <SceneImage asset={message.asset} />
-  if (message.kind === 'system') return <p className="p-event-message"><span>사건 알림</span>{message.text}</p>
+  if (message.kind === 'system') return <p className="p-event-message"><span>{message.label ?? '사건 알림'}</span>{message.text}</p>
   if (message.kind === 'crisis') return <CrisisNotice />
   const display = message.text.match(/\[디스플레이: ([^\]]+)\]/)?.[1]
   const spokenText = message.text.replace(/\[디스플레이: [^\]]+\]\s*/g, '').trim()
@@ -41,37 +43,67 @@ export function ChatBubble({ message, project, latest }: { message: StoryMessage
   </div>
 }
 // onRestart: 재시도할 수 없는 오류에서 새 세션(새 클라이언트·서버 대화)으로 다시 시작한다. 서버의 기존 대화 기록은 삭제하지 않는다.
-export function ChatLayout({ project, name, onResult, client, onRestart }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void }) {
-  if (client || storyClientMode() === 'mock') return <StoryConversation project={project} name={name} onResult={onResult} client={client} onRestart={onRestart} />
-  return <ScenarioChat project={project} name={name} onResult={onResult} onRestart={onRestart} />
+const RESUME_FAILED = '이전 기록을 이어갈 수 없어 처음부터 시작해요.'
+
+export function ChatLayout({ project, name, onResult, client, onRestart, resume }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void; resume?: SavedProgress | null }) {
+  if (client || storyClientMode() === 'mock') {
+    const canResume = !!resume && resume.completedTurns < project.steps.length
+    return <StoryConversation project={project} name={name} onResult={onResult} client={client} onRestart={onRestart} options={canResume ? { startTurn: resume.completedTurns, resumed: true } : {}} />
+  }
+  return <ScenarioChat project={project} name={name} onResult={onResult} onRestart={onRestart} resume={resume} />
 }
 
-function ScenarioChat({ project, name, onResult, onRestart }: { project: StoryProject; name: string; onResult(): void; onRestart?(): void }) {
-  const [scenario, setScenario] = useState<StoryProject>()
+type Prepared = { scenario: StoryProject; client: StoryClient; options: StoryChatOptions }
+
+// API·서버 Mock 모드: 장면을 불러오고, 이어하기라면 서버 진행 장면을 먼저 확인한다.
+// 서버 기록이 없거나(DB 초기화 등) 이미 끝났거나 확인에 실패하면 저장 기록을 지우고 새 대화로 시작한다.
+async function prepareScenario(project: StoryProject, name: string, resume: SavedProgress | null | undefined, signal: AbortSignal): Promise<Prepared> {
+  const scenario = await loadStoryScenario(project, name, signal)
+  if (!resume) return { scenario, client: createSessionStoryClient(name), options: {} }
+  if (!resume.api) {
+    // 첫 답변 전에 저장된 기록이면 서버에 이어 갈 내용이 없다.
+    if (resume.completedTurns === 0) return { scenario, client: createSessionStoryClient(name), options: { resumed: true } }
+  } else {
+    const client = createSessionStoryClient(name, { ...resume.api, project: project.id, totalTurns: scenario.steps.length })
+    try {
+      const server = await client.progress?.(signal)
+      if (server && !server.finished && server.totalTurns === scenario.steps.length && server.completedTurns < server.totalTurns) {
+        return { scenario, client, options: { startTurn: server.completedTurns, resumed: true } }
+      }
+    } catch (error) {
+      if (signal.aborted) throw error
+    }
+  }
+  clearProgress(project.id)
+  return { scenario, client: createSessionStoryClient(name), options: { notice: RESUME_FAILED } }
+}
+
+function ScenarioChat({ project, name, onResult, onRestart, resume }: { project: StoryProject; name: string; onResult(): void; onRestart?(): void; resume?: SavedProgress | null }) {
+  const [prepared, setPrepared] = useState<Prepared>()
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
-    loadStoryScenario(project, name, controller.signal).then(loaded => {
-      if (!controller.signal.aborted) setScenario(loaded)
+    prepareScenario(project, name, resume, controller.signal).then(ready => {
+      if (!controller.signal.aborted) setPrepared(ready)
     }).catch(() => {
       if (!controller.signal.aborted) setFailed(true)
     })
     return () => controller.abort()
-  }, [project, name, attempt])
-  if (scenario) return <StoryConversation project={scenario} name={name} onResult={onResult} onRestart={onRestart} />
+  }, [project, name, resume, attempt])
+  if (prepared) return <StoryConversation project={prepared.scenario} name={name} onResult={onResult} onRestart={onRestart} client={prepared.client} options={prepared.options} />
   return <main className="p-chat-layout">{failed
     ? <div className="p-error" role="alert"><span>장면을 불러오지 못했어요.</span><button onClick={() => { setFailed(false); setAttempt(old => old + 1) }}>다시 시도</button></div>
     : <p className="p-loading" role="status">장면을 불러오고 있어요</p>}
   </main>
 }
 
-function StoryConversation({ project, name, onResult, client, onRestart }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void }) {
+function StoryConversation({ project, name, onResult, client, onRestart, options }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void; options?: StoryChatOptions }) {
   const visibleMessages = useContext(ChatEntryMessages)
   // 세션(key)마다 새 클라이언트 → 새 서버 대화. 기본은 Mock, VITE_STORY_CLIENT=api일 때 실제 API.
   const [sessionClient] = useState(() => client ?? createSessionStoryClient(name))
   const trace = 'trace' in sessionClient ? (sessionClient as { trace: import('../../services/devSource').SourceTrace }).trace : undefined
-  const { turn, messages, status, selected, step, send, retry, advance, errorMessage, retryBlocked, retryWait, canRetry } = useStoryChat(project, name, onResult, sessionClient)
+  const { turn, messages, status, selected, step, send, retry, advance, errorMessage, retryBlocked, retryWait, canRetry } = useStoryChat(project, name, onResult, sessionClient, options)
   const log = useRef<HTMLDivElement>(null)
   const stream = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)

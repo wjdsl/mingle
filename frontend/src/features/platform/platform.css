@@ -345,3 +345,18 @@
 /* 개발 빌드 전용 응답 출처 배지(프로덕션에서는 렌더하지 않음) */
 .dev-source-badge { position: fixed; left: 6px; bottom: 6px; z-index: 50; margin: 0; padding: 2px 8px; border-radius: 6px; background: rgba(20, 20, 20, 0.82); color: #fff; font: 11px/1.4 ui-monospace, monospace; pointer-events: none; }
 .dev-source-badge[data-mode="api"] { background: rgba(10, 100, 50, 0.9); }
+
+/* 2026-11-22 진행 복원·결말 도감·결과 이미지 저장 */
+.p-progress-badge { align-self: flex-start; margin-bottom: 8px; padding: 3px 9px; border-radius: 999px; background: var(--m-ink); color: var(--m-surface); font-size: 11px; font-weight: 700; }
+.p-resume-actions { display: grid; gap: 8px; }
+.p-resume-actions .p-field-help { margin: 2px 0 0; }
+.p-text-link { display: block; margin: 12px auto 0; padding: 8px 4px; min-height: 44px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.p-collection { width: min(100%, 390px); margin: 0 auto; padding: 24px 16px 40px; }
+.p-collection-count { margin: 8px 0 16px; font-size: 14px; font-weight: 700; color: var(--w-secondary, var(--m-ink)); }
+.p-collection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+.p-collection-grid li { display: grid; gap: 6px; min-height: 120px; padding: 14px; border-radius: 12px; border: 1.5px solid var(--w-soft, #ddd); background: var(--w-surface, #fff); color: var(--w-ink, #222); }
+.p-collection-grid .p-locked { border-style: dashed; background: var(--w-soft, #f2f2f2); }
+.p-collection-grid .p-locked b { letter-spacing: 3px; opacity: .6; }
+.p-collection-grid b { font-size: 15px; line-height: 1.4; word-break: keep-all; }
+.p-collection-grid small { font-size: 12px; opacity: .75; }
+.p-collection-number { font-size: 11px; font-weight: 700; color: var(--w-secondary, #555); }

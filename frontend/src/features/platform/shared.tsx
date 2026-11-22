@@ -23,14 +23,16 @@ function usesGemini(project: StoryProject) {
   return project.id !== 'puruma' && storyClientMode() === 'api'
 }
 
-const geminiNotice = '입력은 Gemini에 전송돼요. 마지막 장면은 고정 연출이고, 새로고침하면 처음부터 시작해요.'
+const geminiNotice = '입력은 Gemini에 전송돼요. 마지막 장면은 고정 연출이에요.'
+// 냉장고·구름섬은 진행이 이 기기에 저장된다(storyProgress.ts). 푸르마는 아직 저장하지 않는다.
+const progressNote = (project: StoryProject) => project.id === 'puruma' ? '진행은 새로고침하면 초기화돼요.' : '진행은 이 기기에 저장돼서 이어할 수 있어요.'
 
 export function DemoNotice({ compact = false, project }: { compact?: boolean; project: StoryProject }) {
   if (usesGemini(project)) return compact
-    ? <details className="p-demo-details"><summary>Gemini 모드 <span aria-hidden="true">ⓘ</span></summary><p>{geminiNotice}</p></details>
-    : <p className="p-demo-notice">{geminiNotice}</p>
-  if (!compact) return <p className="p-demo-notice">실제 AI 없이 정해진 대사로 답하는 체험이에요.<br />진행은 새로고침하면 초기화돼요.</p>
-  return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요. 진행은 새로고침하면 초기화돼요.</p></details>
+    ? <details className="p-demo-details"><summary>Gemini 모드 <span aria-hidden="true">ⓘ</span></summary><p>{geminiNotice} {progressNote(project)}</p></details>
+    : <p className="p-demo-notice">{geminiNotice} {progressNote(project)}</p>
+  if (!compact) return <p className="p-demo-notice">실제 AI 없이 정해진 대사로 답하는 체험이에요.<br />{progressNote(project)}</p>
+  return <details className="p-demo-details"><summary>시연 모드 <span aria-hidden="true">ⓘ</span></summary><p>실제 AI는 연결되어 있지 않아요. 직접 입력에도 정해진 대사로 답해요. {progressNote(project)}</p></details>
 }
 
 export function AppShell({ project, onBack, onHome, children, immersive = false }: { immersive?: boolean; project: StoryProject; onBack?: () => void; onHome(): void; children: ReactNode }) {
@@ -38,7 +40,7 @@ export function AppShell({ project, onBack, onHome, children, immersive = false 
     {immersive ? <header className="p-work-header p-immersive-header">
       <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>
       <span className="p-chat-work-title" title={project.title}>{project.id === 'fridge' ? '냉장고 회장님' : project.title}</span>
-      <details className="p-chat-menu"><summary aria-label="채팅 메뉴">···</summary><div><button onClick={onHome}>MINGLE 홈으로</button><FeedbackButton /><p>{usesGemini(project) ? geminiNotice : "Mock 모드 · 정해진 대사로 진행돼요. 새로고침하면 초기화돼요."}</p></div></details>
+      <details className="p-chat-menu"><summary aria-label="채팅 메뉴">···</summary><div><button onClick={onHome}>MINGLE 홈으로</button><FeedbackButton /><p>{usesGemini(project) ? geminiNotice : 'Mock 모드 · 정해진 대사로 진행돼요.'} {progressNote(project)}</p></div></details>
     </header> : <header className="p-work-header"><div className="p-header-navigation">
       {onBack && <button className="p-icon-button" onClick={onBack} aria-label="이전 화면으로">←</button>}
       <button className="p-wordmark p-home-button" onClick={onHome} aria-label="MINGLE 홈으로">mingle<span>✳</span></button>

@@ -2,16 +2,20 @@ import { storyClientMode } from '../../services/storyClient'
 import { useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait, DemoNotice } from './shared'
+import type { SavedProgress } from '../../services/storyProgress'
 
 const roles: Record<string, string> = { puruma: '푸르마를 돕는 선배', fridge: '회장님과 동거하는 취업 준비생', cloud: '구조대의 새 대원' }
 const startLabels: Record<string, string> = { puruma: '푸르마 만나기', fridge: '회장님 만나기', cloud: '구조대 합류하기' }
 const shortRoles: Record<string, string> = { 토토: '대장', 비비: '정비 담당', 나나: '구조대원', 키키: '발명가', 두두: '행동파' }
 
-export function ProjectIntro({ project, onStart }: { project: StoryProject; onStart(): void }) {
+export function ProjectIntro({ project, onStart, saved, onResume, onCollection }: { project: StoryProject; onStart(): void; saved?: SavedProgress | null; onResume?(): void; onCollection?(): void }) {
+  const unit = project.id === 'cloud' ? '미션' : '장면'
   return <main className="p-intro">
     <div className="p-entry-heading"><p className="p-kicker">{project.genre}</p><h1>{project.title}</h1></div>
     <div className="p-intro-art"><CharacterPortrait project={project} /><span className="p-art-caption">{project.hook}</span></div>
-    <div className="p-intro-copy"><p>{project.description}</p><div className="p-intro-facts"><span>{roles[project.id]}</span><span>{project.id === 'puruma' ? '개강 2턴 체험' : storyClientMode() === 'api' ? '10턴 Gemini 체험' : project.id === 'cloud' && storyClientMode() === 'mock' ? '3개 미션 체험' : '10턴 Mock 체험'}</span></div><ActionButton onClick={onStart}>체험 준비하기 <span aria-hidden="true">→</span></ActionButton>{project.id !== 'fridge' && <DemoNotice project={project} />}</div>
+    <div className="p-intro-copy"><p>{project.description}</p><div className="p-intro-facts"><span>{roles[project.id]}</span><span>{project.id === 'puruma' ? '개강 2턴 체험' : storyClientMode() === 'api' ? '10턴 Gemini 체험' : project.id === 'cloud' && storyClientMode() === 'mock' ? '3개 미션 체험' : '10턴 Mock 체험'}</span></div>{saved && onResume
+      ? <div className="p-resume-actions"><ActionButton onClick={onResume}>이어하기 · {unit} {saved.completedTurns + 1}부터 <span aria-hidden="true">→</span></ActionButton><ActionButton secondary onClick={onStart}>새로 시작</ActionButton><p className="p-field-help">‘{saved.name}’ 호칭으로 하던 이야기가 이 기기에 저장되어 있어요. 새로 시작하면 저장된 진행은 지워져요.</p></div>
+      : <ActionButton onClick={onStart}>체험 준비하기 <span aria-hidden="true">→</span></ActionButton>}{onCollection && <button type="button" className="p-text-link" onClick={onCollection}>결말 도감 보기</button>}{project.id !== 'fridge' && <DemoNotice project={project} />}</div>
   </main>
 }
 export function ProjectSetup({ project, initialName, onStart }: { project: StoryProject; initialName: string; onStart(name: string): void }) {
