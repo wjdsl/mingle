@@ -11,11 +11,18 @@ test('관리자 요청은 서버 인증과 선택 기간을 전달하고 자격 
   await client.login('admin@example.test', 'test-only-password', signal)
   await client.me('test-only-token', signal)
   await client.overview('test-only-token', 30, signal)
+  await client.overview('test-only-token', 14, signal, 'cloud')
   assert.equal(calls[0].url, '/api/admin/login')
   assert.equal(calls[0].init?.method, 'POST')
   assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { email: 'admin@example.test', password: 'test-only-password' })
   assert.equal(calls[2].url, '/api/admin/overview?days=30')
   assert.equal((calls[2].init?.headers as Record<string, string>).Authorization, 'Bearer test-only-token')
+  assert.equal(calls[3].url, '/api/admin/overview?days=14&project=cloud')
+  await client.projectStats('test-only-token', 'fridge', 30, signal)
+  await client.projects('test-only-token', signal)
+  assert.equal(calls[4].url, '/api/admin/projects/fridge/stats?days=30')
+  assert.equal(calls[5].url, '/api/admin/projects')
+  assert.equal((calls[4].init?.headers as Record<string, string>).Authorization, 'Bearer test-only-token')
 })
 
 test('401/403/503 및 연결 실패를 실제 성공 응답으로 바꾸지 않는다', async () => {
