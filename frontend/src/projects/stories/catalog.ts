@@ -1,6 +1,6 @@
 import { fridgeSteps } from './fridgeStory.ts'
 export type Character = { name: string; role: string; symbol: string }
-export type StoryStep = { title: string; situation: string; sceneImage?: string; event?: string; speaker: string; text: string; inputMode?: 'input' | 'none'; openingLines?: { speaker: string; text: string }[]; systemMessages?: string[]; choices: { id?: string; label: string; sourceLabel?: string; reply: string; reaction: string }[]; reply: string }
+export type StoryStep = { title: string; situation: string; sceneImage?: string; expression?: string; event?: string; speaker: string; text: string; inputMode?: 'input' | 'none'; openingLines?: { speaker: string; text: string }[]; systemMessages?: string[]; choices: { id?: string; label: string; sourceLabel?: string; reply: string; reaction: string }[]; reply: string }
 export type StoryProject = {
   id: string; number: string; title: string; english: string; genre: string; description: string; hook: string; type: string; defaultName: string; characters: Character[]; steps: StoryStep[]; result: { title: string; text: string; character: string }
 }

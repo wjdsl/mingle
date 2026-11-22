@@ -158,6 +158,21 @@ test('선택지 전송은 서버 검증용 원문을, 자유 입력은 입력 �
   assert.deepEqual(backend.calls[3].body.input, { text: '저는 [호칭]이라고 불러 주세요' })
 })
 
+test('냉장고 서버 장면은 구간 시작 4개 턴에만 표정 이미지를 붙인다', async () => {
+  const loaded = await loadWith(fridge, sceneSet('fridge', { label: '선택', opening: '첫 대사' }), '민트')
+  assert.deepEqual(loaded.steps.map(s => s.sceneImage), [
+    'fridge-angry', undefined, undefined, undefined, undefined,
+    'fridge-flustered', 'fridge-angry', undefined, undefined, 'fridge-smug',
+  ])
+  // 이어하기용: 그 턴까지 마지막으로 나온 표정
+  assert.deepEqual(loaded.steps.map(s => s.expression), [
+    'fridge-angry', 'fridge-angry', 'fridge-angry', 'fridge-angry', 'fridge-angry',
+    'fridge-flustered', 'fridge-angry', 'fridge-angry', 'fridge-angry', 'fridge-smug',
+  ])
+  const sky = await loadWith(cloud, sceneSet('cloud', { label: '선택', opening: '첫 대사' }), '민트')
+  assert.ok(sky.steps.every(s => s.sceneImage === undefined && s.expression === undefined))
+})
+
 test('구름섬 시나리오 선택지와 기본 Mock 선택지는 그대로다', async () => {
   const loaded = await loadWith(cloud, sceneSet('cloud', { label: '민트예요! 빨리 출동해요!', opening: '[닉네임], 반가워.' }), '민트')
   assert.equal(loaded.steps[0].choices[0].label, '민트예요! 빨리 출동해요!')
