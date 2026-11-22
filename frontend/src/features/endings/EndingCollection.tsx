@@ -39,7 +39,7 @@ export function EndingCollection({ initialPreview = false, onHome, onRestart }: 
     <h2 className="sr-only" ref={heading} tabIndex={-1}>푸르마 결과 예시</h2>
     <EndingCard ending={selected} />
     <p className="p-sample-note">실제 획득·엔딩 판정이 아닌 디자인 샘플이에요.</p>
-    <ResultActions project={projects[0]} onHome={onHome} onRestart={onRestart}><ActionButton secondary onClick={() => setSelected(null)}>앨범 보기</ActionButton></ResultActions>
+    <ResultActions project={projects[0]} onHome={onHome} onRestart={onRestart} imageCard><ActionButton secondary onClick={() => setSelected(null)}>앨범 보기</ActionButton></ResultActions>
   </div>
 
   return <div className="ending-collection">

@@ -12,6 +12,7 @@ import { ProjectIntro, ProjectSetup } from './ProjectEntry'
 import { ChatLayout } from './StoryChat'
 import { StoryResult } from './StoryResult'
 import { AppShell, ExitDialog } from './shared'
+import { shareEvents } from '../../services/shareEvents'
 
 type Stage = 'intro' | 'setup' | 'chat' | 'result'
 function readProject() { return projects.find(p => window.location.hash.split('/')[2] === p.id) }
@@ -53,7 +54,7 @@ function Experience({ project }: { project: StoryProject }) {
   return <div className={`p-experience theme-${project.id} ${chatting ? 'p-chat-stage' : ''} ${project.id === 'puruma' ? 'p-puruma-experience' : ''}`} ref={heading} tabIndex={-1} style={{ '--viewport-height': `${viewport}px`, ...(chatting ? { height: viewport } : {}) } as CSSProperties}>
     <AppShell immersive={chatting} project={project} onBack={stage === 'intro' ? undefined : back} onHome={home}>
       {stage === 'intro' && <ProjectIntro project={project} onStart={() => go('setup')} />}
-      {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { setName(n); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }} />}
+      {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { shareEvents.recordStart(project.id); setName(n); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }} />}
       {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} onResult={() => go('result')} onRestart={() => setSession(s => s + 1)} />}</ChatIntro></div>}
       {stage === 'result' && <StoryResult project={project} name={name} onRestart={() => go('setup')} onHome={openHome} />}
     </AppShell>
@@ -61,6 +62,8 @@ function Experience({ project }: { project: StoryProject }) {
   </div>
 }
 export function Platform() {
+  // 공유 링크로 열린 경우에만 유입으로 기록한다(작품 링크 일반 방문은 기록하지 않는다).
+  useEffect(() => { shareEvents.captureShareEntry(window.location, url => window.history.replaceState(window.history.state, '', window.location.pathname + url)) }, [])
   const [adminRoute, setAdminRoute] = useState(() => /^#\/admin(?:\/|$)/.test(window.location.hash))
   const [project, setProject] = useState(readProject)
   useEffect(() => { const update = () => setAdminRoute(/^#\/admin(?:\/|$)/.test(window.location.hash)); window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) }, [])

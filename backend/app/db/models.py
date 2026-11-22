@@ -333,6 +333,24 @@ class AdminUser(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AdminProjectAccess(Base):
+    """작품 담당자(role="project") 계정이 볼 수 있는 작품 목록.
+
+    admin_users에 칸을 추가하지 않고 별도 표로 둔다. 마이그레이션 도구가 없어
+    create_all이 기존 DB의 표에 칸을 추가하지 못하기 때문이다(새 표는 생성됨).
+    """
+
+    __tablename__ = "admin_project_access"
+    __table_args__ = (UniqueConstraint("admin_id", "project_id", name="uq_admin_project"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    admin_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("admin_users.id", ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 # --------------------------------------------------------------------------- #
 # 냉장고·구름섬 장면형 스토리 턴 (재시도 중복 방지 장부)
 # --------------------------------------------------------------------------- #
@@ -363,4 +381,21 @@ class StoryTurnRecord(Base):
     provider: Mapped[str] = mapped_column(String(40))
     model: Mapped[str] = mapped_column(String(80))
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ShareEvent(Base):
+    """결과 화면 공유 버튼·이미지 저장 버튼 사용과 공유 링크 유입 이벤트.
+
+    익명 세션 ID(브라우저가 만든 무작위 값), 작품 ID, 이벤트 종류, 시각만 저장한다.
+    호칭·대화·결과 내용·개인 코드는 저장하지 않는다.
+    """
+
+    __tablename__ = "share_events"
+    __table_args__ = (Index("ix_share_events_project_type_created", "project", "event_type", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    anon_id: Mapped[str] = mapped_column(String(64))
+    project: Mapped[str] = mapped_column(String(20))
+    event_type: Mapped[str] = mapped_column(String(24))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

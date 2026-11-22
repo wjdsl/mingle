@@ -85,3 +85,16 @@ class ChatResponse(BaseModel):
     notes: list[ClientNote] | None = Field(
         default=None, description="로컬 기억 모드에서만 갱신된 전체 기억 목록(최대 10개)."
     )
+
+
+class ChatSafetyResponse(BaseModel):
+    """푸르마 위기 입력 응답. 입력은 저장되지 않았고 상태·기억은 그대로이며 LLM을 부르지 않았다."""
+
+    safety_notice: bool = True
+    conversation_id: str
+    reply: str
+    provider: str = "safety"
+    state: StateOut
+    notes: list[ClientNote] | None = Field(
+        default=None, description="로컬 기억 모드에서만: 재검증한 기존 기억 목록(변경 없음)."
+    )

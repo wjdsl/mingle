@@ -12,6 +12,8 @@ import type { StoryProject } from '../../projects/stories/catalog'
 import purumaImage from '../../assets/puruma/happy.png'
 import { storyClientMode } from '../../services/storyClient'
 import { shareProject } from '../../services/shareProject'
+import { shareEvents } from '../../services/shareEvents'
+import { saveResultImage } from '../../services/resultImage'
 
 export function ActionButton({ secondary = false, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { secondary?: boolean }) {
   return <button {...props} className={`${secondary ? 'p-secondary' : 'p-primary'} ${className}`} />
@@ -53,16 +55,26 @@ export function ExitDialog({ onCancel, onLeave }: { onCancel(): void; onLeave():
   </dialog>
 }
 
-export function ResultActions({ project, onRestart, onHome, children }: { project: StoryProject; onRestart(): void; onHome(): void; children?: ReactNode }) {
+export function ResultActions({ project, onRestart, onHome, children, imageCard = false }: { project: StoryProject; onRestart(): void; onHome(): void; children?: ReactNode; imageCard?: boolean }) {
   const [feedback, setFeedback] = useState('')
   const [manualLink, setManualLink] = useState('')
   async function share() {
+    // 버튼을 누른 시점에 한 번만 센다. 네이티브 공유에서 링크 복사 등으로 넘어가도 다시 세지 않는다.
+    shareEvents.record(project.id, 'share_click')
     const result = await shareProject(project.title, project.id)
     setFeedback(result.message); setManualLink(result.manualLink ?? '')
   }
+  async function saveImage() {
+    shareEvents.record(project.id, 'image_save_click')
+    const card = document.querySelector<HTMLElement>('.p-result-card, .graduation-card')
+    if (!card) { setFeedback('저장할 카드를 찾지 못했어요.'); return }
+    try { await saveResultImage(card, `mingle-${project.id}.png`); setFeedback('결과 카드를 이미지로 저장했어요.') }
+    catch { setFeedback('이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.') }
+    setManualLink('')
+  }
   return <div className="p-result-actions">
     <ActionButton onClick={onHome}>다른 작품 보기 <span aria-hidden="true">→</span></ActionButton>
-    <div className="p-secondary-actions"><ActionButton secondary onClick={onRestart}>다시 체험하기</ActionButton><ActionButton secondary onClick={() => void share()}>작품 링크 공유</ActionButton>{children}</div>
+    <div className="p-secondary-actions"><ActionButton secondary onClick={onRestart}>다시 체험하기</ActionButton><ActionButton secondary onClick={() => void share()}>작품 링크 공유</ActionButton>{imageCard && <ActionButton secondary onClick={() => void saveImage()}>이미지 저장</ActionButton>}{children}</div>
     <p className="p-share-status" role="status">{feedback}</p>
     {manualLink && <label className="p-manual-link">공유 링크<input value={manualLink} readOnly onFocus={e => e.target.select()} /></label>}
   </div>

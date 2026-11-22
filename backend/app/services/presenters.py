@@ -11,6 +11,7 @@ from app.db.models import Conversation, Persona, RelationshipState
 from app.schemas.chat import (
     ClientNote,
     ChatResponse,
+    ChatSafetyResponse,
     CTAOut,
     EndingOut,
     SourceOut,
@@ -22,7 +23,7 @@ from app.schemas.conversation import (
     ConversationSummary,
     StateOut,
 )
-from app.services.chat_service import ChatOutcome
+from app.services.chat_service import SAFETY_PROVIDER, ChatOutcome, ChatSafetyOutcome
 
 
 def state_out(state: RelationshipState | None) -> StateOut:
@@ -161,6 +162,20 @@ def chat_response(outcome: ChatOutcome) -> ChatResponse:
         ending=ending,
         notes_updated=outcome.notes_updated,
         guardrail_triggered=outcome.guardrail_triggered,
+        notes=(
+            [ClientNote(**asdict(note)) for note in outcome.client_notes]
+            if outcome.client_notes is not None
+            else None
+        ),
+    )
+
+
+def chat_safety_response(outcome: ChatSafetyOutcome) -> ChatSafetyResponse:
+    return ChatSafetyResponse(
+        conversation_id=outcome.conversation.id,
+        reply=outcome.reply,
+        provider=SAFETY_PROVIDER,
+        state=state_out(outcome.state),
         notes=(
             [ClientNote(**asdict(note)) for note in outcome.client_notes]
             if outcome.client_notes is not None

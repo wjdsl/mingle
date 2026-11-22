@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, require_admin_configuration
+from app.api.deps import get_current_admin, get_dashboard_admin, require_admin_configuration
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.db.base import get_db
@@ -25,11 +25,14 @@ from app.schemas.admin import (
     AdminOut,
     DashboardOverview,
     LoginRequest,
+    ProjectStats,
     RecentConversation,
     TokenOut,
     TriggerStats,
 )
-from app.services.analytics import build_overview
+from app.services.admin_access import PLATFORM_ROLE, PROJECT_IDS, PROJECT_ROLE, load_projects
+from app.services.analytics import DashboardProject, build_overview
+from app.services.project_stats import build_project_stats
 from app.services.memory import load_notes
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_configuration)])
@@ -52,8 +55,8 @@ async def login(
             detail="이메일 또는 비밀번호가 올바르지 않습니다.",
         )
 
-    if admin.role != "admin":
-        raise HTTPException(status_code=403, detail="전체 관리자 권한이 필요합니다.")
+    if admin.role not in (PLATFORM_ROLE, PROJECT_ROLE):
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
     if verify_password("admin1234!", admin.password_hash):
         raise HTTPException(status_code=403, detail="기본 비밀번호를 변경한 뒤 로그인해 주세요.")
     token = create_access_token(
@@ -62,13 +65,47 @@ async def login(
     return TokenOut(
         access_token=token,
         expires_in=settings.access_token_expire_minutes * 60,
-        admin=AdminOut.model_validate(admin),
+        admin=await _admin_out(db, admin),
     )
 
 
+async def _allowed_projects(db: AsyncSession, admin: AdminUser) -> list[str]:
+    """전체 관리자는 모든 작품, 작품 담당자는 배정된 작품만. 권한은 항상 서버가 판단한다."""
+    if admin.role == PLATFORM_ROLE:
+        return list(PROJECT_IDS)
+    return await load_projects(db, admin.id)
+
+
+async def _admin_out(db: AsyncSession, admin: AdminUser) -> AdminOut:
+    out = AdminOut.model_validate(admin)
+    out.projects = await _allowed_projects(db, admin)
+    return out
+
+
 @router.get("/me", response_model=AdminOut, summary="관리자 정보")
-async def me(admin: AdminUser = Depends(get_current_admin)):
-    return admin
+async def me(admin: AdminUser = Depends(get_dashboard_admin), db: AsyncSession = Depends(get_db)):
+    return await _admin_out(db, admin)
+
+
+@router.get("/projects", response_model=list[str], summary="조회할 수 있는 작품 목록")
+async def my_projects(admin: AdminUser = Depends(get_dashboard_admin), db: AsyncSession = Depends(get_db)):
+    return await _allowed_projects(db, admin)
+
+
+@router.get(
+    "/projects/{project}/stats",
+    response_model=ProjectStats,
+    summary="작품별 채팅·공유 통계",
+)
+async def project_stats(
+    project: DashboardProject,
+    days: int = Query(default=14, ge=1, le=90),
+    admin: AdminUser = Depends(get_dashboard_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if project not in await _allowed_projects(db, admin):
+        raise HTTPException(status_code=403, detail="이 작품의 통계를 볼 권한이 없습니다.")
+    return await build_project_stats(db, project, days)
 
 
 @router.get(
@@ -78,10 +115,11 @@ async def me(admin: AdminUser = Depends(get_current_admin)):
 )
 async def overview(
     days: int = Query(default=14, ge=1, le=90),
+    project: DashboardProject | None = Query(default=None),
     admin: AdminUser = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await build_overview(db, days)
+    return await build_overview(db, days, project)
 
 
 @router.get(

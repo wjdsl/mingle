@@ -12,30 +12,17 @@ from __future__ import annotations
 
 import re
 
-from app.services.memory import PURUMA_CRISIS_PATTERNS
+from app.services.memory import PURUMA_CRISIS_PATTERNS, is_crisis_text
 
 SAFETY_PROVIDER = "safety"
 SAFETY_MODEL = "crisis-notice-v1"
 
-_EXTRA_PATTERNS = (
-    "다끝내고싶", "끝내버리고싶", "목숨을끊", "생을마감", "세상을떠나고싶", "자살", "자해",
-)
-_SPACES = re.compile(r"\s+")
-
-
-def _squash(text: str) -> str:
-    return _SPACES.sub("", text or "")
-
-
-# 푸르마 기억 처리와 같은 기본 목록 + 문서가 예로 든 표현. 띄어쓰기 변형(죽고 싶 / 죽고싶)을 함께 잡는다.
-CRISIS_PATTERNS: tuple[str, ...] = tuple(
-    dict.fromkeys(_squash(p) for p in (*PURUMA_CRISIS_PATTERNS, *_EXTRA_PATTERNS))
-)
+# 푸르마 기억 처리와 같은 단일 목록(memory.py)을 쓴다. 띄어쓰기 변형(죽고 싶 / 죽고싶)도 함께 잡는다.
+CRISIS_PATTERNS: tuple[str, ...] = PURUMA_CRISIS_PATTERNS
 
 
 def is_story_crisis(text: str) -> bool:
-    squashed = _squash(text)
-    return any(pattern in squashed for pattern in CRISIS_PATTERNS)
+    return is_crisis_text(text)
 
 
 # 안내 뒤 캐릭터 반응: 장난·홍보·진행 없이 곁에 있어 주는 말만. 진단·약속·저장 약속·다음 장면 유도 금지.
