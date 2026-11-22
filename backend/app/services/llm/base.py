@@ -25,6 +25,7 @@ class LLMResult:
     latency_ms: int = 0
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    thinking_tokens: int | None = None  # Gemini thoughtsTokenCount (없으면 None)
 
 
 class LLMError(RuntimeError):

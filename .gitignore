@@ -12,3 +12,6 @@ backend/.venv/
 
 # Local LLM failure logs (LLM_FAILURE_LOG_FILE)
 backend/logs/
+
+# Local story-chat evaluation reports (python -m scripts.story_eval; may contain dialogue text)
+backend/eval_reports/

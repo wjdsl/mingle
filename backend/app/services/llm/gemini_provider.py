@@ -303,6 +303,7 @@ class GeminiProvider(LLMProvider):
             latency_ms=int((time.perf_counter() - started) * 1000),
             prompt_tokens=usage.get("promptTokenCount"),
             completion_tokens=usage.get("candidatesTokenCount"),
+            thinking_tokens=usage.get("thoughtsTokenCount"),
         )
 
     async def stream(
