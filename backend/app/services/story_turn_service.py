@@ -8,6 +8,8 @@
 2. 서버 진행 턴과 요청 턴이 다르면 409
 3. 선택지 ID/문장 검증, 개인정보 마스킹
 4. 장면 카드 + 이전 장면 맥락으로 프롬프트 구성 → LLM(JSON) 호출, 형식 오류 시 1회 재시도
+   AI가 실패하면(공급자 503·429·시간 초과·응답 검증 실패 등) 장면의 고정 대사로 이어 간다(2026-11-22 팀 결정).
+   저장 provider는 "fallback"이고 사유 코드는 로그와 메시지 extra에만 남긴다. 화면에는 표시하지 않는다.
 5. 출력 검증·가드레일 → 사용자/캐릭터 메시지와 턴 장부를 한 트랜잭션으로 저장
 """
 
@@ -27,6 +29,8 @@ from app.core.config import settings
 from app.db.models import Conversation, Message, Persona, StoryTurnRecord, UserSession, utcnow
 from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
+from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
+from app.services.story_fallback_lines import FREE_INPUT_FALLBACK
 from app.services.story_judgement import fridge_trailer_text, judge_conversation
 from app.services.story_dialogue import DialogueInfo, info_from_extra, rewrite_fridge_dialogue
 from app.services.story_prompt import build_story_messages
@@ -42,6 +46,10 @@ MAX_REACTION_CHARS = 16
 MAX_ATTEMPTS = 2  # 형식·응답 제어 위반 시 1회 재생성
 FIXED_PROVIDER = "fixed"
 FIXED_MODEL = "scene-script"
+# AI 실패 시 장면 고정 대사로 이어 간 턴. 턴 기록·메시지에 이 값으로 남겨 관리자 원문 조회·집계에서 구분한다.
+FALLBACK_PROVIDER = "fallback"
+FALLBACK_MODEL = "scene-fallback-v1"
+DEFAULT_REACTION = "이야기가 이어져요"
 
 _PHONE = re.compile(r"(?<!\d)(?:\+?82[- ]?)?0\d{1,2}[- .]?\d{3,4}[- .]?\d{4}(?!\d)")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
@@ -309,7 +317,7 @@ def parse_story_output(project: StoryProjectDef, raw: str) -> tuple[list[ReplyLi
             lines.append(ReplyLine(speaker, text[:MAX_REPLY_CHARS]))
     if not lines:
         raise ValueError("유효한 대사 없음")
-    reaction = " ".join(str(data.get("reaction", "")).split())[:MAX_REACTION_CHARS] or "이야기가 이어져요"
+    reaction = " ".join(str(data.get("reaction", "")).split())[:MAX_REACTION_CHARS] or DEFAULT_REACTION
     return lines, reaction
 
 
@@ -330,6 +338,77 @@ def _mock_reply(project: StoryProjectDef, scene: Scene, choice: SceneChoice | No
     if text.startswith(f"{speaker}: "):
         text = text[len(speaker) + 2 :]
     return [ReplyLine(speaker, text)], choice.reaction if choice else "이야기가 이어져요"
+
+
+def story_failure_reason(exc: Exception) -> str:
+    """로그용 원인 분류만 추출한다(오류 본문·사용자 입력·키는 남기지 않는다)."""
+    if isinstance(exc, GeminiHTTPError):
+        return f"provider_http_{exc.status_code}"
+    if isinstance(exc, GeminiQuotaError):
+        return f"provider_quota_{re.sub(r'[^a-z_]', '', exc.kind)[:20]}"
+    if isinstance(exc, GeminiTimeoutError):
+        return "provider_timeout"
+    message = str(exc)
+    if "검증 실패" in message:
+        return "response_control:" + re.sub(r"[^a-z_,]", "", message.split(":", 1)[-1])[:80]
+    if "연결 실패" in message:
+        return "provider_connection"
+    if "형식" in message:
+        return "provider_response_format"
+    return "provider_other"
+
+
+_DISPLAY_TAG = re.compile(r"\[디스플레이: [^\]]+\]")
+
+
+def _choice_fallback(project: StoryProjectDef, scene: Scene, choice: SceneChoice) -> list[ReplyLine] | None:
+    """선택지의 반응 예시를 고정 대사로 쓴다. 반응 예시에 대사가 없으면 None."""
+    from app.services.story_scene_sets import MOCK_FREE_REPLY
+
+    text = choice.reference_reply.strip()
+    if not text or text == MOCK_FREE_REPLY:
+        return None
+    speaker = next((s for s in project.speakers if text.startswith(f"{s}: ")), None)
+    if speaker is not None:
+        text = text[len(speaker) + 2 :]
+    # 시나리오 장면 카드의 반응 방향은 '비비가 "…"'처럼 따옴표 앞에 말하는 대원이 있다. 가장 가까운 이름을 화자로 쓴다.
+    head = choice.direction.split('"', 1)[0] if '"' in choice.direction else ""
+    if speaker is None and head:
+        found = [(head.rfind(name), name) for name in project.speakers if name in head]
+        speaker = max(found)[1] if found else None
+        if project.id == "fridge":
+            display = _DISPLAY_TAG.search(head)
+            if display:
+                text = f"{display.group(0)}\n{text}"
+    return [ReplyLine(speaker or scene.opening_speaker or project.speakers[0], text)]
+
+
+def _free_fallback(project: StoryProjectDef, scene: Scene, turn: int) -> list[ReplyLine] | None:
+    """자유 입력용 장면 고정 대사. scenario_draft_v1은 story_fallback_lines의 초안, 그 밖의 세트는 장면의 기본 응답."""
+    from app.services.story_scene_sets import MOCK_FREE_REPLY, SCENARIO_SET
+
+    if project.scene_set == SCENARIO_SET:
+        rows = FREE_INPUT_FALLBACK.get(project.id, {}).get(turn + 1, ())
+        lines = [ReplyLine(speaker or project.speakers[0], text) for speaker, text in rows]
+        return lines or None
+    text = scene.default_reply
+    if not text or text == MOCK_FREE_REPLY:
+        return None
+    speaker = next((s for s in project.speakers if text.startswith(f"{s}: ")), scene.opening_speaker)
+    if text.startswith(f"{speaker}: "):
+        text = text[len(speaker) + 2 :]
+    return [ReplyLine(speaker, text)]
+
+
+def fallback_reply(
+    project: StoryProjectDef, scene: Scene, turn: int, choice: SceneChoice | None, nickname: str
+) -> tuple[list[ReplyLine], str] | None:
+    """AI 실패 시 쓸 고정 대사와 반응. 쓸 대사가 없으면 None(기존처럼 오류 응답)."""
+    lines = (_choice_fallback(project, scene, choice) if choice else None) or _free_fallback(project, scene, turn)
+    if not lines:
+        return None
+    filled = [ReplyLine(line.speaker, _fill_nickname(line.text, nickname)) for line in lines]
+    return filled, (choice.reaction if choice and choice.reaction else DEFAULT_REACTION)
 
 
 def serialize_lines(lines: list[ReplyLine], reaction: str) -> str:
@@ -413,6 +492,7 @@ class GeneratedReply:
     attempts: int
     violations: list[str]
     prompt_versions: dict[str, str]
+    fallback_reason: str | None = None  # AI 실패로 고정 대사를 쓴 경우의 사유 코드(로그·extra 전용)
 
 
 async def _generate(
@@ -624,7 +704,23 @@ async def process_story_turn(
 
     # LLM 호출 동안 DB 트랜잭션(SQLite 잠금)을 잡고 있지 않는다.
     await db.commit()
-    generated = await _generate(project, turn, nickname, history, user_text, choice, previous)
+    started = time.perf_counter()
+    try:
+        generated = await _generate(project, turn, nickname, history, user_text, choice, previous)
+    except LLMError as exc:
+        # AI 실패: 오류 화면 대신 장면 고정 대사로 이어 간다. 사유 코드만 기록하고 대사·입력·키는 남기지 않는다.
+        reason = story_failure_reason(exc)
+        fallback = fallback_reply(project, scene, turn, choice, nickname)
+        if fallback is None:
+            raise
+        logger.warning(
+            "스토리 AI 실패, 고정 대사로 진행: project=%s turn=%d conversation=%s input=%s type=%s reason=%s",
+            project.id, turn, conversation.id, "choice" if choice else "free", type(exc).__name__, reason,
+        )
+        generated = GeneratedReply(
+            fallback[0], fallback[1], FALLBACK_PROVIDER, FALLBACK_MODEL,
+            int((time.perf_counter() - started) * 1000), None, 0, [], {}, reason,
+        )
     lines, guardrail_triggered = apply_story_guardrail(project, generated.lines)
     dialogue = DialogueInfo(story_provider=generated.provider, dialogue_provider=generated.provider)
     if not guardrail_triggered:
@@ -671,6 +767,7 @@ async def process_story_turn(
             "fixed_lines_appended": len(appended),
             "prompt_data_versions": generated.prompt_versions,
             "dialogue": dialogue.as_extra(),
+            **({"story_fallback": {"reason": generated.fallback_reason}} if generated.fallback_reason else {}),
         },
         guardrail_triggered=guardrail_triggered,
         dialogue=dialogue,

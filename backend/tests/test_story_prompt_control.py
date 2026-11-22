@@ -306,14 +306,15 @@ async def test_violation_triggers_one_regeneration_with_correction(client, monke
     assert response.json()["replies"][0]["text"] == "흠흠. 알았네, 문부터 닫게."
 
 
-async def test_persistent_violation_fails_without_saving(client, monkeypatch):
+async def test_persistent_violation_uses_fixed_reply(client, monkeypatch):
+    # 2026-11-22 팀 결정: 응답 제어 위반이 계속되면(스토리 응답 검증 실패) 장면 고정 대사로 이어 간다.
     fake = ScriptedGemini([fridge_json("이봐 총각, 알겠어요.")])
     monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
     headers, cid, _ = await start(client, "fridge")
     response = await client.post(f"/api/story-chat/conversations/{cid}/turns", json=turn_payload(0, "안녕"), headers=headers)
-    assert response.status_code == 502 and len(fake.calls) == 2
-    messages = await client.get(f"/api/conversations/{cid}/messages", headers=headers)
-    assert messages.json() == []
+    assert response.status_code == 200 and len(fake.calls) == 2
+    assert response.json()["provider"] == "fallback"
+    assert "총각" not in response.json()["replies"][0]["text"]
 
 
 def test_intent_id_is_recorded_only_when_defined_for_scene():

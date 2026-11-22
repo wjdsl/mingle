@@ -2,6 +2,7 @@
 
 실행 중인 서버에 세션 → 대화 → 턴을 보내고 provider/model/latency와 화자 수를 출력한다.
 provider가 --expect-provider(기본 mock)가 아니면 실패(exit 1). Mock 대체를 실제 연동 성공으로 보고하지 않기 위함이다.
+AI 실패로 서버가 고정 대사를 쓴 턴(provider=fallback)도 실패로 본다.
 실제 API 호출은 과금될 수 있다. --dry-run이면 호출 계획(예상 LLM 호출 수)만 출력한다.
 
     python -m scripts.smoke_story_chat --scene-set ui_mock_v1 --expect-provider gemini        # 기존: 작품별 2턴 + 재시도
@@ -74,6 +75,10 @@ def run(base: str, project: str, scene_set: str, expect: str, pause: float = 0.0
                 return False
             body = response.json()
             print(f"[{project}] turn {turn + 1}/{total}: provider={body['provider']} model={body['model']} latency_ms={body['latency_ms']} speakers={len(body['replies'])}")
+            if body["provider"] == "fallback":
+                # AI 실패 시 서버가 장면 고정 대사로 이어 간 턴. 실제 연동 성공으로 보고하지 않는다.
+                print(f"[{project}] turn {turn + 1}: AI 응답 실패로 고정 대사가 쓰였습니다(provider=fallback). 서버 로그의 reason을 확인하세요.")
+                return False
             if body["provider"] != ("fixed" if choice_id == "fixed" else expect):
                 return False
             if body["completed_turns"] != turn + 1 or body["finished"] != (turn + 1 == total):

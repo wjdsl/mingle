@@ -75,4 +75,5 @@ export function createShareEvents(options: {
 }
 
 export const shareEvents = createShareEvents()
+// 공유 페이지(shareCards.ts의 SHARE_QUERY)와 같은 값이어야 한다(테스트로 확인).
 export const SHARE_LINK_QUERY = `${SHARE_PARAM}=${SHARE_VALUE}`
