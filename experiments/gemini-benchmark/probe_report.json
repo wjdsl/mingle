@@ -89,7 +89,6 @@
       "http": 200,
       "latency_s": 3.552133,
       "model_version": "gemini-3.5-flash-lite",
-      "response": "[디ス플레이: 불만 가득한 눈썹]\n무례하군! 이 집의 전력과 유통 기한을 책임지는 이 몸이 그 정도 규칙도 못 정한단 말인가.\n흠흠, 아무튼 당장 플러그부터 뽑지 마시게.",
       "status": "ok",
       "usage": {
         "candidatesTokenCount": 64,
@@ -115,7 +114,6 @@
       "http": 200,
       "latency_s": 13.166741,
       "model_version": "gemini-3.6-flash",
-      "response": "[디스플레이: 불만 가득한 눈썹]\n\n무례하군! 내가 이래 봬도 업계에서 40년을 구르며 조직을 이끌어 온 사람이네. \n\n집안의 질서가 바로 서야 주인도 번창하는 법이니, 얌전히 이 효율적인 규칙들을 따르는 게 자네 신상에도 좋을 걸세.",
       "status": "ok",
       "usage": {
         "candidatesTokenCount": 86,

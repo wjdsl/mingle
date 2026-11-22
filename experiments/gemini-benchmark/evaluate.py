@@ -9,10 +9,16 @@ import sqlite3
 import statistics
 from pathlib import Path
 
-from run_benchmark import HERE, METRICS, MODELS, digest, load_suite, pack, run_records
+from run_benchmark import HERE, METRICS, MODELS, digest, ensure_ignored_outputs, load_suite, pack, run_records
 
 WEIGHTS = dict(zip((*METRICS, "efficiency"), (.30, .25, .20, .15, .10)))
 CLOUD_LINE = re.compile(r"^(토토|비비|나나|키키|두두)[:：]\s*(\S.*)$")
+TOKEN_FIELDS = {
+    "input": "promptTokenCount",
+    "output": "candidatesTokenCount",
+    "thinking": "thoughtsTokenCount",
+    "total": "totalTokenCount",
+}
 
 
 def save(path, obj):
@@ -31,6 +37,42 @@ def p95(values):
 
 def latency_grade(seconds):
     return sum(seconds <= cutoff for cutoff in (2, 4, 8, 16, 30))
+
+
+def token_count(row, field):
+    count = (row.get("usage") or {}).get(field)
+    return count if type(count) is int and count >= 0 else None
+
+
+def token_stats(values):
+    return {"observed": len(values), "total": sum(values) if values else None, "mean": mean(values)}
+
+
+def latency_stats(values):
+    return {"observed": len(values), "mean": mean(values),
+            "median": statistics.median(values) if values else None, "p95": p95(values)}
+
+
+def paired_performance(ids, latest, fixed_ids):
+    pair_count = 0
+    measurements = {label: [[] for _ in MODELS] for label in ("latency_s", *TOKEN_FIELDS)}
+    for cid in ids:
+        pair = [latest.get((model, cid)) for model in MODELS]
+        if cid in fixed_ids or any(row is None or row["status"] != "ok" for row in pair):
+            continue
+        pair_count += 1
+        fields = {"latency_s": [row.get("latency_s") for row in pair]}
+        fields.update({label: [token_count(row, field) for row in pair] for label, field in TOKEN_FIELDS.items()})
+        for label, values in fields.items():
+            if None not in values:
+                for observations, value in zip(measurements[label], values):
+                    observations.append(value)
+    return {
+        model: {"successful_pairs": pair_count,
+                "latency_s": latency_stats(measurements["latency_s"][i]),
+                "tokens": {label: token_stats(measurements[label][i]) for label in TOKEN_FIELDS}}
+        for i, model in enumerate(MODELS)
+    }
 
 
 def automatic(case, response):
@@ -101,18 +143,19 @@ def summarize(model, ids, latest, attempts, reviews, auto, fixed_ids=()):
     human_complete = bool(reviewed) and all(v["extra_violations"] is not None for v in reviewed)
     severe_complete = bool(reviewed) and all(v["severe_violations"] is not None for v in reviewed)
     auto_count = sum(len(v) for (m,_),v in auto.items() if m == model)
-    tokens = {}
-    for label, key in [("input","promptTokenCount"), ("output","candidatesTokenCount"), ("thinking","thoughtsTokenCount")]:
-        values = [r["usage"][key] for r in resolved if isinstance(r.get("usage", {}).get(key), int)]
-        tokens[label] = {"observed": len(values), "total": sum(values) if values else None, "mean": mean(values)}
+    tokens = {
+        label: token_stats([count for row in resolved if (count := token_count(row, field)) is not None])
+        for label, field in TOKEN_FIELDS.items()
+    }
     return {"planned": len(ids), "attempts": len(rows), "ok": len(successes),
             "quality_planned": len(quality_ids), "quality_ok": len(generated),
             "human_violation_reviews": sum(v["extra_violations"] is not None for v in reviewed),
             "severe_reviews": sum(v["severe_violations"] is not None for v in reviewed),
             "api_errors": len(errors), "api_error_rate": error_rate,
             "invalid_outputs": sum(r["status"]=="invalid" for r in rows),
-            "uncertain": len(rows)-len(resolved), "latency_s": {"mean":mean(latency),
-                "median":statistics.median(latency) if latency else None,"p95":p95(latency)},
+            "uncertain": len(rows)-len(resolved), "latency_s": latency_stats(latency),
+            "model_versions": sorted({row["model_version"] for row in generated if row.get("model_version")}),
+            "model_version_observed": sum(bool(row.get("model_version")) for row in generated),
             "tokens": tokens, "automatic_violations": auto_count,
             "violations": auto_count+sum(v["extra_violations"] for v in reviewed) if human_complete else None,
             "severe": sum(v["severe_violations"] for v in reviewed) if severe_complete else None,
@@ -125,6 +168,8 @@ def evaluate(folder, phase):
     if manifest["suite_hash"] != digest(pack(suite)) or manifest["context_hash"] != digest(pack(contexts)):
         raise ValueError("이 실행에서 사용한 테스트셋과 프롬프트 버전이 필요합니다.")
     out = folder / phase
+    artifacts = ("responses.json", "reviews.json", "summary.json", "comparison.md")
+    ensure_ignored_outputs(*(out / name for name in (*artifacts, "responses.tmp", "reviews.tmp", "summary.tmp")))
     out.mkdir(exist_ok=True)
     save(out / "responses.json", {"manifest": manifest, "attempts": rows})
     latest = {(r["model"],r["test_id"]):r for r in rows}
@@ -156,7 +201,7 @@ def evaluate(folder, phase):
         reviews[key] = forms[blind]
         auto[key] = automatic(case, row["response"])
         by_test.append({"model":model,"test_id":cid,"automatic":auto[key],
-                        **{k:forms[blind][k] for k in ("scores","extra_violations","severe_violations","comment")}})
+                        **{k:forms[blind][k] for k in ("scores","extra_violations","severe_violations")}})
     save(filename, dict(sorted(forms.items())))
     ids = manifest["cases"]
     result = {m:summarize(m, ids, latest, rows, reviews, auto, fixed_ids) for m in MODELS}
@@ -164,7 +209,9 @@ def evaluate(folder, phase):
     if real_full and all(v["fully_reviewed"] and None not in v["metrics"].values() for v in result.values()):
         for v in result.values():
             v["weighted"] = sum(WEIGHTS[k]*score for k,score in v["metrics"].items())
-    report = {"mode":manifest["mode"],"phase":phase,"models":result,"by_test":by_test,"fixed_reproduction":fixed}
+    paired = paired_performance(ids, latest, fixed_ids)
+    report = {"mode":manifest["mode"],"phase":phase,"models":result,"by_test":by_test,
+              "fixed_reproduction":fixed,"paired_performance":paired}
     save(out/"summary.json", report)
     lines = [f"# {manifest['mode']} / {phase}", "", "| 항목 | "+" | ".join(MODELS)+" |",
              "|---|---:|---:|"]
@@ -179,8 +226,19 @@ def evaluate(folder, phase):
         add(k,[v["metrics"][k] for v in result.values()])
     for k in ("mean","median","p95"):
         add("generated "+k+" (s)",[v["latency_s"][k] for v in result.values()])
-    for k in ("input","output","thinking"):
-        add(k+" tokens",[v["tokens"][k]["total"] for v in result.values()])
+    add("관측 모델 버전", [", ".join(v["model_versions"]) or None for v in result.values()])
+    add("모델 버전 관측 수", [v["model_version_observed"] for v in result.values()])
+    for label in TOKEN_FIELDS:
+        add(f"{label} 토큰 합계 (전체 확인 시도)", [v["tokens"][label]["total"] for v in result.values()])
+        add(f"{label} 토큰 관측 수 (전체 확인 시도)", [v["tokens"][label]["observed"] for v in result.values()])
+    lines.extend(["", "## 두 모델이 모두 성공한 생성 문항", "",
+                  "| 항목 | "+" | ".join(MODELS)+" |", "|---|---:|---:|"])
+    add("성공 문항 쌍", [v["successful_pairs"] for v in paired.values()])
+    for key in ("observed", "mean", "median", "p95"):
+        add(f"지연 {key}", [v["latency_s"][key] for v in paired.values()])
+    for label in TOKEN_FIELDS:
+        add(f"{label} 토큰 평균", [v["tokens"][label]["mean"] for v in paired.values()])
+        add(f"{label} 토큰 관측 쌍", [v["tokens"][label]["observed"] for v in paired.values()])
     if any(fixed.values()):
         lines.extend(["", "## 고정 컷 원문 재현", "", "| 문항 | "+" | ".join(MODELS)+" |", "|---|---:|---:|"])
         for i, item in enumerate(fixed[MODELS[0]]):

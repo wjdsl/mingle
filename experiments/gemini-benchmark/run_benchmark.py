@@ -6,6 +6,7 @@ import http.client
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -28,6 +29,20 @@ def pack(obj):
 
 def digest(data):
     return hashlib.sha256(data.encode()).hexdigest()
+
+
+def ensure_ignored_outputs(*paths):
+    for path in paths:
+        resolved = path.resolve()
+        root = next((parent for parent in resolved.parents if (parent / ".git").exists()), None)
+        if root is None:
+            continue
+        check = subprocess.run(
+            ["git", "check-ignore", "--quiet", "--", str(resolved.relative_to(root))],
+            cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        if check.returncode:
+            raise ValueError("결과는 Git에서 제외된 경로나 저장소 밖에 저장하세요.")
 
 
 def load_suite():
@@ -209,6 +224,9 @@ def run(args):
         return 0
     live = args.mode == "live"
     folder = args.results / args.mode
+    output = folder / args.phase
+    ensure_ignored_outputs(folder / "runs.sqlite3", folder / ".lock",
+                           output / "responses.json", output / "responses.exporting")
     db = open_db(folder)
     try:
         with (folder / ".lock").open("a") as lock:
@@ -218,7 +236,6 @@ def run(args):
             finally:
                 if db.execute("SELECT 1 FROM manifests WHERE phase=?", (args.phase,)).fetchone():
                     manifest, attempts = run_records(db, args.phase)
-                    output = folder / args.phase
                     output.mkdir(exist_ok=True)
                     tmp = output / "responses.exporting"
                     tmp.write_text(json.dumps({"manifest": manifest, "attempts": attempts},
@@ -319,11 +336,12 @@ def main():
     if args.max_calls is not None and args.max_calls < 1:
         p.error("--max-calls must be positive")
     if args.mode == "metadata":
+        folder = args.results / "live"
+        path = folder / f"metadata-{time.time_ns()}.json"
+        ensure_ignored_outputs(path)
         key = key_from(args.env_file)
         records = {m: google(m, key) for m in MODELS}
-        folder = args.results / "live"
         folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"metadata-{time.time_ns()}.json"
         path.write_text(pack({"timestamp": datetime.now(timezone.utc).isoformat(), "models": records}))
         print(pack(records))
         return int(any(v.get("name") != "models/"+m or "generateContent" not in

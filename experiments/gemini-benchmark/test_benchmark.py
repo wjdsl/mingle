@@ -41,7 +41,7 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(list(self.folder.iterdir()), [])
 
     def test_resume_isolation_and_evaluation(self):
-        self.args.max_calls = 57  # Both models have completed four fridge turns.
+        self.args.max_calls = 56  # Both models have completed four fridge turns.
         with patch.object(bench, "google", side_effect=AssertionError):
             self.assertEqual(self.run_jobs(), 2)
             self.args.max_calls = None
@@ -63,11 +63,21 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(len(reviews),104)
         first = next(iter(reviews.values()))
         first["scores"]["memory"]="N/A"
+        first["comment"] = "로컬 채점 메모"
         file.write_text(json.dumps(reviews))
         ev.evaluate(folder,"full")
         self.assertEqual(json.loads(file.read_text()),reviews)
         summary = json.loads((folder/"full/summary.json").read_text())
         self.assertIsNone(summary["models"][bench.MODELS[0]]["weighted"])
+        self.assertTrue(all("comment" not in item for item in summary["by_test"]))
+
+    def test_result_paths_must_be_ignored_or_outside_the_repo(self):
+        bench.ensure_ignored_outputs(bench.HERE / "results" / "live" / "full" / "reviews.json")
+        bench.ensure_ignored_outputs(self.folder / "responses.json")
+        with self.assertRaisesRegex(ValueError, "Git에서 제외"):
+            bench.ensure_ignored_outputs(bench.HERE / "custom" / "responses.json")
+        with self.assertRaisesRegex(ValueError, "Git에서 제외"):
+            bench.ensure_ignored_outputs(bench.HERE / "results" / ".gitkeep")
 
     def test_quota_stops_and_inflight_never_repeats(self):
         self.args.mode = "live"
@@ -143,8 +153,8 @@ class BenchmarkTests(unittest.TestCase):
         fridge = suite["cases"][0]
         cloud = next(case for case in suite["cases"] if case["project"] == "cloud")
         stored = json.loads((bench.HERE / "probe_report.json").read_text())
-        for sample in stored["samples"]:
-            self.assertEqual(ev.automatic(fridge, sample["response"]), [])
+        self.assertTrue(all("response" not in sample for sample in stored["samples"]))
+        self.assertEqual(ev.automatic(fridge, "[디스플레이: 불만 가득한 눈썹]\n무례하군!"), [])
         self.assertEqual(ev.automatic(cloud, "모두 배로 와!"), ["speaker_format"])
         self.assertEqual(ev.automatic(cloud, "토토: 배로 와!\n비비: 엔진부터 볼게."), [])
         self.assertEqual(ev.automatic(cloud, "토토: 배로 와!\n엔진부터 볼게."), ["speaker_format"])
@@ -174,6 +184,27 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(len(summary["by_test"]), 1)
         self.assertEqual(sum(ev.WEIGHTS.values()), 1.0)
 
+    def test_probe_usage_is_excluded_from_full_comparison(self):
+        self.args.mode = "live"
+        self.args.confirm_free_tier = True
+        self.args.env_file = None
+        with patch.object(bench, "key_from", return_value="fake"), patch.object(bench, "quota_wait", return_value=None):
+            reply = {"status": "ok", "response": "로컬 테스트 응답"}
+            self.args.phase = "probe"
+            with patch.object(bench, "google", return_value={**reply, "usage": {"totalTokenCount": 100}}):
+                self.assertEqual(self.run_jobs(), 0)
+            self.args.phase = "full"
+            self.args.max_calls = 2
+            with patch.object(bench, "google", return_value={**reply, "usage": {"totalTokenCount": 10}}):
+                self.assertEqual(self.run_jobs(), 2)
+        folder = self.folder / "live"
+        ev.evaluate(folder, "full")
+        summary = json.loads((folder / "full" / "summary.json").read_text())
+        for model in bench.MODELS:
+            self.assertEqual(summary["models"][model]["attempts"], 1)
+            self.assertEqual(summary["models"][model]["tokens"]["total"]["total"], 10)
+        self.assertEqual(len(ev.read_run(folder, "probe")[1]), 2)
+
     def test_full_scoring_and_bounds(self):
         import copy
         ids = ["case"]
@@ -194,6 +225,30 @@ class BenchmarkTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ev.validate(invalid)
         self.assertEqual(ev.p95(list(range(1,21))),19)
+
+    def test_paired_performance_excludes_unmatched_and_fixed_samples(self):
+        first, second = bench.MODELS
+        successful = {"status": "ok", "usage": {"totalTokenCount": 200}}
+        rows = {
+            (first, "both"): {"status": "ok", "latency_s": 2, "usage": {
+                "promptTokenCount": 120, "totalTokenCount": 130, "thoughtsTokenCount": 5}},
+            (second, "both"): {"status": "ok", "latency_s": 8, "usage": {
+                "promptTokenCount": 180, "totalTokenCount": 190}},
+            (first, "fixed"): successful,
+            (second, "fixed"): successful,
+            (first, "one"): successful,
+            (second, "one"): {"status": "error"},
+            (first, "partial-metadata"): {"status": "ok", "latency_s": 4, "usage": {"totalTokenCount": 0}},
+            (second, "partial-metadata"): {"status": "ok", "usage": None},
+        }
+        result = ev.paired_performance(["both", "fixed", "one", "partial-metadata"], rows, {"fixed"})
+        for model, latency, total in [(first, 2, 130), (second, 8, 190)]:
+            self.assertEqual(result[model]["successful_pairs"], 2)
+            self.assertEqual(result[model]["latency_s"], {"observed": 1, "mean": latency,
+                                                         "median": latency, "p95": latency})
+            self.assertEqual(result[model]["tokens"]["total"], {"observed": 1, "total": total, "mean": total})
+            self.assertIsNone(result[model]["tokens"]["thinking"]["total"])
+        self.assertEqual(ev.token_count(rows[first, "partial-metadata"], "totalTokenCount"), 0)
 
 
 if __name__ == "__main__":
