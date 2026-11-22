@@ -6,12 +6,13 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
 from app.services import story_data, story_scene_sets, story_turn_service
 from app.services.llm.base import LLMProvider, LLMResult
-from app.services.story_prompt import build_story_messages, character_rules, scene_card
+from app.services.story_prompt import build_story_messages, character_rules, output_contract, scene_card
 from app.services.story_response_control import sentences, validate_lines
 from app.services.story_scenes import fill_user, get_project
 from app.services.story_turn_service import parse_intent
@@ -315,6 +316,30 @@ async def test_persistent_violation_uses_fixed_reply(client, monkeypatch):
     assert response.status_code == 200 and len(fake.calls) == 2
     assert response.json()["provider"] == "fallback"
     assert "총각" not in response.json()["replies"][0]["text"]
+
+
+@pytest.mark.parametrize("project_id", ["fridge", "cloud"])
+def test_intent_id_guidance_matches_judgement_without_leaking_scores(project_id):
+    """자유 입력 의도는 결말 판정에 쓰이므로 '점수에 쓰지 않는다'고 안내하지 않는다. 점수·단계·결말 이름은 알리지 않는다."""
+    project = get_project(project_id, SCENARIO)
+    ending_names = re.compile(r"stage_\d|단계|fridge_rel|cloud_result|결말 ID|토토형|비비형|나나형|키키형|두두형")
+    for turn, scene in enumerate(project.scenes):
+        if scene.input_mode == "none":
+            continue
+        system = build_story_messages(project, "민트", turn, [], "그냥 둘러보는 중이야", None)[0][0]["content"]
+        contract = output_contract(project, scene)
+        assert contract in system
+        if not scene.intents:
+            assert "intent_id" not in contract
+            continue
+        guide = next(line for line in contract.splitlines() if line.startswith("- intent_id:"))
+        assert all(it.id in guide for it in scene.intents)
+        assert "가장 가까운" in guide and "맞지 않을 때만" in guide and '"none"' in guide
+        assert "결말에 반영" in guide
+        assert not re.search(r"점수에\s*(는\s*)?(쓰지|사용하지|반영하지)|분석 기록용|기록용", system)
+        assert not SCORE_LEAK.search(guide), guide
+        assert not ending_names.search(guide), guide
+        assert not SCORE_LEAK.search(contract) and not ending_names.search(contract)
 
 
 def test_intent_id_is_recorded_only_when_defined_for_scene():

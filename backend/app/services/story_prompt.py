@@ -215,7 +215,7 @@ def output_contract(project: StoryProjectDef, scene: Scene) -> str:
     intent = ""
     if scene.intents:
         ids = ", ".join(it.id for it in scene.intents)
-        intent = f'\n- intent_id: 사용자 입력에 가장 가까운 의도 ID 하나({ids}) 또는 "none". 분석 기록용이며 점수에 쓰지 않는다.'
+        intent = f'\n- intent_id: 사용자 입력에 가장 가까운 의도 ID 하나({ids})를 고른다. 어느 것에도 맞지 않을 때만 "none". 이 값은 결말에 반영되므로 신중히 고른다.'
     return (
         "## 출력 형식\n"
         "반드시 아래 JSON 객체 하나만 출력한다. 마크다운·설명·코드블록 없이.\n"
