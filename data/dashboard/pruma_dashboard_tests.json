@@ -6,7 +6,7 @@
       "대상_파일": "pruma_dashboard_event_schema.json",
       "경로": "/이벤트_필드",
       "검증": "count",
-      "기대_값": 7,
+      "기대_값": 8,
       "근거": "7장"
     },
     {
@@ -18,6 +18,10 @@
         {
           "key": "session_id",
           "기획서_명칭": "익명 세션 ID"
+        },
+        {
+          "key": "visitor_id",
+          "기획서_명칭": "익명 방문자 ID"
         },
         {
           "key": "project",
