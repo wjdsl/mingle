@@ -176,7 +176,9 @@ test('냉장고 서버 장면은 구간 시작 4개 턴에만 표정 이미지�
     'fridge-flustered', 'fridge-angry', 'fridge-angry', 'fridge-angry', 'fridge-smug',
   ])
   const sky = await loadWith(cloud, sceneSet('cloud', { label: '선택', opening: '첫 대사' }), '민트')
-  assert.ok(sky.steps.every(s => s.sceneImage === undefined && s.expression === undefined))
+  // 구름섬은 첫 임무(1턴)에만 하늘섬 배경 이미지를 한 번 보여 주고, 표정(이어하기용)은 없다.
+  assert.deepEqual(sky.steps.map(s => s.sceneImage), ['cloud-sky-islands', ...Array(9).fill(undefined)])
+  assert.ok(sky.steps.every(s => s.expression === undefined))
 })
 
 test('구름섬 시나리오 선택지와 기본 Mock 선택지는 그대로다', async () => {

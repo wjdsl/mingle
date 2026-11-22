@@ -36,7 +36,7 @@ export function ChatBubble({ message, project, latest }: { message: StoryMessage
   const character = project.characters.find(c => c.name === message.speaker)
   const unlinked = message.role === 'character' && message.provider === 'mock'
   return <div className={`p-bubble p-${message.role}`} data-provider={message.provider} data-model={message.model}>
-    <div className="p-speaker">{message.role === 'character' && <span className="p-speaker-symbol" aria-hidden="true">{project.id === 'fridge' ? <span className="p-mini-fridge"><CharacterPortrait project={project} compact /></span> : character?.symbol ?? '✦'}</span>}<b>{message.speaker}</b></div>
+    <div className="p-speaker">{message.role === 'character' && <span className={`p-speaker-symbol ${project.id === 'cloud' && character ? 'p-speaker-face' : ''}`} aria-hidden="true">{project.id === 'fridge' ? <span className="p-mini-fridge"><CharacterPortrait project={project} compact /></span> : project.id === 'cloud' && character ? <span className="p-mini-cloud"><CharacterPortrait project={project} name={character.name} compact /></span> : character?.symbol ?? '✦'}</span>}<b>{message.speaker}</b></div>
     <p>{display && <span className="p-display-direction">{display}</span>}{spokenText}</p>{latest && message.reaction && <span className="p-reaction">{message.reaction}</span>}
     {message.provider === 'fixed' && <small className="p-provider-note">고정 연출</small>}
     {unlinked && <small className="p-provider-note">AI 미연결 · 서버 고정 응답</small>}

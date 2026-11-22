@@ -404,6 +404,7 @@
 - main 통합(PR #19 결말 판정, #20 냉장고 표정 이미지 병합 후): #19의 단계별 예고편 대사는 `_fill_nickname` → `fill_user()`로 `{{user}}`를 채운다. 결과 화면·도감의 "회장님이 부르는 말"(`endingCollection.ts`, `StoryResult.tsx`)도 자체 표기 `{호칭}` 대신 `{{user}}`로 맞췄다. 통합 후 백엔드 pytest 331개, 프론트 테스트 76개·빌드, 데이터 검증 3종 통과.
 - 커밋/푸시 없음.
 
+<<<<<<< HEAD
 
 ## 2026-11-22 냉장고·구름섬 AI 실패 시 고정 대사 진행
 
@@ -412,3 +413,12 @@
 - 턴 기록·메시지의 provider는 `fallback`, model은 `scene-fallback-v1`이다. 사유 코드(`provider_http_503`, `provider_quota_*`, `provider_timeout`, `provider_connection`, `response_control:…`)는 메시지 extra `story_fallback.reason`과 로그(`app.services.story_turn_service`, 실패 로그 파일 대상에 추가)에만 남긴다. 대사·입력·키는 남기지 않는다. 같은 request_id는 저장된 고정 대사를 재생하므로 공급자가 회복된 뒤에도 바뀌지 않는다. 대체 턴은 Qwen 재작성을 건너뛴다. 자유 입력 대체 턴은 의도가 없어 결말 판정에서 0점이다.
 - 프론트는 `provider=fallback`을 정상 응답으로 받는다(그 밖의 공급자 불일치는 오류 유지). 스모크 스크립트는 `fallback`을 실제 연동 성공으로 보지 않고 실패 처리한다. 위기 입력 안내와 10턴 고정 연출은 바꾸지 않았다.
 - 검증: 백엔드 pytest 347개, 프론트 테스트 77개·빌드, 데이터 검증 52/79/112 통과. 로컬 가짜 Gemini(503·429·형식 오류)로 띄운 서버에서 두 작품 10턴을 HTTP와 브라우저로 결과 화면까지 진행했다. 실제 Gemini·Qwen 호출과 실제 30초 시간 초과의 종단 확인, 실기기는 하지 않았다.
+=======
+## 2026-11-22 구름섬 하늘섬 이미지 (썸네일 · 1턴)
+
+- 새 에셋 `frontend/src/assets/cloud/sky-islands.webp`(원본 PNG 2400×1792를 1600px webp로 변환)를 홈 작품 카드 썸네일과 1턴 장면 이미지에 쓴다. 대원 없이 배경만 있는 그림이다.
+- 1턴 장면 이미지 표는 `frontend/src/projects/stories/cloudScenes.ts` 한 곳이다. API·서버 Mock 모드(`scenario_draft_v1`)와 브라우저 Mock(`catalog.ts` 첫 미션) 모두 1턴에만 넣는다. 도입 장면이라 이어하기로 2턴 이후부터 들어오면 다시 보여 주지 않는다. 채팅 진입 배경(`chatIntros.ts`)은 바꾸지 않았다.
+- 썸네일은 `Home.tsx`에서 구름섬만 이미지 커버(`.p-cloud-cover`)로 바꿨다. 작품 소개·결과 화면의 대원 원화는 그대로다.
+- 검증: 프론트 테스트 75개·빌드 통과, 헤드리스 Chrome에서 홈 썸네일과 브라우저 Mock 1턴 이미지 표시 확인. 서버 모드 화면·실기기는 미확인.
+- 홈 카드의 "이어서 하기" 배지는 썸네일 왼쪽 위에 겹쳐 표시한다(`.p-progress-badge` 절대 위치). 배지가 있어도 세 카드의 썸네일 시작 위치가 같다(헤드리스 Chrome 1440px에서 확인).
+>>>>>>> cceb2189121fd52d7f4c458e0c7e412c3f2a89d7

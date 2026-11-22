@@ -3,12 +3,14 @@ import smug from '../../assets/fridge/fridge-smug.webp'
 import angry from '../../assets/fridge/fridge-angry.webp'
 import flustered from '../../assets/fridge/fridge-flustered.webp'
 import office from '../../assets/fridge/chairman-office.webp'
+import skyIslands from '../../assets/cloud/sky-islands.webp'
 
 export const sceneAssets: Record<string, { src: string; alt: string; caption: string }> = {
  'fridge-smug': { src: smug, alt: '작은 원룸에서 자신만만한 표정을 띤 냉장고 회장', caption: '원룸의 냉장고 회장' },
  'fridge-angry': { src: angry, alt: '원룸에서 붉게 화난 표정을 표시하는 냉장고', caption: '회장의 디스플레이가 붉어진다' },
  'fridge-flustered': { src: flustered, alt: '원룸에서 당황한 표정을 짓는 냉장고 회장', caption: '흠흠… 당황한 회장님' },
  'chairman-office': { src: office, alt: '넓은 사무실에서 정장을 입고 앉아 있는 회장', caption: '회장이 주장하는 과거 · 회상 이미지' },
+ 'cloud-sky-islands': { src: skyIslands, alt: '구름 위에 떠 있는 하늘섬들과 기울어지기 시작한 풍차 섬, 출발을 기다리는 구조선', caption: '흔들리기 시작한 하늘섬' },
 }
 export function SceneImage({ asset }: { asset: string }) {
  const image = sceneAssets[asset]
