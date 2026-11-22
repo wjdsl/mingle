@@ -6,6 +6,7 @@ import { useChat } from './useChat'
 import { createPurumaClient } from './chatClient'
 import { UserNotePanel } from './UserNotePanel'
 import { PendingNotice } from './PendingNotice'
+import { CrisisNotice } from '../safety/CrisisNotice'
 import type { ChatState, Choice, Emotion, Message } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
 import { useViewportHeight } from './useViewportHeight'
@@ -31,6 +32,8 @@ function ProgressHeader({ state, onNavigate }: { state: ChatState; onNavigate(vi
 
 function MessageBubble({ message, latest, currentEmotion, nickname }: { message: Message; latest: boolean; currentEmotion: Emotion; nickname: string }) {
   if (message.role === 'user') return <div className="message user"><span className="speaker">나 · {nickname}</span><p>{message.text}</p></div>
+  if (message.role === 'notice') return <CrisisNotice />
+  if (message.calm) latest = false // 위기 안내 뒤의 반응에는 장난스러운 리액션을 붙이지 않는다.
   const emotion = message.emotion ?? (latest ? currentEmotion : 'confused')
   const comic = message.text.includes('또각')
   return <div className={`message character ${latest ? 'latest-reply' : ''} ${comic ? 'comic-reply' : ''}`}>
