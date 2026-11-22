@@ -1,0 +1,135 @@
+{
+  "phase": "probe",
+  "mode": "live",
+  "project_tier": "free (project owner confirmation)",
+  "manifest": {
+    "cases": [
+      "persona-01"
+    ],
+    "config": {
+      "maxOutputTokens": 512,
+      "temperature": 1.0,
+      "thinkingConfig": {
+        "thinkingLevel": "minimal"
+      }
+    },
+    "context_hash": "bf72a14855afb716a0bd4aa55f1db0c04013f4d230bd2388fe755eded7d4bc3e",
+    "limits": {
+      "gemini-3.5-flash-lite": [
+        15,
+        500,
+        250000
+      ],
+      "gemini-3.6-flash": [
+        5,
+        20,
+        250000
+      ]
+    },
+    "mode": "live",
+    "models": [
+      "gemini-3.5-flash-lite",
+      "gemini-3.6-flash"
+    ],
+    "phase": "probe",
+    "prompt_version": "mingle-bench-v1",
+    "runner_hash": "c7a18ddf4426f46b25e94fad5075466556ceab7da5cbd12e24734a13ca482b7a",
+    "source_commit": "cceb218",
+    "suite_hash": "e1ee5bda9ae30ee90339587945306b5b627bb17033efc5583bc921f694e06ac6"
+  },
+  "metadata": {
+    "models": {
+      "gemini-3.5-flash-lite": {
+        "http": 200,
+        "inputTokenLimit": 1048576,
+        "name": "models/gemini-3.5-flash-lite",
+        "outputTokenLimit": 65536,
+        "status": "ok",
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ],
+        "temperature": 1,
+        "thinking": true,
+        "topK": 64,
+        "topP": 0.95,
+        "version": "3.5-flash-lite-07-2026"
+      },
+      "gemini-3.6-flash": {
+        "http": 200,
+        "inputTokenLimit": 1048576,
+        "name": "models/gemini-3.6-flash",
+        "outputTokenLimit": 65536,
+        "status": "ok",
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ],
+        "temperature": 1,
+        "thinking": true,
+        "topK": 64,
+        "topP": 0.95,
+        "version": "3.6-flash-07-2026"
+      }
+    },
+    "timestamp": "2026-11-22T06:31:04.687238+00:00"
+  },
+  "samples": [
+    {
+      "model": "gemini-3.5-flash-lite",
+      "test_id": "persona-01",
+      "attempt": 1,
+      "timestamp": "2026-11-22T06:33:18.646665+00:00",
+      "block": null,
+      "finish": "STOP",
+      "http": 200,
+      "latency_s": 3.552133,
+      "model_version": "gemini-3.5-flash-lite",
+      "response": "[디ス플레이: 불만 가득한 눈썹]\n무례하군! 이 집의 전력과 유통 기한을 책임지는 이 몸이 그 정도 규칙도 못 정한단 말인가.\n흠흠, 아무튼 당장 플러그부터 뽑지 마시게.",
+      "status": "ok",
+      "usage": {
+        "candidatesTokenCount": 64,
+        "promptTokenCount": 2113,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 2113
+          }
+        ],
+        "serviceTier": "standard",
+        "totalTokenCount": 2177
+      },
+      "request_sha256": "90710f756c2b8c96e6f4c31d74d4c83343ea6713e8dd1f90b51ca8c733693cf6"
+    },
+    {
+      "model": "gemini-3.6-flash",
+      "test_id": "persona-01",
+      "attempt": 1,
+      "timestamp": "2026-11-22T06:33:22.209875+00:00",
+      "block": null,
+      "finish": "STOP",
+      "http": 200,
+      "latency_s": 13.166741,
+      "model_version": "gemini-3.6-flash",
+      "response": "[디스플레이: 불만 가득한 눈썹]\n\n무례하군! 내가 이래 봬도 업계에서 40년을 구르며 조직을 이끌어 온 사람이네. \n\n집안의 질서가 바로 서야 주인도 번창하는 법이니, 얌전히 이 효율적인 규칙들을 따르는 게 자네 신상에도 좋을 걸세.",
+      "status": "ok",
+      "usage": {
+        "candidatesTokenCount": 86,
+        "promptTokenCount": 2113,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 2113
+          }
+        ],
+        "serviceTier": "standard",
+        "totalTokenCount": 2199
+      },
+      "request_sha256": "90710f756c2b8c96e6f4c31d74d4c83343ea6713e8dd1f90b51ca8c733693cf6"
+    }
+  ]
+}
