@@ -65,6 +65,18 @@ def test_output_contract_states_counting_rule(project_id):
     assert "1~3문장" in contract and "짧은 감탄도 한 문장으로 센다" in contract
 
 
+def test_cloud_contract_interjection_tip_matches_validator():
+    # 구름섬 1턴에서 키키처럼 감탄사가 많은 대사가 4문장으로 거부되던 문제(TEST_REPORT 9-3) 완화.
+    project = get_project("cloud", SCENARIO)
+    contract = output_contract(project, project.scenes[0])
+    assert "쉼표로 다음 말에 붙인다" in contract
+    # 프롬프트 예시의 문장 수는 검증기 기준과 같아야 한다.
+    assert len(sentences("오오, 모험 친구! 같이 가자!")) == 2
+    assert len(sentences("오오! 모험 친구! 같이 가자! 파닥파닥!")) == 4
+    note = correction_note([Violation("too_many_sentences", "키키: 4문장", 4)])
+    assert "쉼표로 다음 말에 붙여" in note and "키키" not in note
+
+
 # --- 진단 로그: 문장 수·코드만 ---
 
 class FakeGemini(LLMProvider):

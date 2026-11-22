@@ -15,12 +15,14 @@ from pathlib import Path
 
 from app.services.story_data import OfficialData, load_official
 from app.services.story_scene_sets import format_line
-from app.services.story_scenes import Scene, SceneChoice, StoryProjectDef
+from app.services.story_scenes import Scene, SceneChoice, StoryProjectDef, fill_user
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
 MAX_REACTION_CHARS = 16
 # 응답 제어(story_response_control.sentences)와 같은 기준을 모델에 알린다. 3문장 상한은 그대로다.
 SENTENCE_COUNT_NOTE = "'흠흠.'처럼 마침표·물음표·느낌표로 끝나는 짧은 감탄도 한 문장으로 센다"
+# 감탄사·의성어가 많은 말투(구름섬 키키 등)가 상한을 넘지 않도록 줄이는 방법을 함께 알린다.
+INTERJECTION_TIP = "감탄사·의성어는 따로 끊지 말고 쉼표로 다음 말에 붙인다(예: '오오, 모험 친구! 같이 가자!'는 2문장)"
 HISTORY_TURNS = 10
 SCORE_PATTERNS = (
     re.compile(r"[^.]*채점은[^.]*\.\s*"),  # "채점은 … 기준." 문장
@@ -102,7 +104,7 @@ def _cloud_rules(project: StoryProjectDef, data: OfficialData, nickname: str) ->
     blocks = []
     for p in personas:
         speech = p.get("speech", {})
-        address = _join((a.replace("{nickname}", nickname) for a in speech.get("user_address", [])), " 또는 ")
+        address = _join((fill_user(a, nickname) for a in speech.get("user_address", [])), " 또는 ")
         lines = [
             f"### {p['name']} ({p.get('role', '')}, {p.get('animal', '')})",
             f"- 핵심: {p.get('core', '')}",
@@ -111,7 +113,7 @@ def _cloud_rules(project: StoryProjectDef, data: OfficialData, nickname: str) ->
             f"- 말투: {speech.get('style', '')}" + (f" 자신을 \"{speech['self_reference']}\"이라고 부른다." if speech.get("self_reference") else ""),
             f"- 사용자 호칭: {address}",
             f"- 지문 예: {_join(p.get('stage_directions', []), ' / ')}",
-            f"- 대표 대사(반복 금지, 말투 참고): {_join((s.replace('{nickname}', nickname) for s in speech.get('sample_lines', [])), ' / ')}",
+            f"- 대표 대사(반복 금지, 말투 참고): {_join((fill_user(s, nickname) for s in speech.get('sample_lines', [])), ' / ')}",
             f"- 금지: {_join(p.get('forbidden', []))}",
         ]
         if p.get("speech", {}).get("nickname_first_mention_note"):
@@ -144,7 +146,7 @@ def character_rules(project: StoryProjectDef, nickname: str) -> tuple[str, dict[
     """(규칙 텍스트, 데이터 버전). 공식 데이터가 없으면 기존 대체 규칙."""
     data = load_official(project.id)
     if data is None:
-        return project.system_rules.replace("{nickname}", nickname), {"official": "unavailable"}
+        return fill_user(project.system_rules, nickname), {"official": "unavailable"}
     text = _fridge_rules(project, data) if project.id == "fridge" else _cloud_rules(project, data, nickname)
     return text, data.versions
 
@@ -157,7 +159,7 @@ def strip_scoring(text: str) -> str:
 
 
 def _choice_hint(choice: SceneChoice, scenario: bool, sub=lambda text: text) -> str:
-    # 버튼 문구의 [호칭]/[닉네임]도 장면 카드의 다른 문구와 같이 사용자 호칭으로 채운다.
+    # 버튼 문구의 {{user}}(옛 표기 [호칭]/[닉네임] 포함)도 장면 카드의 다른 문구와 같이 사용자 호칭으로 채운다.
     if scenario:
         return f'  · 버튼 "{sub(choice.label)}"'
     return f'  · "{sub(choice.label)}" → {choice.reference_reply}'
@@ -165,7 +167,7 @@ def _choice_hint(choice: SceneChoice, scenario: bool, sub=lambda text: text) -> 
 
 def scene_card(project: StoryProjectDef, index: int, scene: Scene, nickname: str) -> str:
     scenario = scene.source_level == "scenario_draft"
-    sub = lambda text: strip_scoring(text.replace("[호칭]", nickname).replace("[닉네임]", nickname))  # noqa: E731
+    sub = lambda text: strip_scoring(fill_user(text, nickname))  # noqa: E731
     lines = [
         f"## 현재 장면 {index + 1}/{project.total_turns}: {scene.title}" + (" (시나리오 초안, 팀 미확정)" if scenario else ""),
         f"- 장면 목표: {scene.goal}",
@@ -209,7 +211,7 @@ def output_contract(project: StoryProjectDef, scene: Scene) -> str:
         shape = f"대사는 1~3문장({SENTENCE_COUNT_NOTE}). 디스플레이 지문은 쓰려면 대사 맨 앞에 [디스플레이: …] 한 개만."
     else:
         speakers = f"{', '.join(project.speakers)} 중 1~{project.max_lines}명, 한 대원당 1줄"
-        shape = f"각 대원의 대사는 1~3문장({SENTENCE_COUNT_NOTE}). 지문은 대원당 (괄호) 한 개까지."
+        shape = f"각 대원의 대사는 1~3문장({SENTENCE_COUNT_NOTE}). {INTERJECTION_TIP}. 지문은 대원당 (괄호) 한 개까지."
     intent = ""
     if scene.intents:
         ids = ", ".join(it.id for it in scene.intents)

@@ -193,7 +193,7 @@ async def get_scene_set(project_id: str, scene_set: SceneSet) -> SceneSetOut:
             )
         )
     note = (
-        "시나리오 장면 카드 초안(팀 미확정). [호칭]/[닉네임]은 화면에서 사용자 호칭으로 바꿔 표시한다. 점수·관계 단계·판정은 포함하지 않는다."
+        "시나리오 장면 카드 초안(팀 미확정). {{user}}(옛 표기 [호칭]/[닉네임]/{nickname} 포함)는 화면에서 사용자 호칭으로 바꿔 표시한다. 점수·관계 단계·판정은 포함하지 않는다."
         if scene_set == "scenario_draft_v1"
         else "현재 프론트 Mock 장면과 같은 기본 세트."
     )

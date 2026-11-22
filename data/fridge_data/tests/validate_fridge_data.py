@@ -143,7 +143,7 @@ def validate(root: Path, verbose: bool = False) -> int:
     stage_ids = {as_dict(s).get('id') for s in stages}
     check('관계: 3단계 가안', len(stages) == 3 and distinct_strings(stages,'id') and all(as_dict(s).get('status') == '바이블 가안' for s in stages))
     check('관계: 관계 단계 순서', [as_dict(s).get('sequence') for s in stages] == [1,2,3])
-    check('관계: 호칭 3종', [as_dict(s).get('user_address_template') for s in stages] == ['자네','{nickname} 사원','{nickname} 비서실장'])
+    check('관계: 호칭 3종', [as_dict(s).get('user_address_template') for s in stages] == ['자네','{{user}} 사원','{{user}} 비서실장'])
     score=as_dict(rel.get('score_model'))
     check('관계: 점수 전부 미정', all(score.get(k) is None for k in ('initial_value','minimum','maximum','stage_thresholds','choice_delta_values','free_input_delta_values','tie_break_rule')))
     check('관계: 정성적 행동 기준', len(as_list(rel.get('positive_acts'))) >= 3 and len(as_list(rel.get('negative_acts'))) >= 3)

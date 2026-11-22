@@ -24,12 +24,12 @@
     },
     {
       "relationship_stage_id": "fridge_rel_stage_2",
-      "dialogue": "[호칭] 사원, 잘 듣게. 돌아갈 방법을 찾았네. 그런데 그러려면…",
+      "dialogue": "{{user}} 사원, 잘 듣게. 돌아갈 방법을 찾았네. 그런데 그러려면…",
       "status": "바이블 가안"
     },
     {
       "relationship_stage_id": "fridge_rel_stage_3",
-      "dialogue": "[호칭] 비서실장. 자네가 아니었으면 못 찾았을 걸세. 돌아갈 방법을 찾았네. 다만 자네 도움이 필요하네…",
+      "dialogue": "{{user}} 비서실장. 자네가 아니었으면 못 찾았을 걸세. 돌아갈 방법을 찾았네. 다만 자네 도움이 필요하네…",
       "status": "바이블 가안"
     }
   ],

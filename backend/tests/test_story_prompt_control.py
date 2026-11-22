@@ -13,7 +13,7 @@ from app.services import story_data, story_scene_sets, story_turn_service
 from app.services.llm.base import LLMProvider, LLMResult
 from app.services.story_prompt import build_story_messages, character_rules, scene_card
 from app.services.story_response_control import sentences, validate_lines
-from app.services.story_scenes import get_project
+from app.services.story_scenes import fill_user, get_project
 from app.services.story_turn_service import parse_intent
 
 SCENARIO = "scenario_draft_v1"
@@ -147,7 +147,7 @@ def test_scenario_scene_cards_follow_draft_without_scores(project_id):
         assert scene.title == slot["scene"]["title"] and scene.title in card
         for line in slot.get("opening_lines", []):
             if line.get("text"):
-                assert line["text"].replace("[호칭]", "민트").replace("[닉네임]", "민트") in card
+                assert fill_user(line["text"], "민트") in card
         for intent in slot.get("intents", []):
             assert intent["intent_id"] in card
         # 점수·채점 표현은 프롬프트에 넣지 않는다(냉장고 디스플레이 온도 표기는 예외)

@@ -133,7 +133,7 @@
           "free_input_examples": [
             "저는 민트… 떨려요"
           ],
-          "response_direction": "나나가 \"민트, 처음이라 떨리지? 괜찮아.\"",
+          "response_direction": "나나가 \"{{user}}, 처음이라 떨리지? 괜찮아.\"",
           "trait_label": null,
           "trait_persona_id": null,
           "score_raw": null
@@ -189,7 +189,7 @@
         {
           "kind": "line",
           "speaker": "나나",
-          "text": "[닉네임], 반가워. 헷갈리면 나한테 물어봐.",
+          "text": "{{user}}, 반가워. 헷갈리면 나한테 물어봐.",
           "also_in_bible": false
         },
         {
@@ -930,7 +930,7 @@
           "kind": "line",
           "speaker": "토토",
           "stage_direction": "볼과 귀가 축 처진다",
-          "text": "…[닉네임], 솔직히 나도 좀 떨려. 비밀이다?",
+          "text": "…{{user}}, 솔직히 나도 좀 떨려. 비밀이다?",
           "also_in_bible": false
         }
       ],
@@ -1447,7 +1447,7 @@
         {
           "kind": "line",
           "speaker": "토토",
-          "text": "[닉네임] 대원, 네 생각은?",
+          "text": "{{user}} 대원, 네 생각은?",
           "also_in_bible": false
         }
       ],
@@ -1616,7 +1616,7 @@
         {
           "kind": "line",
           "speaker": "두두",
-          "text": "……[닉네임]. 잘했어.",
+          "text": "……{{user}}. 잘했어.",
           "also_in_bible": true
         },
         {
@@ -1657,7 +1657,7 @@
     "result_card_ref": "data/ending/cloud_result_types.json",
     "scenario_draft_notes": [
       "판정 규칙(위 점수 섹션)으로 대원 하나를 고르고, 바이블 6장의 결과 카드 문구와 대원 이미지를 보여 줌.",
-      "카드 아래 한 줄: 그 대원이 사용자에게 하는 말. 예) 나나 \"[닉네임], 방금 그 선택… 나였으면 못 했을 거야. 고마워.\" · 비비 \"…네 판단도 나쁘지 않네. 기록해 둘게.\" · 두두 \"……[닉네임]. 잘했어.\" (토토·키키는 바이블 대표 대사에서)",
+      "카드 아래 한 줄: 그 대원이 사용자에게 하는 말. 예) 나나 \"{{user}}, 방금 그 선택… 나였으면 못 했을 거야. 고마워.\" · 비비 \"…네 판단도 나쁘지 않네. 기록해 둘게.\" · 두두 \"……{{user}}. 잘했어.\" (토토·키키는 바이블 대표 대사에서)",
       "홍보 연결: 공유 버튼, 다른 대원 타입 둘러보기, 본편 안내."
     ]
   },
