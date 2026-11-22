@@ -29,7 +29,7 @@
 .p-project-card .p-poster { height:250px; flex-shrink:0; border:0; border-radius:12px; background:var(--sb-surface); }
 .p-poster > .p-puruma-image { position:static; width:100%; height:100%; object-fit:contain; }
 .p-project-card.theme-puruma .p-poster { background-image:none; }
-.p-project-card .p-fridge-cover { object-fit:cover; object-position:center; }
+.p-project-card .p-fridge-cover, .p-project-card .p-cloud-cover { object-fit:cover; object-position:center; }
 .p-cloud-portrait { display:block; max-width:100%; max-height:100%; object-fit:contain; }
 .p-poster > .p-cloud-portrait { width:100%; height:100%; }
 .p-project-card:hover { transform:translateY(-2px); background:var(--sb-cream); box-shadow:0 6px 18px rgb(37 36 34 / .07); }
