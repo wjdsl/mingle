@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
-import { mockStoryClient } from '../../services/storyClient'
+import { mockStoryClient, storyClientMode } from '../../services/storyClient'
+import { clearProgress, saveProgress } from '../../services/storyProgress'
 import type { StoryClient } from '../../services/storyClient'
 import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
 import { crisisCareLine, isCrisisText } from '../../services/crisisSafety'
 import type { CrisisProject } from '../../services/crisisSafety'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string }
-export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string } | { kind: 'crisis' }
+export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string; label?: string } | { kind: 'crisis' }
+export type StoryChatOptions = { startTurn?: number; resumed?: boolean; notice?: string }
+export const RESUME_NOTICE = '지난 이야기에서 이어집니다. 이전 대화 내용은 이 기기에 저장하지 않아요.'
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
  if (step.openingLines) {
@@ -24,9 +27,15 @@ function opening(project: StoryProject, index: number, name?: string): StoryMess
   { kind: 'text', role: 'character', speaker: step.speaker, text: `${name ? name + ', ' : ''}${step.text}`, situation: step.situation }
  ]
 }
-export function useStoryChat(project: StoryProject, name: string, onResult: () => void, client: StoryClient = mockStoryClient) {
-  const [turn, setTurn] = useState(0)
-  const [messages, setMessages] = useState<StoryMessage[]>(() => opening(project, 0, name))
+export function useStoryChat(project: StoryProject, name: string, onResult: () => void, client: StoryClient = mockStoryClient, options: StoryChatOptions = {}) {
+  const startTurn = Math.min(Math.max(options.startTurn ?? 0, 0), project.steps.length - 1)
+  const [turn, setTurn] = useState(startTurn)
+  const [messages, setMessages] = useState<StoryMessage[]>(() => options.resumed
+    ? [{ kind: 'system', label: '이어하기', text: RESUME_NOTICE }, ...opening(project, startTurn, startTurn === 0 ? name : undefined)]
+    : [...(options.notice ? [{ kind: 'system' as const, label: '이어하기', text: options.notice }] : []), ...opening(project, 0, name)])
+  // 진행 저장: 호칭과 완료한 장면 수, API 모드의 서버 대화 정보만 이 기기에 둔다(대화 원문 제외).
+  const remember = (completedTurns: number) => saveProgress({ project: project.id, mode: storyClientMode(), name, completedTurns, api: client.session?.() ?? undefined })
+  useEffect(() => { remember(startTurn) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'replied'>('idle')
   const [selected, setSelected] = useState<number>()
   const [errorMessage, setErrorMessage] = useState<string>()
@@ -59,6 +68,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
         const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model } : {}
         setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
         setErrorMessage(undefined); setStatus('replied')
+        remember(turn + 1)
       }
     } catch (error) {
       if (!abort.signal.aborted) {
@@ -98,7 +108,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   function advance() {
     if (status !== 'replied' || !pending.current) return
     const next = turn + 1
-    if (next === project.steps.length) { onResult(); return }
+    if (next === project.steps.length) { clearProgress(project.id); onResult(); return }
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }
