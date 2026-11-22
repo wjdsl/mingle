@@ -32,7 +32,7 @@ from app.services.story_dialogue import DialogueInfo, info_from_extra, rewrite_f
 from app.services.story_prompt import build_story_messages
 from app.services.story_safety import COMPANION_LINES, is_story_crisis
 from app.services.story_response_control import correction_note, sentences, validate_lines
-from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, get_project, project_for_slug
+from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, fill_user, get_project, project_for_slug
 
 logger = logging.getLogger(__name__)
 
@@ -392,7 +392,7 @@ def parse_intent(raw: str, scene: Scene) -> str | None:
 
 
 def _fill_nickname(text: str, nickname: str) -> str:
-    return text.replace("[호칭]", nickname).replace("[닉네임]", nickname)
+    return fill_user(text, nickname)
 
 
 def fixed_reply_lines(project: StoryProjectDef, lines: tuple[SceneLine, ...], nickname: str) -> list[ReplyLine]:

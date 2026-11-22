@@ -13,7 +13,7 @@ from app.services import story_turn_service
 from app.services.llm.base import LLMProvider, LLMResult
 from app.services.story_prompt import build_story_messages
 from app.services.story_response_control import validate_lines
-from app.services.story_scenes import get_project
+from app.services.story_scenes import fill_user, get_project
 
 SCENARIO = "scenario_draft_v1"
 
@@ -64,7 +64,7 @@ def test_scenario_lines_with_nickname_have_no_false_positive(project_id):
         texts += [c.reference_reply for c in scene.choices if c.reference_reply]
         texts += [it.response_direction for it in scene.intents]  # 예시 대사 포함
         for text in texts:
-            filled = text.replace("[호칭]", "민준").replace("[닉네임]", "민준")
+            filled = fill_user(text, "민준")
             found = [v for v in validate_lines(project, turn, [(project.speakers[0], filled)], [], "민준") if v.code == "forbidden_address"]
             assert not found, (project_id, turn)
 

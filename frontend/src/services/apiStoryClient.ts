@@ -197,7 +197,8 @@ export async function loadStoryScenario(project: StoryProject, name: string, sig
   if (!isRecord(data) || data.project !== project.id || data.scene_set !== SCENARIO_SET ||
       !Array.isArray(data.scenes) || data.scenes.length !== 10 || data.total_turns !== data.scenes.length) throw invalid()
 
-  const address = (text: string) => text.replace(/\[(?:호칭|닉네임)\]/g, () => name)
+  // 호칭 자리표시는 {{user}}로 통일했다(2026-11-22). 옛 표기 [호칭]/[닉네임]/{nickname}도 당분간 함께 바꾼다.
+  const address = (text: string) => text.replace(/\{\{user\}\}|\[(?:호칭|닉네임)\]|\{nickname\}/g, () => name)
   const steps = data.scenes.map((scene: unknown, turn): StoryStep => {
     if (!isRecord(scene) || scene.turn !== turn || typeof scene.title !== 'string' ||
         typeof scene.situation !== 'string' || (scene.input_mode !== 'input' && scene.input_mode !== 'none') ||

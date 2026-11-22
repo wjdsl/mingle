@@ -19,7 +19,7 @@
       "id": "fridge_rel_stage_2",
       "sequence": 2,
       "label": "동거인",
-      "user_address_template": "{nickname} 사원",
+      "user_address_template": "{{user}} 사원",
       "tone": "투덜대지만 조언을 해 주며 고마움은 숨김",
       "status": "바이블 가안"
     },
@@ -27,7 +27,7 @@
       "id": "fridge_rel_stage_3",
       "sequence": 3,
       "label": "동업자",
-      "user_address_template": "{nickname} 비서실장",
+      "user_address_template": "{{user}} 비서실장",
       "tone": "믿고 사정을 조금 털어놓으나 자존심은 여전히 강함",
       "status": "바이블 가안"
     }

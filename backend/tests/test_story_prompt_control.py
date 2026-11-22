@@ -13,7 +13,7 @@ from app.services import story_data, story_scene_sets, story_turn_service
 from app.services.llm.base import LLMProvider, LLMResult
 from app.services.story_prompt import build_story_messages, character_rules, scene_card
 from app.services.story_response_control import sentences, validate_lines
-from app.services.story_scenes import get_project
+from app.services.story_scenes import fill_user, get_project
 from app.services.story_turn_service import parse_intent
 
 SCENARIO = "scenario_draft_v1"
@@ -147,7 +147,7 @@ def test_scenario_scene_cards_follow_draft_without_scores(project_id):
         assert scene.title == slot["scene"]["title"] and scene.title in card
         for line in slot.get("opening_lines", []):
             if line.get("text"):
-                assert line["text"].replace("[호칭]", "민트").replace("[닉네임]", "민트") in card
+                assert fill_user(line["text"], "민트") in card
         for intent in slot.get("intents", []):
             assert intent["intent_id"] in card
         # 점수·채점 표현은 프롬프트에 넣지 않는다(냉장고 디스플레이 온도 표기는 예외)
@@ -194,7 +194,8 @@ async def test_fridge_scenario_full_ten_turns_with_fixed_lines(client, monkeypat
     assert final.status_code == 200, final.text
     body = final.json()
     # 매 턴 첫 버튼(+2)을 골라 18점 → 3단계 마무리 대사 (2026-11-22 결말 판정: 마지막에만 반영)
-    trailer = story_data.load_official("fridge").get("trailer")["relationship_variants"][2]["dialogue"].replace("[호칭]", "민트")
+    trailer = story_data.load_official("fridge").get("trailer")["relationship_variants"][2]["dialogue"]
+    trailer = fill_user(trailer, "민트")
     assert (body["provider"], body["model"], body["finished"], body["completed_turns"]) == ("fixed", "scene-script", True, 10)
     assert body["replies"] == [{"speaker": "냉장고 회장", "text": f"[디스플레이: 환하게 켜지는 눈]\n{trailer}"}]
     assert body["ending"] == "fridge_rel_stage_3"
