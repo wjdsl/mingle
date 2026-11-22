@@ -42,12 +42,18 @@ def message(role, text):
 
 def make_request(case, contexts, previous):
     context = contexts[case["project"]]
+    if case.get("fixed"):
+        output = ("이 턴은 재생 전용이다. 다음 원문의 화자·지문·줄 순서까지 그대로 출력한다.\n"
+                  + context["fixed"])
+    elif case["project"] == "cloud":
+        output = ("한국어로 1~3명의 대사를 쓴다. 대원마다 한 줄에 \u0027화자 이름: 대사\u0027 형식으로 쓰고 "
+                  "화자 이름을 생략하지 않는다. 같은 대원을 두 번 쓰지 않는다. "
+                  "예: 비비: 지금은 엔진부터 보자. 한 화자당 1~3문장으로 답한다.")
+    else:
+        output = "한 캐릭터의 한국어 대사 본문만 1~3문장으로 출력한다. 화자 이름 접두어는 쓰지 않아도 된다."
     instruction = (context["rules"] + "\n현재 장면\n" + context["scenes"][case["scene"] - 1]
                    + "\n표시 호칭은 솔빛이다. 푸르마는 기본 호칭 선배를 쓴다. "
-                   "한국어로 각 화자의 이름과 콜론, 대사를 쓴다. 한 화자당 1~3문장. "
-                   "구름섬은 1~3명, 다른 작품은 한 명만 말한다. 평가 설명이나 선택지는 출력하지 않는다.")
-    if case.get("fixed"):
-        instruction += "\n이 턴은 재생 전용이다. 다음 원문만 정확히 출력한다.\n" + context["fixed"]
+                   "평가 설명이나 선택지는 출력하지 않는다.\n" + output)
     instruction += "\n합성 유저노트: " + pack(case["notes"]) + "\n고정 검색 자료: " + pack(case["rag"])
     contents = [message("user" if i % 2 == 0 else "model", t) for i, t in enumerate(case["history"])]
     for prior in previous:
@@ -148,6 +154,13 @@ def reserve(db, phase, model, case, body):
     return number
 
 
+def quota_blocked_today(db):
+    midnight = datetime.now(PACIFIC).replace(hour=0, minute=0, second=0, microsecond=0)
+    recent = db.execute("SELECT result FROM attempts WHERE started >= ? AND result IS NOT NULL",
+                        (midnight.timestamp(),))
+    return any(json.loads(row["result"]).get("http") == 429 for row in recent)
+
+
 def quota_wait(db, model, body):
     rpm, rpd, tpm = LIMITS[model]
     budget = len(pack(body).encode()) + 1024
@@ -241,8 +254,15 @@ def execute(args, db, suite, contexts, jobs, live):
             print("이미 완료한 실행입니다. 신규 요청 0건.")
             return 0
         raise ValueError("실행 설정 또는 입력이 바뀌었습니다. 원래 버전에서 재개하세요.")
-    todo = sum(latest(db, args.phase, m, c["id"]) is None for m,c in jobs)
-    print(f"미시도 {todo}건. 이번 실행 상한 {args.max_calls or len(jobs)}건.", flush=True)
+    today = datetime.now(PACIFIC).date()
+    results = {(model, case["id"]): latest(db, args.phase, model, case["id"]) for model, case in jobs}
+    retryable = {key for key, result in results.items()
+                 if live and args.phase == "full" and args.retry_quota
+                 and result and result.get("http") == 429
+                 and datetime.fromtimestamp(result["started"], PACIFIC).date() < today}
+    todo = sum(result is None for result in results.values())
+    upper_bound = min(args.max_calls or len(jobs), todo + len(retryable))
+    print(f"미시도 {todo}건, 재시도 가능 {len(retryable)}건. 이번 실행 상한 {upper_bound}건.", flush=True)
     histories = {}
     calls = 0
     incomplete = False
@@ -252,15 +272,15 @@ def execute(args, db, suite, contexts, jobs, live):
         if case["type"] == "multi" and len(history) != case["scene"]-1:
             incomplete = True
             continue
-        result = latest(db, args.phase, model, cid)
-        if result and result.get("http") == 429 and args.phase == "full" and args.retry_quota:
-            if datetime.fromtimestamp(result["started"], PACIFIC).date() < datetime.now(PACIFIC).date():
-                result = None
+        result = None if (model, cid) in retryable else results[model, cid]
         if result is None:
             if args.max_calls and calls >= args.max_calls:
                 return 2
             body = make_request(case, contexts, history)
             if live:
+                if quota_blocked_today(db):
+                    print("오늘 HTTP 429가 기록됐습니다. 태평양 시간 자정 이후 재개하세요.")
+                    return 2
                 stop = quota_wait(db, model, body)
                 if stop:
                     print(model, stop)

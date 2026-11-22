@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import sqlite3
 import statistics
 from pathlib import Path
@@ -11,7 +12,7 @@ from pathlib import Path
 from run_benchmark import HERE, METRICS, MODELS, digest, load_suite, pack, run_records
 
 WEIGHTS = dict(zip((*METRICS, "efficiency"), (.30, .25, .20, .15, .10)))
-SPEAKERS = {"fridge": {"냉장고 회장"}, "puruma": {"푸르마"}, "cloud": {"토토", "비비", "나나", "키키", "두두"}}
+CLOUD_LINE = re.compile(r"^(토토|비비|나나|키키|두두)[:：]\s*(\S.*)$")
 
 
 def save(path, obj):
@@ -32,18 +33,15 @@ def latency_grade(seconds):
     return sum(seconds <= cutoff for cutoff in (2, 4, 8, 16, 30))
 
 
-def automatic(case, response, contexts):
-    if case.get("fixed"):
-        return [] if response == contexts[case["project"]]["fixed"] else ["fixed_text_changed"]
-    # Recognize only line-leading speaker labels; bracketed stage directions may have colons.
-    labels = [l.split(":", 1)[0].strip() for l in response.splitlines()
-              if ":" in l and not l.startswith(("[", "("))]
-    allowed = SPEAKERS[case["project"]]
+def automatic(case, response):
     issues = []
-    if not labels or set(labels)-allowed:
-        issues.append("speaker_format")
-    if len(labels) > min(3, len(allowed)) or len(labels) != len(set(labels)):
-        issues.append("speaker_count")
+    if case["project"] == "cloud":
+        lines = [line.strip() for line in response.splitlines() if line.strip()]
+        speakers = [match[1] for line in lines if (match := CLOUD_LINE.fullmatch(line))]
+        if not speakers or len(speakers) != len(lines):
+            issues.append("speaker_format")
+        if len(speakers) > 3 or len(speakers) != len(set(speakers)):
+            issues.append("speaker_count")
     if "{{user}}" in response:
         issues.append("nickname_placeholder")
     return issues
@@ -77,24 +75,27 @@ def validate(review):
             raise ValueError("위반 횟수는 음이 아닌 정수 또는 null이어야 합니다.")
 
 
-def summarize(model, ids, latest, attempts, reviews, auto):
+def summarize(model, ids, latest, attempts, reviews, auto, fixed_ids=()):
     rows = [r for r in attempts if r["model"] == model]
     resolved = [r for r in rows if r["status"] != "uncertain"]
     errors = [r for r in resolved if r["status"] == "error"]
     successes = [latest[model, cid] for cid in ids if (model, cid) in latest and latest[model,cid]["status"] == "ok"]
-    latency = [r["latency_s"] for r in successes if r.get("latency_s") is not None]
-    complete = len(successes) == len(ids)
+    generated = [row for row in successes if row["test_id"] not in fixed_ids]
+    latency = [row["latency_s"] for row in generated if row.get("latency_s") is not None]
+    quality_ids = [cid for cid in ids if cid not in fixed_ids]
     metrics, counts = {}, {}
     for metric in METRICS:
-        paired = [reviews[model,cid]["scores"][metric] for cid in ids
+        paired = [reviews[model,cid]["scores"][metric] for cid in quality_ids
                   if all(type(reviews.get((m,cid), {}).get("scores", {}).get(metric)) is int for m in MODELS)]
         metrics[metric] = mean(paired)
         counts[metric] = len(paired)
     error_rate = len(errors)/len(resolved) if resolved else None
-    usable = len([r for r in resolved if r["status"] == "ok"])/len(resolved) if resolved else None
+    generated_attempts = [row for row in resolved if row["test_id"] not in fixed_ids]
+    usable = (sum(row["status"] == "ok" for row in generated_attempts) / len(generated_attempts)
+              if generated_attempts else None)
     metrics["efficiency"] = mean([latency_grade(s) for s in latency])*usable if latency else None
     reviewed = [v for (m,_),v in reviews.items() if m == model]
-    all_reviewed = complete and all(
+    all_reviewed = len(generated) == len(quality_ids) and len(reviewed) == len(quality_ids) and all(
         None not in v["scores"].values() and v["extra_violations"] is not None and v["severe_violations"] is not None
         for v in reviewed)
     human_complete = bool(reviewed) and all(v["extra_violations"] is not None for v in reviewed)
@@ -105,6 +106,9 @@ def summarize(model, ids, latest, attempts, reviews, auto):
         values = [r["usage"][key] for r in resolved if isinstance(r.get("usage", {}).get(key), int)]
         tokens[label] = {"observed": len(values), "total": sum(values) if values else None, "mean": mean(values)}
     return {"planned": len(ids), "attempts": len(rows), "ok": len(successes),
+            "quality_planned": len(quality_ids), "quality_ok": len(generated),
+            "human_violation_reviews": sum(v["extra_violations"] is not None for v in reviewed),
+            "severe_reviews": sum(v["severe_violations"] is not None for v in reviewed),
             "api_errors": len(errors), "api_error_rate": error_rate,
             "invalid_outputs": sum(r["status"]=="invalid" for r in rows),
             "uncertain": len(rows)-len(resolved), "latency_s": {"mean":mean(latency),
@@ -128,9 +132,21 @@ def evaluate(folder, phase):
     filename = out / "reviews.json"
     forms = json.loads(filename.read_text()) if filename.exists() else {}
     reviews, auto, by_test = {}, {}, []
+    fixed_ids = {case["id"] for case in cases.values() if case.get("fixed")}
+    fixed = {model: [] for model in MODELS}
+    for model in MODELS:
+        for cid in manifest["cases"]:
+            if cid not in fixed_ids:
+                continue
+            row = latest.get((model, cid))
+            status = row["status"] if row else "pending"
+            exact = None
+            if status == "ok" and manifest["mode"] == "live":
+                exact = row["response"] == contexts[cases[cid]["project"]]["fixed"]
+            fixed[model].append({"test_id": cid, "status": status, "exact_match": exact})
     for key, row in latest.items():
         model,cid = key
-        if row["status"] != "ok":
+        if row["status"] != "ok" or cid in fixed_ids:
             continue
         case = cases[cid]
         blind = hashlib.sha256(pack([phase, model, cid, row["response"]]).encode()).hexdigest()[:16]
@@ -138,17 +154,17 @@ def evaluate(folder, phase):
             forms[blind] = review_form(case, row, contexts[case["project"]])
         validate(forms[blind])
         reviews[key] = forms[blind]
-        auto[key] = automatic(case,row["response"],contexts)
+        auto[key] = automatic(case, row["response"])
         by_test.append({"model":model,"test_id":cid,"automatic":auto[key],
                         **{k:forms[blind][k] for k in ("scores","extra_violations","severe_violations","comment")}})
     save(filename, dict(sorted(forms.items())))
     ids = manifest["cases"]
-    result = {m:summarize(m,ids,latest,rows,reviews,auto) for m in MODELS}
+    result = {m:summarize(m, ids, latest, rows, reviews, auto, fixed_ids) for m in MODELS}
     real_full = manifest["mode"] == "live" and phase == "full"
     if real_full and all(v["fully_reviewed"] and None not in v["metrics"].values() for v in result.values()):
         for v in result.values():
             v["weighted"] = sum(WEIGHTS[k]*score for k,score in v["metrics"].items())
-    report = {"mode":manifest["mode"],"phase":phase,"models":result,"by_test":by_test}
+    report = {"mode":manifest["mode"],"phase":phase,"models":result,"by_test":by_test,"fixed_reproduction":fixed}
     save(out/"summary.json", report)
     lines = [f"# {manifest['mode']} / {phase}", "", "| 항목 | "+" | ".join(MODELS)+" |",
              "|---|---:|---:|"]
@@ -156,14 +172,19 @@ def evaluate(folder, phase):
         cells = ["N/A" if x is None else f"{x:.3f}" if isinstance(x,float) else str(x) for x in values]
         lines.append("| "+" | ".join([label,*cells])+" |")
     for k in ("planned","attempts","ok","api_errors","api_error_rate","invalid_outputs","uncertain",
+              "quality_planned","quality_ok","human_violation_reviews","severe_reviews",
               "automatic_violations","violations","severe","weighted"):
         add(k,[v[k] for v in result.values()])
     for k in WEIGHTS:
         add(k,[v["metrics"][k] for v in result.values()])
     for k in ("mean","median","p95"):
-        add(k+" (s)",[v["latency_s"][k] for v in result.values()])
+        add("generated "+k+" (s)",[v["latency_s"][k] for v in result.values()])
     for k in ("input","output","thinking"):
         add(k+" tokens",[v["tokens"][k]["total"] for v in result.values()])
+    if any(fixed.values()):
+        lines.extend(["", "## 고정 컷 원문 재현", "", "| 문항 | "+" | ".join(MODELS)+" |", "|---|---:|---:|"])
+        for i, item in enumerate(fixed[MODELS[0]]):
+            add(item["test_id"], [fixed[model][i]["exact_match"] for model in MODELS])
     (out/"comparison.md").write_text("\n".join(lines)+"\n")
     print(out/"comparison.md")
 

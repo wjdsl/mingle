@@ -41,7 +41,7 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(list(self.folder.iterdir()), [])
 
     def test_resume_isolation_and_evaluation(self):
-        self.args.max_calls = 53
+        self.args.max_calls = 57  # Both models have completed four fridge turns.
         with patch.object(bench, "google", side_effect=AssertionError):
             self.assertEqual(self.run_jobs(), 2)
             self.args.max_calls = None
@@ -50,16 +50,17 @@ class BenchmarkTests(unittest.TestCase):
         folder = self.folder/"mock"
         manifest, rows = ev.read_run(folder, "full")
         self.assertEqual(len(rows),108)
-        for m, other in (bench.MODELS, bench.MODELS[::-1]):
-            r = next(r for r in rows if r["model"]==m and r["test_id"]=="fridge-10")
-            contents = r["request"]["contents"]
-            self.assertEqual(len(contents),19)
-            for i,entry in enumerate(contents[1::2],1):
-                self.assertEqual(entry["parts"][0]["text"], f"[MOCK] {m} fridge-{i:02}")
+        for model in bench.MODELS:
+            for turn in (5, 10):
+                row = next(r for r in rows if r["model"] == model and r["test_id"] == f"fridge-{turn:02}")
+                contents = row["request"]["contents"]
+                self.assertEqual(len(contents), 2 * turn - 1)
+                for i, entry in enumerate(contents[1::2], 1):
+                    self.assertEqual(entry["parts"][0]["text"], f"[MOCK] {model} fridge-{i:02}")
         ev.evaluate(folder, "full")
         file = folder/"full/reviews.json"
         reviews = json.loads(file.read_text())
-        self.assertEqual(len(reviews),108)
+        self.assertEqual(len(reviews),104)
         first = next(iter(reviews.values()))
         first["scores"]["memory"]="N/A"
         file.write_text(json.dumps(reviews))
@@ -76,6 +77,11 @@ class BenchmarkTests(unittest.TestCase):
             with patch.object(bench,"google",return_value={"status":"error","http":429}) as post:
                 self.assertEqual(self.run_jobs(),2)
                 self.assertEqual(post.call_count,1)
+            with patch.object(bench, "google", side_effect=AssertionError) as post:
+                self.assertEqual(self.run_jobs(), 2)
+                post.assert_not_called()
+            with contextlib.closing(bench.open_db(self.folder / "live")) as db, db:
+                db.execute("UPDATE attempts SET started = started - 86400")
             with patch.object(bench,"google",side_effect=KeyboardInterrupt) as post:
                 with self.assertRaises(KeyboardInterrupt):
                     self.run_jobs()
@@ -124,7 +130,49 @@ class BenchmarkTests(unittest.TestCase):
         ev.evaluate(folder, "full")
         for result in json.loads((folder/"full/summary.json").read_text())["models"].values():
             self.assertAlmostEqual(result["weighted"], 4.1)
-            self.assertEqual(result["paired_counts"]["memory"], 54)
+            self.assertEqual(result["paired_counts"]["memory"], 52)
+            self.assertEqual(result["quality_ok"], 52)
+            self.assertEqual(result["automatic_violations"], 15)
+        diagnostics = json.loads((folder/"full/summary.json").read_text())["fixed_reproduction"]
+        for model in bench.MODELS:
+            self.assertEqual(len(diagnostics[model]), 2)
+            self.assertTrue(all(item["exact_match"] is False for item in diagnostics[model]))
+
+    def test_speaker_rules_match_service_needs(self):
+        suite, contexts = bench.load_suite()
+        fridge = suite["cases"][0]
+        cloud = next(case for case in suite["cases"] if case["project"] == "cloud")
+        stored = json.loads((bench.HERE / "probe_report.json").read_text())
+        for sample in stored["samples"]:
+            self.assertEqual(ev.automatic(fridge, sample["response"]), [])
+        self.assertEqual(ev.automatic(cloud, "모두 배로 와!"), ["speaker_format"])
+        self.assertEqual(ev.automatic(cloud, "토토: 배로 와!\n비비: 엔진부터 볼게."), [])
+        self.assertEqual(ev.automatic(cloud, "토토: 배로 와!\n엔진부터 볼게."), ["speaker_format"])
+        self.assertEqual(ev.automatic(cloud, "토토: 배로 와!\n토토: 서둘러."), ["speaker_count"])
+        self.assertIn("화자 이름을 생략하지 않는다", bench.pack(bench.make_request(cloud, contexts, [])))
+
+    def test_partial_summary_keeps_failures_separate_and_never_double_scores(self):
+        from contextlib import closing
+        self.args.max_calls = 1
+        self.assertEqual(self.run_jobs(), 2)
+        folder = self.folder / "mock"
+        with closing(bench.open_db(folder)) as db, db:
+            db.execute("UPDATE attempts SET result = ?", (bench.pack({"status": "error", "http": 429}),))
+            model = bench.MODELS[0]
+            suite, contexts = bench.load_suite()
+            case = suite["cases"][0]
+            bench.reserve(db, "full", model, case, bench.make_request(case, contexts, []))
+            db.execute("UPDATE attempts SET result = ? WHERE attempt = 2",
+                       (bench.pack({"status": "ok", "response": "응답", "latency_s": None}),))
+        ev.evaluate(folder, "full")
+        summary = json.loads((folder/"full/summary.json").read_text())
+        first = summary["models"][bench.MODELS[0]]
+        self.assertEqual((first["attempts"], first["ok"], first["api_errors"]), (2, 1, 1))
+        self.assertEqual(first["api_error_rate"], .5)
+        self.assertIsNone(first["weighted"])
+        self.assertIsNone(first["severe"])
+        self.assertEqual(len(summary["by_test"]), 1)
+        self.assertEqual(sum(ev.WEIGHTS.values()), 1.0)
 
     def test_full_scoring_and_bounds(self):
         import copy
