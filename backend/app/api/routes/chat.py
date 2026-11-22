@@ -13,8 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_session, get_owned_conversation
 from app.db.base import SessionLocal, get_db
 from app.db.models import Conversation, Persona, UserSession
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import ChatRequest, ChatResponse, ChatSafetyResponse
 from app.services.chat_service import (
+    ChatSafetyOutcome,
     ConversationCompletedError,
     LocalMemoryNotAllowedError,
     PersonaNotFoundError,
@@ -23,7 +24,7 @@ from app.services.chat_service import (
 from app.services.memory import PURUMA_PERSONA_SLUG, PurumaNote
 from app.services.llm import LLMError
 from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
-from app.services.presenters import chat_response
+from app.services.presenters import chat_response, chat_safety_response
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,12 @@ async def _client_notes(db: AsyncSession, conversation: Conversation, payload: C
     return [PurumaNote(**note.model_dump()) for note in payload.notes]
 
 
-@router.post("", response_model=ChatResponse, summary="메시지 전송")
+@router.post("", response_model=ChatResponse | ChatSafetyResponse, summary="메시지 전송")
 async def send_message(
     payload: ChatRequest,
     session: UserSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db),
-) -> ChatResponse:
+) -> ChatResponse | ChatSafetyResponse:
     conversation = await get_owned_conversation(db, session.id, payload.conversation_id)
     if conversation.status == "completed":
         raise HTTPException(
@@ -87,6 +88,8 @@ async def send_message(
             detail="AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
         ) from exc
 
+    if isinstance(outcome, ChatSafetyOutcome):
+        return chat_safety_response(outcome)
     return chat_response(outcome)
 
 
@@ -143,9 +146,12 @@ async def stream_message(
                         stream_db, conv, user_text, emit=emit, client_notes=client_notes
                     )
                     await stream_db.commit()
-                    await queue.put(
-                        ("final", chat_response(outcome).model_dump(mode="json"))
+                    response = (
+                        chat_safety_response(outcome)
+                        if isinstance(outcome, ChatSafetyOutcome)
+                        else chat_response(outcome)
                     )
+                    await queue.put(("final", response.model_dump(mode="json")))
                 except ConversationCompletedError as exc:
                     await stream_db.rollback()
                     await queue.put(("error", {"detail": str(exc)}))
