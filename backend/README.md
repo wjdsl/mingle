@@ -487,7 +487,7 @@ Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다
 
 ### 2026-11-18 푸르마 기억 시연 실행
 
-푸르마 대화(`/api/chat`)에 브라우저 로컬 기억을 쓰는 시연의 실행 방법이다. 기존 `backend/.env`는 수정하지 않고 환경변수로 덮어쓴다.
+푸르마 대화(`/api/chat`)에 브라우저 로컬 기억을 쓰는 시연의 실행 방법이다. 기존 `backend/.env`는 수정하지 않고 환경변수로 덮어쓴다. 2026-11-22부터 프론트 푸르마는 `/api/story-chat` 10턴을 쓴다(아래 '2026-11-22 푸르마 10턴 장면형 스토리' 절). 서버 실행 순서는 이 절과 같다.
 
 #### 안전 실행 절차 (실제 Gemini 시연, 푸르마와 냉장고·구름섬을 한 서버로)
 
@@ -593,3 +593,26 @@ DATABASE_URL=sqlite+aiosqlite:///./data/eval.db GEMINI_CHAT_MODEL=<모델> GEMIN
 
 - 예상 호출 수(Qwen 끔, 생성 시도 2 × HTTP 재시도 2): 세 스위트 1회 170~680회, `--suites quality`만 18~72회. 냉장고 Qwen 하이브리드는 서버 `FRIDGE_QWEN_DIALOGUE_ENABLED=true`, 실행기 `--projects fridge --qwen true`로 194~485회(LLM 턴 97, 최소는 생성 97 + Qwen 97). `--qwen`·`--story-attempts`·`--http-attempts`는 예상 계산용이므로 서버 설정과 맞춘다. 다르면 리포트에 경고가 붙는다.
 - 검증: `tests/test_story_eval.py`(20건). 서버 Mock과 가짜 Gemini로 두 작품 3스위트 전체 실행을 확인했다. 실제 Gemini·Qwen 실행과 PostgreSQL에서의 메타데이터 조회는 아직 하지 않았다.
+
+## 2026-11-22 푸르마 10턴 장면형 스토리
+
+푸르마는 `/api/story-chat`에서 `{"project": "puruma"}`로 대화를 만든다(장면 세트 `puruma_draft_v1`가 기본). 냉장고·구름섬과 같은 턴 처리(같은 request_id 재생, 응답 제어와 교정 재생성, AI 실패 시 고정 대사 `provider=fallback`, 위기 입력 차단)를 쓴다. 기존 `/api/chat`과 `seed_puruma.py`는 그대로 두었다.
+
+- 장면: `app/services/puruma_scenes.py`. 기획서 원문 문장과 구현 초안을 구분한다. 프롬프트 규칙은 `app/prompts/story_puruma_system.md`에 `seed_puruma.py`의 원문 문장을 넣어 만든다.
+- 상태와 판정: `app/services/puruma_state.py`. 별도 표 없이 `story_turns`와 응답 메시지 extra의 `puruma` 값(주제, 태도, 감정, 홍보 ID, 진로)으로 매 턴 다시 계산한다. 엔딩은 마지막 턴 응답과 `GET /api/story-chat/conversations/{id}`의 `ending`으로 보낸다.
+- 요청: `POST .../turns`에 선택 필드 `notes`(브라우저 로컬 기억, 최대 10개)를 보낼 수 있다. 푸르마가 아닌 대화에 보내면 422다. 서버는 기억을 저장하지 않는다.
+- 응답: 푸르마만 `emotion`(confused/happy/sparkle), `promo`(id, title, label, url, source_name, checked_at), `notes`가 붙는다. 냉장고·구름섬 응답에는 이 필드가 나오지 않는다.
+- 홍보 링크는 `data/rag/pruma_rag_mvp.json`(읽기 전용)의 `source_url`이 있는 항목만 쓴다. 파일을 읽지 못하면 홍보 없이 진행한다.
+- 테스트: `tests/test_puruma_story.py`.
+
+실행 (기존 8000 포트 서버와 같은 절차를 따른다)
+
+```bash
+# 서버 Mock: 대사는 고정, 홍보·분기·엔딩 판정은 실제 규칙
+LLM_PROVIDER=mock LLM_PROBE_ON_STARTUP=false .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# 실제 Gemini: 10턴에 호출 10~20회. 시작 점검을 끄고 HTTP 재시도를 1회로 둔다.
+LLM_PROVIDER=gemini LLM_TIMEOUT_SECONDS=60 GEMINI_HTTP_ATTEMPTS=1 LLM_PROBE_ON_STARTUP=false SEED_ON_STARTUP=false \
+  .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+프론트는 각각 `npm run dev:puruma-scenario-mock`, `npm run dev:puruma-api`로 시작한다. 2026-11-22 Gemini 3.5 Flash-Lite(`GEMINI_CHAT_MODEL=gemini-3.5-flash-lite`) 확인에서는 40턴 중 13턴이 Gemini 503이었고 모두 고정 대사로 이어졌다.
