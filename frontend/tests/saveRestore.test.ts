@@ -94,3 +94,15 @@ test('API 새 대화: 첫 답변 전에는 이어하기 정보가 없고, 대화
   await client.sendTurn({ requestId: 'req-new-1', project: fridge, turn: 0, input: { text: '안녕하세요' } }, new AbortController().signal)
   assert.deepEqual(client.session?.(), { code: 'CODE-1', conversationId: 'conv-1' })
 })
+
+test('결말: 마지막 응답의 ending을 전달하고, 도감 목록에서 결과 문구를 찾는다', async () => {
+  const { parseStoryTurnResponse } = await import('../src/services/apiStoryClient.ts')
+  const { findEnding } = await import('../src/services/endingCollection.ts')
+  const base = { request_id: 'r', turn: 9, completed_turns: 10, replies: [{ speaker: '두두', text: '……잘했어.' }], provider: 'fixed', model: 'scene-script', finished: true }
+  assert.equal(parseStoryTurnResponse({ ...base, ending: 'cloud_result_dudu' }, { requestId: 'r', turn: 9 }).meta?.ending, 'cloud_result_dudu')
+  assert.equal(parseStoryTurnResponse({ ...base, ending: null }, { requestId: 'r', turn: 9 }).meta?.ending, undefined)
+  assert.equal(findEnding('cloud', 'cloud_result_dudu')?.character, '두두')
+  assert.equal(findEnding('fridge', 'fridge_rel_stage_2')?.address, '{호칭} 사원')
+  assert.equal(findEnding('puruma', 'x'), undefined)
+  assert.equal(findEnding('cloud', null), undefined)
+})

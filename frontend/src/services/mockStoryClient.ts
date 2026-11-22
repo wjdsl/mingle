@@ -9,6 +9,7 @@ export type StoryReplyMeta = {
   finished: boolean
   dialogueProvider?: string
   fallbackReason?: string
+  ending?: string
 }
 export type StoryReply = { speaker: string; text: string; reaction: string; followUps?: { speaker: string; text: string }[]; meta?: StoryReplyMeta; safety?: boolean }
 // 신규 작품 전용 Mock. 실제 API 계약이나 AI 분석을 구현하지 않는다.

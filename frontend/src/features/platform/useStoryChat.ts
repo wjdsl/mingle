@@ -33,7 +33,9 @@ function opening(project: StoryProject, index: number, name?: string): StoryMess
   { kind: 'text', role: 'character', speaker: step.speaker, text: `${name ? name + ', ' : ''}${step.text}`, situation: step.situation }
  ]
 }
-export function useStoryChat(project: StoryProject, name: string, onResult: () => void, client: StoryClient = mockStoryClient, options: StoryChatOptions = {}) {
+export function useStoryChat(project: StoryProject, name: string, onResult: (ending?: string) => void, client: StoryClient = mockStoryClient, options: StoryChatOptions = {}) {
+  // 마지막 장면 응답에 서버가 정한 결말 ID가 온다(API·서버 Mock 모드). 대화 중에는 호칭·단계를 바꾸지 않는다.
+  const ending = useRef<string | undefined>(undefined)
   const startTurn = Math.min(Math.max(options.startTurn ?? 0, 0), project.steps.length - 1)
   const [turn, setTurn] = useState(startTurn)
   const [messages, setMessages] = useState<StoryMessage[]>(() => options.resumed
@@ -77,6 +79,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
         const lines = [{ speaker: reply.speaker, text: reply.text }, ...(reply.followUps ?? [])]
         const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model, dialogueProvider: reply.meta.dialogueProvider } : {}
         setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
+        if (reply.meta?.ending) ending.current = reply.meta.ending
         setErrorMessage(undefined); setStatus('replied')
         remember(turn + 1)
       }
@@ -117,7 +120,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   function advance() {
     if (status !== 'replied' || !pending.current) return
     const next = turn + 1
-    if (next === project.steps.length) { clearProgress(project.id); onResult(); return }
+    if (next === project.steps.length) { clearProgress(project.id); onResult(ending.current); return }
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }

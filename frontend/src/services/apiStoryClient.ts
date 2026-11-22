@@ -182,6 +182,7 @@ export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnReq
       finished: data.finished === true,
       ...(typeof data.dialogue_provider === 'string' ? { dialogueProvider: data.dialogue_provider } : {}),
       ...(typeof data.fallback_reason === 'string' ? { fallbackReason: data.fallback_reason } : {}),
+      ...(typeof data.ending === 'string' && data.ending ? { ending: data.ending } : {}),
     },
   }
 }
