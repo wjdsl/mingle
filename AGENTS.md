@@ -443,5 +443,5 @@
 - 행동 테스트는 `scripts/story_eval/cases/*_behavior.json`에 원본(`data/*_data/tests/*_chat_test_cases.json`) id로 연결해 턴·입력·자동 검사·사람 검토로 옮겼다. 원본 데이터 파일은 수정하지 않았다. 원본에 없던 필수 범주(역할 변경·연애·실존 기업·학번)는 `eval_added`로 추가했다. 의미 판단은 자동 판정하지 않고 LLM 심판도 만들지 않았다.
 - 서비스 변경: 스토리 턴 메시지 extra에 `generation`(생성 호출 수, 모든 시도의 위반 코드, 입력·출력·생각 토큰, 서버 설정)을 저장한다. 대체 응답 턴에도 남으며 기존 `attempts`·`control_violations`·`story_fallback` 의미는 그대로다. `LLMResult`에 `thinking_tokens`를 추가했다. 대사·입력·키는 넣지 않는다.
 - 실제 공급자 실행은 `--max-calls`가 필수이며 `--dry-run`으로 예상 호출 수를 먼저 본다. 리포트는 `backend/eval_reports/`(git 제외)에 저장된다. `report.json`·`summary.md`에는 대사 원문이 없고, 행동 테스트 검토용 `review.md`·`review.json`에만 입력·응답이 있다. 사용법은 `backend/README.md` 해당 절.
-- 확인 필요: 스토리 프롬프트는 `intent_id`를 "점수에 쓰지 않는다"고 안내하지만 `story_judgement.py`는 이 값으로 결말을 판정한다.
+- 스토리 프롬프트의 `intent_id` 안내는 판정 동작에 맞춰 "가장 가까운 의도 하나, 맞지 않을 때만 none, 결말에 반영되므로 신중히 고른다"로 고쳤다(점수·단계·결말 이름은 알리지 않음, `test_story_prompt_control.py`로 확인). 의도 분류 정확도 측정은 이 문구 기준이다.
 - 검증: 백엔드 pytest 367개(신규 20), 프론트 테스트 83개·빌드, 데이터 검증 52/79/112 통과. 서버 Mock과 가짜 Gemini(`scripts/story_eval/fake_gemini.py`)로 두 작품 3스위트 전체 실행·호출 상한 정지·비교표 생성을 확인했다. 실제 Gemini·Qwen 실행, PostgreSQL 메타데이터 조회는 하지 않았다. 커밋/푸시 없음.

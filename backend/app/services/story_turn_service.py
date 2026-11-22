@@ -461,7 +461,7 @@ async def _find_by_request(db: AsyncSession, conversation_id: str, request_id: s
 
 
 def parse_intent(raw: str, scene: Scene) -> str | None:
-    """분석 기록용 의도 ID. 장면에 정의된 ID가 아니면 버린다(점수에는 쓰지 않는다)."""
+    """LLM이 분류한 의도 ID. 장면에 정의된 ID가 아니면 버린다. 자유 입력 턴의 결말 판정(story_judgement)에 쓰인다."""
     try:
         value = json.loads(_strip_fences(raw)).get("intent_id")
     except (json.JSONDecodeError, TypeError, AttributeError):
