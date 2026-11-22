@@ -4,21 +4,26 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
+
+from app.schemas.chat import ClientNote
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-SceneSet = Literal["ui_mock_v1", "scenario_draft_v1"]
+SceneSet = Literal["ui_mock_v1", "scenario_draft_v1", "puruma_draft_v1"]
 
 
 class StoryConversationCreate(StrictModel):
-    project: Literal["fridge", "cloud"]
-    scene_set: SceneSet = Field(
-        default="ui_mock_v1",
-        description="ui_mock_v1: 현재 프론트 Mock 장면(기본). scenario_draft_v1: 시나리오 장면 카드 초안 10턴(팀 미확정).",
+    project: Literal["fridge", "cloud", "puruma"]
+    scene_set: SceneSet | None = Field(
+        default=None,
+        description=(
+            "생략하면 냉장고·구름섬은 ui_mock_v1(현재 프론트 Mock 장면), 푸르마는 puruma_draft_v1. "
+            "scenario_draft_v1: 냉장고·구름섬 시나리오 장면 카드 초안 10턴(팀 미확정). puruma_draft_v1: 푸르마 10턴 장면 초안(팀 미확정)."
+        ),
     )
 
 
@@ -48,6 +53,11 @@ class StoryTurnRequest(StrictModel):
     request_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     turn: int = Field(ge=0, le=50, description="0부터 시작하는 장면 번호. 서버 진행 장면과 같아야 한다.")
     input: StoryTurnInput
+    notes: list[ClientNote] | None = Field(
+        default=None,
+        max_length=10,
+        description="푸르마 전용 브라우저 로컬 기억. 보내면 갱신된 전체 기억을 응답 notes로 돌려준다. 서버에는 저장하지 않는다.",
+    )
 
 
 class StoryFixedTurnRequest(StrictModel):
@@ -90,6 +100,17 @@ class StoryReplyLine(BaseModel):
     text: str
 
 
+class PromoOut(BaseModel):
+    """푸르마 홍보 링크 카드(data/rag/pruma_rag_mvp.json의 확인된 공식 URL만)."""
+
+    id: str
+    title: str
+    label: str
+    url: str
+    source_name: str
+    checked_at: str | None = None
+
+
 class StoryTurnResponse(BaseModel):
     conversation_id: str
     project: str
@@ -114,3 +135,16 @@ class StoryTurnResponse(BaseModel):
     fallback_reason: str | None = None
     # 위기 신호 입력이면 true: 장면을 진행하지 않았고 입력은 저장하지 않았다(completed_turns는 그대로).
     safety_notice: bool = False
+    # 푸르마만: 캐릭터 감정 코드(confused/happy/sparkle), 홍보 카드, 갱신된 로컬 기억. 다른 작품은 None.
+    emotion: str | None = None
+    promo: PromoOut | None = None
+    notes: list[ClientNote] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_puruma_fields(self, handler):
+        # 냉장고·구름섬 응답의 필드 구성은 그대로 둔다(푸르마 전용 필드는 푸르마 응답에만 나온다).
+        data = handler(self)
+        if self.project != "puruma":
+            for key in ("emotion", "promo", "notes"):
+                data.pop(key, None)
+        return data

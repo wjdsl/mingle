@@ -81,3 +81,9 @@
 .ending-preview-actions > button { flex: 1; min-width: 0; margin: 0 !important; font-size: 12px !important; }
 .p-work .ending-preview { overflow-y: auto; padding: 0 4px 5px 0; }
 .p-work .graduation-card { min-height: 430px; flex-shrink: 0; }
+
+/* 푸르마 시연용 엔딩 6종(2026-11-22): 2열 3행 */
+.album-grid.album-grid-six { grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 12px 12px; }
+.slot-5 { transform: rotate(-2deg); }
+.slot-6 { transform: rotate(3deg); }
+.slot-5 .photo-tape { background: #b3d9e5b3; left: 30%; transform: rotate(-6deg); }

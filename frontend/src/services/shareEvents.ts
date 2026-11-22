@@ -3,7 +3,7 @@
 // 브라우저 전용 Mock 모드에서는 어떤 요청도 보내지 않는다. 전송 실패는 사용자 흐름에 영향을 주지 않는다.
 import { newRequestId } from './requestId.ts'
 import { storyClientMode } from './storyClient.ts'
-import { purumaClientMode } from './apiChatClient.ts'
+import { purumaStoryMode } from './apiPurumaStoryClient.ts'
 
 export type ShareEventKind = 'share_click' | 'image_save_click' | 'link_open' | 'link_start'
 export type ShareStorage = Pick<Storage, 'getItem' | 'setItem'>
@@ -14,7 +14,7 @@ const SHARE_VALUE = 'share'
 
 export function serverConnected(projectId: string): boolean {
   // scenario-mock은 서버 Mock(백엔드 LLM_PROVIDER=mock)에 연결하는 모드라 서버에 기록이 남는다. 'mock'만 브라우저 전용이다.
-  return projectId === 'puruma' ? purumaClientMode() === 'api' : storyClientMode() !== 'mock'
+  return projectId === 'puruma' ? purumaStoryMode() !== 'mock' : storyClientMode() !== 'mock'
 }
 
 export function createShareEvents(options: {

@@ -28,6 +28,7 @@ from app.schemas.admin import (
     Totals,
     TriggerStats,
 )
+from app.services.puruma_scenes import PURUMA_STORY_SLUG
 from app.services.story_scene_sets import scenario_persona_slug
 from app.services.story_scenes import PROJECTS
 
@@ -56,7 +57,7 @@ async def build_overview(
     conversation_scope = select(Conversation.id)
     session_times_query = select(UserSession.created_at).where(UserSession.created_at.between(since, now))
     if project is not None:
-        slugs = ("puruma",)
+        slugs = ("puruma", PURUMA_STORY_SLUG)
         if project != "puruma":
             base_slug = PROJECTS[project].persona_slug
             slugs = (base_slug, scenario_persona_slug(base_slug))

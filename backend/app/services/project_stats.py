@@ -22,6 +22,7 @@ from app.db.models import Conversation, Message, Persona, RelationshipState, Sha
 from app.schemas.admin import ChatStats, ProjectDailyPoint, ProjectStats, ShareStats
 from app.services.analytics import KST, DashboardProject, _as_utc
 from app.services.memory import PURUMA_PERSONA_SLUG
+from app.services.puruma_scenes import PURUMA_STORY_SLUG
 from app.services.story_scene_sets import scenario_persona_slug
 from app.services.story_scenes import PROJECTS
 
@@ -30,7 +31,8 @@ SHARE_EVENTS = ("share_click", "image_save_click", "link_open", "link_start")
 
 def project_persona_slugs(project: DashboardProject) -> tuple[str, ...]:
     if project == "puruma":
-        return (PURUMA_PERSONA_SLUG,)
+        # /api/chat 개강 2턴(기존)과 /api/story-chat 10턴(2026-11-22) 대화를 같은 작품으로 묶는다.
+        return (PURUMA_PERSONA_SLUG, PURUMA_STORY_SLUG)
     base = PROJECTS[project].persona_slug
     return (base, scenario_persona_slug(base))
 
@@ -61,6 +63,13 @@ async def build_project_stats(db: AsyncSession, project: DashboardProject, days:
                     Conversation.persona_id.in_(persona_ids), Conversation.created_at.between(since, now)))
             )
             turns_by_conversation = {cid: int(count or 0) for cid, count in (await db.execute(query)).all()}
+            # 10턴 장면형 대화는 relationship_states가 없고 story_turns 행 수로 센다.
+            story_query = (
+                select(StoryTurnRecord.conversation_id, func.count())
+                .where(StoryTurnRecord.project == project, StoryTurnRecord.conversation_id.in_(cohort_ids))
+                .group_by(StoryTurnRecord.conversation_id)
+            )
+            turns_by_conversation.update({cid: int(count) for cid, count in (await db.execute(story_query)).all()})
         else:
             query = (
                 select(StoryTurnRecord.conversation_id, func.count())

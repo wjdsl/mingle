@@ -36,6 +36,7 @@ REAL_COMPANIES = ("삼성전자", "삼성", "현대자동차", "현대차", "SK�
 # 캐릭터가 이야기 밖(작품·설정·AI)에서 말하는 표현. 대사에 나오면 몰입이 깨지므로 재생성 대상이다.
 META_TERMS = ("가상", "작품 속", "작품 안", "이 작품", "시나리오", "설정상", "인공지능", "언어 모델")
 INVEST_PHRASES = ("매수", "매도", "사세요", "투자하세요", "투자해", "종목 추천", "주식을 사")
+URL_LIKE = re.compile(r"https?://|www\.|\.ac\.kr|\.co\.kr|\.com\b", re.IGNORECASE)
 MAX_SENTENCES = 3
 REPEAT_RATIO = 0.9
 
@@ -102,7 +103,8 @@ def validate_lines(
 
     for speaker, text in lines:
         spoken_sentences = sentences(text)
-        polite = [s for s in spoken_sentences if POLITE_END.search(s)]
+        # 푸르마는 존댓말이 기본이라(기획서 2.2) 존댓말 검사를 하지 않는다.
+        polite = [s for s in spoken_sentences if POLITE_END.search(s)] if project.id != "puruma" else []
         if polite:
             found.append(Violation("style_polite", f"{speaker}: {polite[0][:30]}"))
         if len(spoken_sentences) > MAX_SENTENCES:
@@ -114,7 +116,8 @@ def validate_lines(
 
     if any(word in joined for word in GENDER_ADDRESS) or _gendered_nickname(joined, nickname):
         found.append(Violation("forbidden_address", "성별을 가정하는 호칭"))
-    meta = [t for t in META_TERMS if t in joined]
+    # 푸르마는 실제 AI 여부를 물으면 속이지 않아야 하므로(pruma_system.md 1장) 이야기 밖 표현 검사를 하지 않는다.
+    meta = [t for t in META_TERMS if t in joined] if project.id != "puruma" else []
     if meta:
         found.append(Violation("fourth_wall", ", ".join(meta)))
     unseen = [name for name in TENTATIVE_NAMES if name in joined and name not in visible]
@@ -125,6 +128,8 @@ def validate_lines(
         invest = [p for p in INVEST_PHRASES if p in joined]
         if companies or invest:
             found.append(Violation("real_finance", ", ".join(companies + invest)))
+    if project.id == "puruma" and URL_LIKE.search(joined):
+        found.append(Violation("url", "URL 생성"))
     if any(marker in joined for marker in LEAK_MARKERS) or "##" in joined:
         found.append(Violation("prompt_leak", "내부 규칙 표기"))
     normalized = _norm(joined)
@@ -136,6 +141,12 @@ def validate_lines(
         if ref_norm and normalized and (normalized == ref_norm or SequenceMatcher(None, normalized, ref_norm).ratio() >= REPEAT_RATIO):
             found.append(Violation("repetition", ref[:30]))
             break
+    if project.id == "puruma" and normalized:
+        # 푸르마: 장면의 반응 예시(선택지·자유 입력 고정 대사)를 글자 그대로 옮기면 다시 쓰게 한다.
+        # 예시는 AI 실패 때 쓰는 고정 대사라, 정상 응답까지 같으면 AI 연결 여부를 구분할 수 없다.
+        examples = [c.reference_reply for c in scene.choices] + [scene.default_reply]
+        if any(_norm(ex) and SequenceMatcher(None, normalized, _norm(ex)).ratio() >= REPEAT_RATIO for ex in examples):
+            found.append(Violation("copied_example", "반응 예시 그대로"))
     return found
 
 
@@ -152,6 +163,8 @@ def correction_note(violations: list[Violation]) -> str:
         "future_scene": "이후 장면 내용을 미리 말했다. 현재 장면에 머문다.",
         "repetition": "이전 대사를 반복했다. 새로운 말로 답한다.",
         "dudu_nickname": "두두는 아직 사용자 호칭을 부르지 않는다.",
+        "copied_example": "장면의 반응 예시를 그대로 옮겼다. 같은 뜻이라도 이번 대화에 맞는 새 문장으로 말한다.",
+        "url": "URL·주소를 썼다. 링크는 화면이 카드로 붙이므로 대사에 쓰지 않는다.",
     }
     counts = [v.count for v in violations if v.code == "too_many_sentences" and v.count]
     if counts:
