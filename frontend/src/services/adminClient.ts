@@ -24,7 +24,7 @@ export interface ProjectStats {
   events_scope: { real_sessions: number; sample_sessions: number }
   access: { sessions: number }
   promo: { applicable: boolean; impressions: number; clicks: number; click_sessions: number; ctr: number | null; contents: { id: string; label: string; impressions: number; clicks: number; click_sessions: number; ctr: number | null }[] }
-  revisit: { revisit_sessions: number; completed_sessions: number; rate: number | null; visitors: number }
+  revisit: { returning_visitors: number; completed_visitors: number; rate: number | null; visitors: number }
 }
 // real: 샘플(서버 Mock) 대화 제외, sample: 샘플만, all: 둘 다. 서버가 대화 단위로 판정한다.
 export type DataMode = 'real' | 'sample' | 'all'

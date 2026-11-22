@@ -47,8 +47,8 @@ def project_stats_csv(stats: ProjectStats) -> str:
     add("핵심 지표", "체류 시간 중앙값(초, 근사)", stats.dwell.median_seconds)
     add("핵심 지표", "체류 시간 p90(초, 근사)", stats.dwell.p90_seconds)
     add("핵심 지표", "체류 시간 대상 대화", stats.dwell.conversations)
-    add("핵심 지표", "재방문 세션(두 번째 이상 시작)", stats.revisit.revisit_sessions)
-    add("핵심 지표", "완료한 세션", stats.revisit.completed_sessions)
+    add("핵심 지표", "완료 후 다시 시작한 방문자", stats.revisit.returning_visitors)
+    add("핵심 지표", "완료한 방문자", stats.revisit.completed_visitors)
     add("핵심 지표", "재방문율(%)", stats.revisit.rate)
 
     if stats.segments:

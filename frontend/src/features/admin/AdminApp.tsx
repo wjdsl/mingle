@@ -117,10 +117,10 @@ export function AdminApp() {
           : (data.scope.sample_conversations > 0 || data.scope.unclassified_conversations > 0 || data.events_scope.sample_sessions > 0) && <p className="a-notice" role="note">{data.events_scope.sample_sessions > 0 && <span>서버 Mock 상태에서 받은 접속·홍보·재방문 이벤트 세션 {number(data.events_scope.sample_sessions)}개는 제외했어요.</span>}{data.scope.sample_conversations > 0 && <span>이 기간의 샘플 데이터(서버 Mock 대화) {number(data.scope.sample_conversations)}건은 제외했어요. 위의 데이터 선택에서 따로 볼 수 있어요.</span>}{data.scope.unclassified_conversations > 0 && <span>저장된 턴이 없는 대화 {number(data.scope.unclassified_conversations)}건은 샘플 여부를 알 수 없어 실제 대화로 셌어요.</span>}</p>}
         <section className="a-kpis" aria-label="방문 지표">{[
           ['총 접속 수', number(data.access.sessions), '작품 시작 화면에 들어온 세션 · 같은 탭 재진입은 한 번'],
-          ['재방문율', rateText(data.revisit.rate), `두 번째 이상 시작한 세션 ${number(data.revisit.revisit_sessions)} / 완료한 세션 ${number(data.revisit.completed_sessions)}`],
+          ['재방문율', rateText(data.revisit.rate), `완료한 방문자 ${number(data.revisit.completed_visitors)}명 중 다시 시작 ${number(data.revisit.returning_visitors)}명`],
           ['시작한 방문자', number(data.revisit.visitors), '체험을 시작한 브라우저 수(익명 ID)'],
         ].map(([label, value, help]) => <article className="a-kpi" key={label}><h2>{label}</h2><strong>{value}</strong><p>{help}</p></article>)}</section>
-        <p className="a-notice">재방문율은 기획서 정의(두 번째 이상 시작한 세션 ÷ 완료한 세션)대로 계산해요. 분자가 분모에 포함되지 않아 100%를 넘을 수 있어요. 같은 탭에서 다시 하기는 재방문으로 세지 않아요.</p>
+        <p className="a-notice">재방문율은 기간 안에 체험을 완료한 방문자(브라우저) 중, 완료한 뒤 다른 탭·다른 날에 다시 시작한 방문자의 비율이에요. 같은 탭에서 다시 하기는 재방문으로 세지 않아요.</p>
         <section className="a-kpis a-kpis-5" aria-label="채팅 지표">{[
           ['채팅 이용 세션', number(chat.sessions), '기간 내 대화를 시작한 세션'],
           ['시작한 대화', number(chat.conversations), '기간 내 생성된 대화'],

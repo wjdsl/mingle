@@ -463,7 +463,7 @@
 
 - 작품별 통계 API(`GET /api/admin/projects/{project}/stats`)에 `data=real|sample|all`을 추가했다. 기본은 샘플(서버 Mock)을 뺀 실제 데이터다. 대화는 저장된 턴에 provider `mock`이 하나라도 있으면 샘플이고, `fixed`·`fallback`은 Mock이 아니다. 접속·홍보·재방문 이벤트는 받을 때 서버가 Mock이면 샘플로 저장한다. 공유 이벤트는 샘플을 구분하지 않는다. 샘플을 포함한 화면과 CSV에는 "샘플 데이터" 표시가 붙는다(FR-73).
 - 1차(기존 데이터로 계산): 구간 도달률, 엔딩 분포, 체류 시간(첫 턴~마지막 턴 근사), 관심 분야(푸르마 topic), AI 대체 응답 비율(운영용). 엔딩은 저장하지 않고 조회할 때 저장된 턴 기록으로 다시 판정한다(판정 규칙 변경 시 지난 분포도 바뀜, 현재는 이 방식 유지로 결정).
-- 2차(새 이벤트): `POST /api/events/track`과 새 표 `analytics_events`. 총 접속 수(시작 화면에 들어온 탭 세션), 홍보 노출(화면에 절반 이상 보인 세션)·클릭·클릭률, 재방문율(기획서 정의 그대로, 100% 초과 가능), CSV 내려받기(`stats.csv`, 집계 수치만). 공유 이벤트(`share_events`)와는 별도 표이며 기존 공유 집계는 바꾸지 않았다.
+- 2차(새 이벤트): `POST /api/events/track`과 새 표 `analytics_events`. 총 접속 수(시작 화면에 들어온 탭 세션), 홍보 노출(화면에 절반 이상 보인 세션)·클릭·클릭률, 재방문율(완료한 방문자 중 완료 뒤 다른 세션에서 다시 시작한 비율, 0~100%. 기획서·명세의 정의도 같이 바꿨다), CSV 내려받기(`stats.csv`, 집계 수치만). 공유 이벤트(`share_events`)와는 별도 표이며 기존 공유 집계는 바꾸지 않았다.
 - 재방문용 방문자 ID는 localStorage `mingle.visitor.v1`의 무작위 값이다. 서버 연결 모드의 체험 시작·완료 이벤트에만 보내고 호칭·대화·진행 저장·기기 정보와 연결하지 않는다. 이 필드를 기획서 7장, `data/dashboard/pruma_dashboard_event_schema.json`, 검증 항목 D01·D02에 추가했다(이벤트 필드 8개). 검증 스크립트의 필드 개수 하드코딩은 중복 검사로 바꿨다.
 - 냉장고·구름섬 결과 화면의 영화관 바로가기는 URL이 정해지지 않아 만들지 않았다. 홍보 지표는 "해당 없음"이며, URL이 정해지면 `backend/app/services/analytics_events.py`의 `PENDING_PROMOS`와 결과 화면 링크만 추가하면 된다.
 - 배포 빌드에 `VITE_STORY_CLIENT=api`, `VITE_PURUMA_CLIENT=api`가 없으면 브라우저 전용 Mock으로 동작해 대화·이벤트가 서버에 기록되지 않는다.

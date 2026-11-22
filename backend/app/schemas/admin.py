@@ -214,10 +214,10 @@ class PromoStats(BaseModel):
 
 
 class RevisitStats(BaseModel):
-    """기획서 정의: 두 번째 이상 시작한 세션 / 완료한 세션."""
+    """재방문율: 완료한 방문자 중 첫 완료 뒤 다른 세션에서 다시 시작한 방문자 비율(0~100%)."""
 
-    revisit_sessions: int = 0
-    completed_sessions: int = 0
+    returning_visitors: int = 0  # 완료 뒤 다른 세션에서 다시 시작한 방문자
+    completed_visitors: int = 0  # 기간 안에 완료한 방문자
     rate: float | None = None
     visitors: int = 0  # 기간 안에 시작한 익명 방문자(브라우저) 수
 

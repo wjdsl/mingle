@@ -20,8 +20,8 @@
 - 2차 이벤트(analytics_events, 샘플은 이벤트를 받을 때 서버가 Mock이었는지로 구분):
   · 총 접속 수: 기간 안에 작품 시작 화면에 들어온 익명 세션(탭) 수. 같은 세션의 재진입은 한 번.
   · 홍보: 콘텐츠별 노출 세션 수(카드가 화면에 절반 이상 보인 세션), 클릭 횟수·클릭 세션 수, 클릭률 = 클릭 세션 / 노출 세션.
-  · 재방문율(기획서 정의 그대로): 기간 안에 시작한 세션 중 그 방문자(브라우저 익명 ID)의 두 번째 이상 시작 세션 수
-    / 기간 안에 완료한 세션 수. 방문자의 첫 시작 세션은 기간 이전 기록까지 본다. 같은 세션의 다시 하기는 재방문이 아니다.
+  · 재방문율: 기간 안에 완료한 방문자(브라우저 익명 ID) 중, 그 첫 완료 뒤에 다른 세션(탭)에서 다시 시작한 방문자의 비율.
+    항상 0~100%. 같은 탭에서 다시 하기는 재방문이 아니다. 다시 시작은 조회 시각까지의 기록을 본다.
 채팅 원문·호칭·개인 코드는 읽지도 반환하지도 않는다. 메시지 extra에서는 JSON 경로로 분류 값만 꺼낸다.
 """
 
@@ -158,7 +158,7 @@ async def build_event_stats(db: AsyncSession, project: DashboardProject, since, 
     """2차 이벤트 지표: (샘플 구분, 총 접속 수, 홍보, 재방문율). 세션 ID는 집계에만 쓰고 반환하지 않는다."""
     rows = (await db.execute(
         select(AnalyticsEvent.session_id, AnalyticsEvent.visitor_id, AnalyticsEvent.event_type,
-               AnalyticsEvent.content_id, AnalyticsEvent.sample)
+               AnalyticsEvent.content_id, AnalyticsEvent.sample, AnalyticsEvent.created_at)
         .where(AnalyticsEvent.project == project, AnalyticsEvent.created_at.between(since, now))
     )).all()
     scope = EventScope(
@@ -188,24 +188,25 @@ async def build_event_stats(db: AsyncSession, project: DashboardProject, since, 
         click_sessions=click_sessions, ctr=_rate(click_sessions, impressions), contents=items,
     )
 
-    starts = [r for r in rows if r.event_type == "story_start" and r.visitor_id]
-    visitors = {r.visitor_id for r in starts}
-    first_session: dict[str, str] = {}
-    if visitors:
-        history = (await db.execute(
-            select(AnalyticsEvent.visitor_id, AnalyticsEvent.session_id, AnalyticsEvent.sample)
+    visitors = {r.visitor_id for r in rows if r.event_type == "story_start" and r.visitor_id}
+    # 방문자별 기간 안 첫 완료(시각, 세션).
+    first_complete: dict[str, tuple] = {}
+    for r in sorted((r for r in rows if r.event_type == "story_complete" and r.visitor_id), key=lambda r: _as_utc(r.created_at)):
+        first_complete.setdefault(r.visitor_id, (_as_utc(r.created_at), r.session_id))
+    returning: set[str] = set()
+    if first_complete:
+        later_starts = (await db.execute(
+            select(AnalyticsEvent.visitor_id, AnalyticsEvent.session_id, AnalyticsEvent.sample, AnalyticsEvent.created_at)
             .where(AnalyticsEvent.project == project, AnalyticsEvent.event_type == "story_start",
-                   AnalyticsEvent.visitor_id.in_(visitors), AnalyticsEvent.created_at <= now)
-            .order_by(AnalyticsEvent.created_at, AnalyticsEvent.id)
+                   AnalyticsEvent.visitor_id.in_(first_complete), AnalyticsEvent.created_at <= now)
         )).all()
-        for h in history:
-            if keep(h.sample):
-                first_session.setdefault(h.visitor_id, h.session_id)
-    revisit_sessions = len({r.session_id for r in starts if first_session.get(r.visitor_id) != r.session_id})
-    completed_sessions = len({r.session_id for r in rows if r.event_type == "story_complete"})
+        for h in later_starts:
+            done_at, done_session = first_complete[h.visitor_id]
+            if keep(h.sample) and h.session_id != done_session and _as_utc(h.created_at) > done_at:
+                returning.add(h.visitor_id)
     revisit = RevisitStats(
-        revisit_sessions=revisit_sessions, completed_sessions=completed_sessions,
-        rate=_rate(revisit_sessions, completed_sessions), visitors=len(visitors),
+        returning_visitors=len(returning), completed_visitors=len(first_complete),
+        rate=_rate(len(returning), len(first_complete)), visitors=len(visitors),
     )
     return scope, access, promo, revisit
 

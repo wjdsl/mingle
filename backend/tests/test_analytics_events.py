@@ -137,29 +137,29 @@ async def test_promo_impressions_clicks_and_ctr(client, real_server):
     assert all(c["label"] for c in promo["contents"])
 
 
-async def test_revisit_rate_follows_srs_definition(client, real_server):
+async def test_revisit_rate_is_returning_share_of_completed_visitors(client, real_server):
     admin = await _headers(client)
     await _isolate("fridge")
-    # 방문자 A: 세션1 시작·완료, 세션1 다시 하기(같은 세션), 세션2 시작(재방문)·완료, 세션3 시작(재방문)
+    # 방문자 A: 세션1 시작·완료 → 같은 세션 다시 하기(재방문 아님) → 세션2 시작(재방문)
     await _track(client, _sid(31), "fridge", "story_start", visitor_id=_vid(1))
     await _track(client, _sid(31), "fridge", "story_complete", visitor_id=_vid(1))
     await _track(client, _sid(31), "fridge", "story_start", visitor_id=_vid(1))
     await _track(client, _sid(32), "fridge", "story_start", visitor_id=_vid(1))
-    await _track(client, _sid(32), "fridge", "story_complete", visitor_id=_vid(1))
-    await _track(client, _sid(33), "fridge", "story_start", visitor_id=_vid(1))
-    # 방문자 B: 세션4 시작·완료(첫 방문만)
+    await _track(client, _sid(33), "fridge", "story_start", visitor_id=_vid(1))  # 여러 번 와도 방문자는 한 명
+    # 방문자 B: 세션4 시작·완료만(돌아오지 않음)
     await _track(client, _sid(34), "fridge", "story_start", visitor_id=_vid(2))
     await _track(client, _sid(34), "fridge", "story_complete", visitor_id=_vid(2))
-    # 방문자 C: 첫 시작이 기간 이전, 기간 안 세션6 시작 → 재방문
-    await _track(client, _sid(35), "fridge", "story_start", visitor_id=_vid(3))
-    async with SessionLocal() as db:
-        await db.execute(update(AnalyticsEvent).where(AnalyticsEvent.session_id == _sid(35))
-                         .values(created_at=utcnow() - timedelta(days=40)))
-        await db.commit()
-    await _track(client, _sid(36), "fridge", "story_start", visitor_id=_vid(3))
+    # 방문자 C: 완료 없이 여러 세션에서 시작 → 분모에 없으므로 재방문율을 100% 위로 올리지 않는다
+    for n in (35, 36, 37):
+        await _track(client, _sid(n), "fridge", "story_start", visitor_id=_vid(3))
+    # 방문자 D: 다른 세션에서 먼저 시작했고, 완료는 그 뒤 → 완료 전 시작은 재방문이 아님
+    await _track(client, _sid(38), "fridge", "story_start", visitor_id=_vid(4))
+    await _track(client, _sid(39), "fridge", "story_start", visitor_id=_vid(4))
+    await _track(client, _sid(39), "fridge", "story_complete", visitor_id=_vid(4))
 
     revisit = (await _stats(client, admin, "fridge"))["revisit"]
-    assert revisit == {"revisit_sessions": 3, "completed_sessions": 3, "rate": 100.0, "visitors": 3}
+    assert revisit == {"returning_visitors": 1, "completed_visitors": 3, "rate": round(1 / 3 * 100, 1), "visitors": 4}
+    assert 0 <= revisit["rate"] <= 100
 
 
 async def test_csv_contains_only_aggregates_and_follows_permissions(client, real_server):
