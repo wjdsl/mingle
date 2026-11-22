@@ -430,3 +430,9 @@
 - 턴 기록·메시지의 provider는 `fallback`, model은 `scene-fallback-v1`이다. 사유 코드(`provider_http_503`, `provider_quota_*`, `provider_timeout`, `provider_connection`, `response_control:…`)는 메시지 extra `story_fallback.reason`과 로그(`app.services.story_turn_service`, 실패 로그 파일 대상에 추가)에만 남긴다. 대사·입력·키는 남기지 않는다. 같은 request_id는 저장된 고정 대사를 재생하므로 공급자가 회복된 뒤에도 바뀌지 않는다. 대체 턴은 Qwen 재작성을 건너뛴다. 자유 입력 대체 턴은 의도가 없어 결말 판정에서 0점이다.
 - 프론트는 `provider=fallback`을 정상 응답으로 받는다(그 밖의 공급자 불일치는 오류 유지). 스모크 스크립트는 `fallback`을 실제 연동 성공으로 보지 않고 실패 처리한다. 위기 입력 안내와 10턴 고정 연출은 바꾸지 않았다.
 - 검증: 백엔드 pytest 347개, 프론트 테스트 77개·빌드, 데이터 검증 52/79/112 통과. 로컬 가짜 Gemini(503·429·형식 오류)로 띄운 서버에서 두 작품 10턴을 HTTP와 브라우저로 결과 화면까지 진행했다. 실제 Gemini·Qwen 호출과 실제 30초 시간 초과의 종단 확인, 실기기는 하지 않았다.
+
+## 2026-11-22 Gemini 모델 비교 실험
+
+- `experiments/gemini-benchmark/`에서 Gemini 3.5 Flash-Lite와 3.6 Flash의 합성 단일 턴 24건과 멀티턴 30건을 비교합니다. 실행·재개 방법은 해당 README.md, 통제 조건과 채점 기준은 experiment_plan.md에 있습니다.
+- 승인된 세 번째 시나리오는 푸르마 첫 10턴입니다. 서비스의 개강 2턴 뒤는 기획에 따른 합성 장면입니다. 냉장고·구름섬 마지막 턴은 고정 컷 재현 문항입니다.
+- 전체 Mock을 실행했고 실제 생성은 모델별 연결 확인 1회씩 수행했습니다. v1 실측값과 화자 표기 재검토는 analysis.md에 기록했습니다. v2는 구름섬에서만 화자 이름을 검사하고, 고정 컷의 복제 진단은 생성 품질 점수에서 제외합니다. 실제 전체 실행과 최종 선정은 대기 중입니다.
