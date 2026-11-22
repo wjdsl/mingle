@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "project": "puruma",
+  "scene_set": "puruma_draft_v1",
+  "note": "푸르마 자유 입력 분류 정답 세트의 라벨 매핑. 원본 data/tests 파일은 수정하지 않고 읽기만 한다. 주제 정답은 한국어 주제명(data/rules/pruma_topic_classification.json의 primary_topic_enum)이고 서버 응답 메시지 extra의 intent_id는 topic_* 코드라서 아래 표로 바꾼다(app/services/puruma_scenes.py TOPIC_INTENTS와 1:1). 태도 정답은 서버 attitude 허용 값(ATTITUDES)과 같은 문자열이라 매핑하지 않는다. 위기 우선(override) 케이스는 태도를 채점하지 않고 safety_notice만 확인한다.",
+  "topic_source": "data/tests/pruma_topic_classification_tests.json",
+  "attitude_source": "data/tests/pruma_attitude_classification_tests.json",
+  "topic_label_to_intent": {
+    "탐구": "topic_study",
+    "기술": "topic_tech",
+    "예술": "topic_art",
+    "소통": "topic_social",
+    "글로벌": "topic_global",
+    "일상": "topic_daily"
+  }
+}

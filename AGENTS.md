@@ -468,3 +468,11 @@
 - 냉장고·구름섬 결과 화면의 영화관 바로가기는 URL이 정해지지 않아 만들지 않았다. 홍보 지표는 "해당 없음"이며, URL이 정해지면 `backend/app/services/analytics_events.py`의 `PENDING_PROMOS`와 결과 화면 링크만 추가하면 된다.
 - 배포 빌드에 `VITE_STORY_CLIENT=api`, `VITE_PURUMA_CLIENT=api`가 없으면 브라우저 전용 Mock으로 동작해 대화·이벤트가 서버에 기록되지 않는다.
 - 지표 정의와 집계 기준은 `frontend/ADMIN_GUIDE.md`. 검증: 백엔드 pytest 415개, 프론트 테스트 101개와 빌드, 데이터 검증 4종 통과. 서버 Mock 임시 DB로 세 작품 흐름·홍보 노출/클릭·재방문·관리자 화면·작품 담당자 권한·375px를 브라우저로 확인했다. PostgreSQL, 실제 Gemini/Qwen, 실기기, CSV 버튼의 실제 파일 저장은 확인하지 않았다.
+
+## 2026-11-22 Gemini 3.1 vs 3.5 Flash-Lite 서비스 경로 비교
+
+- `backend/scripts/story_eval`에 푸르마 세 스위트와 두 모델 번갈아 실행(`ab`)을 추가했다. 사용법은 `backend/README.md` 해당 절. 서비스 코드·프롬프트·데이터 파일은 바꾸지 않았다.
+- 실측(22:12~23:07 KST, quality 2판 + intent + behavior, 반복 1회, 두 서버 설정 동일·Qwen 끔): 대체 응답 9.9% vs 4.6%, 교정 후 통과 90.1% vs 95.4%, 의도 정확도 76.2% vs 83.6%, 푸르마 태도 정확도 45.2% vs 71.0%, 지연 p95 15.0초 vs 11.5초. 3.1은 30초 읽기 시간 초과 20회(재전송 없음 → 고정 대사), 3.5는 HTTP 503이 시도의 약 21%였고 대부분 HTTP 재시도로 회복됐다(고정 대사 12턴). 503은 측정한 한 시간 안에서 특정 시간대에 몰리지 않았다.
+- 3.5 Flash-Lite를 권장한다. 남은 일: 낮 시간대 재측정, 503 재시도 정책 검토(`GEMINI_HTTP_ATTEMPTS` 최대 2 제한), behavior 사람 검토(모델당 41건, 리포트는 `backend/eval_reports/`로 git 제외). 모델 확정과 `.env` 변경은 팀 결정 사항이다.
+- 발견한 서비스 문제: 위기 판정이 공백을 지운 문자열에서 패턴을 찾아 "너 혼자 해"가 "자해"로 걸린다(`memory.py` `PURUMA_CRISIS_PATTERNS`). 수정하지 않았다.
+- 커밋/푸시 없음.

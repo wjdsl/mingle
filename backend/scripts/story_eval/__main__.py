@@ -1,7 +1,8 @@
 """평가 실행기 명령.
 
-    python -m scripts.story_eval run --dry-run [--suites ...] [--repeat N] [--runs 2]
+    python -m scripts.story_eval run --dry-run [--suites ...] [--repeat N] [--quality-repeat N] [--runs 2]
     python -m scripts.story_eval run --label NAME --max-calls N [--base-url URL] [--database-url URL]
+    python -m scripts.story_eval ab --model-a A --model-b B --max-calls N   # 두 모델을 대화 단위로 번갈아 실행
     python -m scripts.story_eval compare A/report.json B/report.json [--out compare.md]
 
 실제 공급자(gemini 등)로 실행할 때는 --max-calls가 필요하다. 먼저 --dry-run으로 예상 호출 수를 본다.
@@ -19,8 +20,8 @@ from pathlib import Path
 import httpx
 
 from app.core.config import settings
-from scripts.story_eval.plan import PROJECTS, SCENE_SET, SUITES, build_plans, estimate_calls
-from scripts.story_eval.report import DEFAULT_OUT_DIR, behavior_results, build_report, load_report, render_compare, write_run
+from scripts.story_eval.plan import PROJECTS, SUITES, build_plans, estimate_calls, schedule
+from scripts.story_eval.report import DEFAULT_OUT_DIR, finalize_run, load_report, render_compare
 from scripts.story_eval.runner import Budget, BudgetExceeded, RunAborted, RunState, StoryEvalRunner, TurnMetaReader
 
 EXIT_OK, EXIT_ABORTED, EXIT_USAGE, EXIT_BUDGET = 0, 1, 2, 3
@@ -44,7 +45,8 @@ def _bool(value: str) -> bool:
 
 def print_estimate(estimate: dict, runs: int) -> None:
     a = estimate["assumptions"]
-    print(f"예상 호출 수 (반복 {a['repeat']}회, 생성 시도 {a['story_generation_attempts']} × HTTP 재시도 {a['http_attempts']}, 냉장고 Qwen {'켜짐' if a['fridge_qwen'] else '꺼짐'})")
+    quality = f", 품질 {a['quality_repeat']}판" if a.get("quality_repeat") is not None else ""
+    print(f"예상 호출 수 (반복 {a['repeat']}회{quality}, 생성 시도 {a['story_generation_attempts']} × HTTP 재시도 {a['http_attempts']}, 냉장고 Qwen {'켜짐' if a['fridge_qwen'] else '꺼짐'})")
     print(f"{'스위트':10s} {'작품':7s} {'대화':>5s} {'LLM턴':>6s} {'고정':>5s} {'위기':>5s} {'최소':>6s} {'최대':>6s}")
     for r in estimate["rows"]:
         print(f"{r['suite']:10s} {r['project']:7s} {r['conversations']:5d} {r['llm_turns']:6d} {r['fixed_turns']:5d} {r['crisis_turns']:5d} {r['min_calls']:6d} {r['max_calls']:6d}")
@@ -57,7 +59,7 @@ def print_estimate(estimate: dict, runs: int) -> None:
 
 async def _run(args: argparse.Namespace) -> int:
     plans, cases = build_plans(args.suites, args.projects)
-    estimate = estimate_calls(plans, repeat=args.repeat, story_attempts=args.story_attempts, http_attempts=args.http_attempts, qwen=args.qwen)
+    estimate = estimate_calls(plans, repeat=args.repeat, quality_repeat=args.quality_repeat, story_attempts=args.story_attempts, http_attempts=args.http_attempts, qwen=args.qwen)
     print_estimate(estimate, args.runs)
     if args.dry_run:
         print("dry-run: 서버를 호출하지 않았습니다.")
@@ -85,9 +87,8 @@ async def _run(args: argparse.Namespace) -> int:
         started = datetime.now().astimezone()
         status, stop_reason = "completed", None
         try:
-            for repeat in range(1, args.repeat + 1):
-                for index, plan in enumerate(plans):
-                    await runner.run_conversation(plan, repeat=repeat, index=index, state=state)
+            for plan, repeat, index in schedule(plans, args.repeat, args.quality_repeat):
+                await runner.run_conversation(plan, repeat=repeat, index=index, state=state)
         except BudgetExceeded as exc:
             status, stop_reason = "stopped_by_budget", str(exc)
         except RunAborted as exc:
@@ -99,30 +100,16 @@ async def _run(args: argparse.Namespace) -> int:
                 await reader.close()
         finished = datetime.now().astimezone()
 
-    if state.aborted_conversations and status == "completed":
-        status = "completed_with_errors"
-    behavior, review = behavior_results([c for c in cases], state.behavior)
     label = args.label or (server["chat_model"] or "run")
-    run = {
-        "label": label,
-        "started_at": started.isoformat(timespec="seconds"),
-        "finished_at": finished.isoformat(timespec="seconds"),
-        "base_url": args.base_url,
-        "suites": args.suites,
-        "projects": args.projects,
-        "repeat": args.repeat,
-        "scene_set": SCENE_SET,
-        "status": status,
-        "stop_reason": stop_reason,
-        "skipped_steps": state.skipped_steps,
-        "aborted_conversations": state.aborted_conversations,
-        "db_metadata": not args.no_db,
-    }
     assumed = {"story_generation_attempts": args.story_attempts, "http_attempts": args.http_attempts, "fridge_qwen_dialogue_enabled": args.qwen}
-    report = build_report(run=run, server=server, assumed=assumed, budget=budget.as_dict(), plan_estimate=estimate, records=state.records, behavior=behavior)
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", label).strip("-") or "run"
     out_dir = Path(args.out_dir) / f"{started.strftime('%Y%m%d-%H%M%S')}_{slug}"
-    paths = write_run(report, review, out_dir)
+    report, paths = finalize_run(
+        label=label, base_url=args.base_url, suites=args.suites, projects=args.projects, repeat=args.repeat, quality_repeat=args.quality_repeat,
+        started=started, finished=finished, status=status, stop_reason=stop_reason, state=state, cases=cases, server=server,
+        assumed=assumed, budget=budget.as_dict(), estimate=estimate, db_metadata=not args.no_db, out_dir=out_dir,
+    )
+    status = report["run"]["status"]
     print(f"상태: {status}" + (f" ({stop_reason})" if stop_reason else ""))
     print(f"상한 기준 사용량 {budget.used_upper} / 상한 {args.max_calls or '없음'} · 생성 호출 {budget.generation_calls} · Qwen {budget.qwen_calls}")
     for name, path in paths.items():
@@ -141,28 +128,37 @@ def _compare(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def add_plan_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--suites", type=lambda v: _csv(v, SUITES), default=list(SUITES), help="quality,intent,behavior")
+    parser.add_argument("--projects", type=lambda v: _csv(v, PROJECTS), default=list(PROJECTS), help="fridge,cloud,puruma")
+    parser.add_argument("--repeat", type=int, default=1, help="같은 계획 반복 횟수")
+    parser.add_argument("--quality-repeat", type=int, help="quality 스위트만 따로 반복할 횟수(기본: --repeat)")
+    parser.add_argument("--story-attempts", type=int, default=settings.story_generation_attempts, help="호출 수 계산용 생성 시도 상한(기본: 로컬 설정)")
+    parser.add_argument("--http-attempts", type=int, default=settings.gemini_http_attempts, help="호출 수 계산용 HTTP 재시도(기본: 로컬 설정)")
+    parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    parser.add_argument("--pause", type=float, default=0.0, help="LLM 턴 사이 대기(초, 분당 한도 완화)")
+    parser.add_argument("--timeout", type=float, default=120.0)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m scripts.story_eval", description="냉장고·구름섬 스토리 채팅 응답 품질 평가")
+    from scripts.story_eval import ab
+
+    parser = argparse.ArgumentParser(prog="python -m scripts.story_eval", description="냉장고·구름섬·푸르마 스토리 채팅 응답 품질 평가")
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="평가 실행(또는 --dry-run으로 예상 호출 수만)")
     run.add_argument("--base-url", default="http://127.0.0.1:8000")
     run.add_argument("--label", help="리포트 이름(기본: 서버 모델명)")
-    run.add_argument("--suites", type=lambda v: _csv(v, SUITES), default=list(SUITES), help="quality,intent,behavior")
-    run.add_argument("--projects", type=lambda v: _csv(v, PROJECTS), default=list(PROJECTS), help="fridge,cloud")
-    run.add_argument("--repeat", type=int, default=1, help="같은 계획 반복 횟수")
+    add_plan_args(run)
     run.add_argument("--max-calls", type=int, help="외부 호출 상한(상한 기준 사용량). 실제 공급자에서는 필수")
     run.add_argument("--dry-run", action="store_true", help="예상 호출 수만 출력하고 서버를 호출하지 않는다")
     run.add_argument("--runs", type=int, default=1, help="dry-run에서 비교할 실행(모델) 수만큼 합계를 곱해 보여 준다")
-    run.add_argument("--story-attempts", type=int, default=settings.story_generation_attempts, help="호출 수 계산용 생성 시도 상한(기본: 로컬 설정)")
-    run.add_argument("--http-attempts", type=int, default=settings.gemini_http_attempts, help="호출 수 계산용 HTTP 재시도(기본: 로컬 설정)")
     run.add_argument("--qwen", type=_bool, default=settings.fridge_qwen_dialogue_enabled, help="호출 수 계산에 냉장고 Qwen 포함(true/false, 기본: 로컬 설정)")
     run.add_argument("--expect-provider", choices=["gemini", "mock"], help="X-Story-Provider 헤더(기본: 서버 health 공급자)")
     run.add_argument("--database-url", help="서버와 같은 DB URL(기본: backend/.env의 DATABASE_URL)")
     run.add_argument("--no-db", action="store_true", help="DB 메타데이터 없이 실행(시도·위반·의도·토큰 집계 불가)")
-    run.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
-    run.add_argument("--pause", type=float, default=0.0, help="LLM 턴 사이 대기(초, 분당 한도 완화)")
-    run.add_argument("--timeout", type=float, default=120.0)
+
+    ab.add_parser(sub, add_plan_args)
 
     compare = sub.add_parser("compare", help="두 개 이상 report.json 비교표")
     compare.add_argument("reports", nargs="+")
@@ -173,8 +169,12 @@ def main(argv: list[str] | None = None) -> int:
         if len(args.reports) < 2:
             parser.error("비교할 report.json을 2개 이상 지정하세요.")
         return _compare(args)
-    if args.repeat < 1 or args.runs < 1:
-        parser.error("--repeat, --runs는 1 이상")
+    if args.repeat < 1 or (args.quality_repeat is not None and args.quality_repeat < 1):
+        parser.error("--repeat, --quality-repeat는 1 이상")
+    if args.command == "ab":
+        return ab.main(args)
+    if args.runs < 1:
+        parser.error("--runs는 1 이상")
     return asyncio.run(_run(args))
 
 
