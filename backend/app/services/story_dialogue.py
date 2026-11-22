@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 MAX_DIALOGUE_CHARS = 400
 MIN_DIALOGUE_CHARS = 4
-GEMINI_DIALOGUE_PROVIDERS_SKIPPED = ("mock", "qwen", "fixed")
+GEMINI_DIALOGUE_PROVIDERS_SKIPPED = ("mock", "qwen", "fixed", "fallback")
 _DISPLAY = re.compile(r"\[디스플레이:[^\]]*\]")
 _PERSONAL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|(?<!\d)0\d{1,2}[- .]?\d{3,4}[- .]?\d{4}(?!\d)|\d{6,}")
 # 일본어 가나·한자 혼입(학습 모델에서 관측되는 오염)과 마크다운/JSON 잔재
@@ -245,7 +245,7 @@ async def rewrite_fridge_dialogue(
     if not is_applicable(project):
         return DialogueRewrite(None, info)
     if story_provider in GEMINI_DIALOGUE_PROVIDERS_SKIPPED:
-        # Mock/고정 연출 응답은 AI 응답이 아니므로 Qwen으로 가공하지 않는다.
+        # Mock/고정 연출/AI 실패 시 고정 대사는 AI 응답이 아니므로 Qwen으로 가공하지 않는다.
         return DialogueRewrite(None, info)
     speaker = project.speakers[0]
     if len(lines) != 1 or lines[0].speaker != speaker:

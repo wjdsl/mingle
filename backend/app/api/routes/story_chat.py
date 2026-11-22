@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from weakref import WeakValueDictionary
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -43,6 +42,7 @@ from app.services.story_turn_service import (
     process_fixed_turn,
     process_story_turn,
     resolve_project,
+    story_failure_reason,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,18 +51,8 @@ router = APIRouter(prefix="/story-chat", tags=["story-chat"])
 _turn_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
 
-def llm_failure_reason(exc: Exception) -> str:
-    """로그용 원인 분류만 추출한다(오류 본문·사용자 입력·키는 남기지 않는다)."""
-    if isinstance(exc, GeminiHTTPError):
-        return f"provider_http_{exc.status_code}"
-    message = str(exc)
-    if "검증 실패" in message:
-        return "response_control:" + re.sub(r"[^a-z_,]", "", message.split(":", 1)[-1])[:80]
-    if "연결 실패" in message:
-        return "provider_connection"
-    if "형식" in message:
-        return "provider_response_format"
-    return "provider_other"
+# 원인 분류는 서비스의 AI 실패 대체 처리와 같은 함수를 쓴다(기존 이름 유지).
+llm_failure_reason = story_failure_reason
 
 
 def _http_error(exc: StoryTurnError) -> HTTPException:

@@ -32,6 +32,7 @@ export function storyRetryPolicy(error: unknown): { canRetry: boolean; waitSecon
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export const SCENARIO_SET = 'scenario_draft_v1'
+export const FALLBACK_PROVIDER = 'fallback'
 
 type Options = { displayName: string; sceneSet?: typeof SCENARIO_SET; provider?: 'gemini' | 'mock'; fetch?: FetchLike; baseUrl?: string; timeoutMs?: number; resume?: { code: string; conversationId: string; project: string; totalTurns: number } }
 type Conversation = { code: string; id: string; project: string; totalTurns: number }
@@ -150,7 +151,10 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
         ...(!fixed ? { input } : {}),
       }, signal, current.code)
       const reply = parseStoryTurnResponse(data, request)
-      if (sceneSet && !reply.safety && (reply.meta?.provider !== (fixed ? 'fixed' : provider) || reply.meta.finished !== (request.turn + 1 === current.totalTurns))) {
+      // 'fallback': 서버가 AI 실패(503·429·시간 초과·응답 검증 실패) 때 장면 고정 대사로 이어 간 응답이다(2026-11-22 팀 결정).
+      // 일반 응답과 똑같이 진행하며 화면에 따로 표시하지 않는다. 그 밖의 공급자 불일치는 기존처럼 오류다.
+      const expected = fixed ? ['fixed'] : [provider, FALLBACK_PROVIDER]
+      if (sceneSet && !reply.safety && (!expected.includes(reply.meta?.provider ?? '') || reply.meta?.finished !== (request.turn + 1 === current.totalTurns))) {
         throw new StoryApiError('server', 'Gemini 연결 및 서버 진행 상태를 확인해 주세요.')
       }
       return reply

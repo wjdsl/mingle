@@ -184,7 +184,7 @@ async def test_cloud_prompt_forbids_trait_analysis_and_limits_speakers(client, m
     assert "성향 점수·결과 타입" in system and "반말" in system and "구름 대원" in system
 
 
-async def test_invalid_output_retries_once_then_fails_without_saving(client, monkeypatch):
+async def test_invalid_output_retries_once_then_uses_fixed_reply(client, monkeypatch):
     fake = FakeGemini(["형식 없는 문장", _fridge_json()])
     monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
     headers, cid = await _start(client, "fridge")
@@ -192,29 +192,38 @@ async def test_invalid_output_retries_once_then_fails_without_saving(client, mon
     ok = await client.post(url, json=_turn(0, "안녕하세요"), headers=headers)
     assert ok.status_code == 200 and len(fake.calls) == 2
 
+    # 2026-11-22 팀 결정: 형식 오류가 계속되면 오류 대신 장면 고정 대사로 이어 간다.
     broken = FakeGemini(["{}"])
     monkeypatch.setattr(story_turn_service, "get_llm", lambda: broken)
-    failed = await client.post(url, json=_turn(1, "증거 있어요?"), headers=headers)
-    assert failed.status_code == 502
-    assert await _message_count(client, headers, cid) == 2
+    fallback = await client.post(url, json=_turn(1, "증거 있어요?"), headers=headers)
+    assert fallback.status_code == 200 and len(broken.calls) == 2
+    assert fallback.json()["provider"] == "fallback"
+    assert fallback.json()["replies"][0]["text"] == FRIDGE_SCENES[1].default_reply
+    assert await _message_count(client, headers, cid) == 4
 
 
-async def test_provider_failure_then_retry_with_same_request_id_saves_once(client, monkeypatch):
+async def test_provider_failure_uses_fixed_reply_and_same_request_id_replays_it(client, monkeypatch):
     failing = FakeGemini([LLMError("Gemini 오류 503")])
     monkeypatch.setattr(story_turn_service, "get_llm", lambda: failing)
     headers, cid = await _start(client, "fridge")
     url = f"/api/story-chat/conversations/{cid}/turns"
-    payload = _turn(0, "문부터 닫아 줄게요.", "fridge-01-a", request_id="retry-same-0001")
-    failed = await client.post(url, json=payload, headers=headers)
-    assert failed.status_code == 502
-    assert "AI 응답 생성에 실패" in failed.json()["detail"]
-    assert await _message_count(client, headers, cid) == 0
+    choice = FRIDGE_SCENES[0].choices[0]
+    payload = _turn(0, choice.label, choice.id, request_id="retry-same-0001")
+    first = await client.post(url, json=payload, headers=headers)
+    assert first.status_code == 200
+    assert first.json()["provider"] == "fallback"
+    assert first.json()["replies"] == [{"speaker": "냉장고 회장", "text": choice.reference_reply}]
+    assert await _message_count(client, headers, cid) == 2
 
-    monkeypatch.setattr(story_turn_service, "get_llm", lambda: FakeGemini([_fridge_json()]))
+    # 공급자가 회복된 뒤에도 같은 요청 ID는 저장된 고정 대사를 그대로 재생한다(중복 저장 없음).
+    recovered = FakeGemini([_fridge_json()])
+    monkeypatch.setattr(story_turn_service, "get_llm", lambda: recovered)
     for _ in range(2):
         retried = await client.post(url, json=payload, headers=headers)
         assert retried.status_code == 200
     assert retried.json()["replayed"] is True
+    assert retried.json()["replies"] == first.json()["replies"] and retried.json()["provider"] == "fallback"
+    assert recovered.calls == []
     assert await _message_count(client, headers, cid) == 2
     reused = await client.post(url, json={**payload, "turn": 1}, headers=headers)
     assert reused.status_code == 409
@@ -281,7 +290,7 @@ def test_scene_text_matches_frontend_mock_catalog():
                 assert choice.label in source and choice.reference_reply.split(": ", 1)[-1] in source
 
 
-async def test_quota_keeps_turn_retryable_and_provider_mismatch_does_not_generate(client, monkeypatch):
+async def test_quota_uses_fixed_reply_and_provider_mismatch_does_not_generate(client, monkeypatch):
     from app.services.llm.gemini_provider import GeminiQuotaError
 
     headers, cid = await _start(client, "fridge")
@@ -297,22 +306,17 @@ async def test_quota_keeps_turn_retryable_and_provider_mismatch_does_not_generat
     assert (await client.post(url, json=payload, headers=mock_headers)).status_code == 503
     assert len(fake.calls) == 0
 
+    # 2026-11-22 팀 결정: 429도 오류 대신 장면 고정 대사로 이어 간다.
     limited = await client.post(url, json=payload, headers=live_headers)
-    assert limited.status_code == 429
-    assert limited.headers["Retry-After"] == "30"
-    assert limited.json()["detail"]["code"] == "gemini_quota_minute"
-    assert await _message_count(client, headers, cid) == 0
-
-    retry = await client.post(url, json=payload, headers=live_headers)
-    assert retry.status_code == 200
-    assert retry.json()["completed_turns"] == 1
+    assert limited.status_code == 200
+    assert limited.json()["provider"] == "fallback" and limited.json()["completed_turns"] == 1
     replay = await client.post(url, json=payload, headers=live_headers)
     assert replay.json()["replayed"] is True
-    assert len(fake.calls) == 2
+    assert len(fake.calls) == 1
     assert await _message_count(client, headers, cid) == 2
 
 
-async def test_gemini_503_surfaces_without_saving_turn_and_same_id_can_retry(client, monkeypatch):
+async def test_gemini_503_uses_fixed_reply_and_same_id_replays(client, monkeypatch):
     from app.services.llm.gemini_provider import GeminiHTTPError
 
     headers, cid = await _start(client, "fridge")
@@ -322,15 +326,11 @@ async def test_gemini_503_surfaces_without_saving_turn_and_same_id_can_retry(cli
     fake = FakeGemini([GeminiHTTPError(503), _fridge_json()])
     monkeypatch.setattr(story_turn_service, "get_llm", lambda: fake)
 
-    failed = await client.post(url, json=payload, headers=headers)
-    assert failed.status_code == 503
-    assert failed.json()["detail"] == {"code": "gemini_unavailable"}
-    assert await _message_count(client, headers, cid) == 0
-
-    retried = await client.post(url, json=payload, headers=headers)
-    assert retried.status_code == 200
-    assert retried.json()["request_id"] == payload["request_id"]
-    assert retried.json()["completed_turns"] == 1
+    first = await client.post(url, json=payload, headers=headers)
+    assert first.status_code == 200
+    assert first.json()["provider"] == "fallback"
+    assert first.json()["request_id"] == payload["request_id"]
+    assert first.json()["completed_turns"] == 1
     assert (await client.post(url, json=payload, headers=headers)).json()["replayed"] is True
-    assert len(fake.calls) == 2
+    assert len(fake.calls) == 1
     assert await _message_count(client, headers, cid) == 2

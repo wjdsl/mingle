@@ -290,7 +290,7 @@
 
 ## 2026-11-15 냉장고·구름섬 Gemini 연동 (feature/gemini-story-fridge-cloud)
 
-- origin/main@103d05a 기반 독립 브랜치. 백엔드 `/api/story-chat`(장면 정의·턴 처리·`story_turns` 중복 방지 표), 프론트 `apiStoryClient.ts`와 `VITE_STORY_CLIENT=api` 모드를 추가했다. 기본은 Mock이며 API 모드 실패 시 Mock으로 대체하지 않는다. 푸르마·Qwen 실험 브랜치 파일은 변경하지 않았다. 새 의존성 없음.
+- origin/main@103d05a 기반 독립 브랜치. 백엔드 `/api/story-chat`(장면 정의·턴 처리·`story_turns` 중복 방지 표), 프론트 `apiStoryClient.ts`와 `VITE_STORY_CLIENT=api` 모드를 추가했다. 기본은 Mock이며 API 모드 실패 시 Mock으로 대체하지 않는다(2026-11-22 팀 결정으로 AI 실패 시 장면 고정 대사로 진행하도록 바뀜, 아래 해당 절). 푸르마·Qwen 실험 브랜치 파일은 변경하지 않았다. 새 의존성 없음.
 - GeminiProvider는 키를 헤더(x-goog-api-key)로 보낸다. 관계 점수·성향 분석·결과 판정은 구현하지 않았다. 상세·PR #4 비교·미완료는 `frontend/INTEGRATION_HANDOFF.md` 2026-11-15 절과 `frontend/STORY_CHAT_GEMINI_REVIEW.md`.
 - 커밋/푸시/PR 없음.
 
@@ -325,7 +325,7 @@
 
 ### 503 안내와 로컬 보존
 
-- 기존 Flash는 HTTPX 읽기 타임아웃, Flash Lite는 Google HTTP 503 후 기존 앱 HTTP 502로 기록됐다. 스토리 API에서 공급자 503을 전용 코드로 전달하고 화면에 재시도 안내를 표시한다. 실패 시 진행은 저장되지 않으며 재시도는 같은 요청 ID를 사용한다.
+- 기존 Flash는 HTTPX 읽기 타임아웃, Flash Lite는 Google HTTP 503 후 기존 앱 HTTP 502로 기록됐다. 스토리 API에서 공급자 503을 전용 코드로 전달하고 화면에 재시도 안내를 표시한다. 실패 시 진행은 저장되지 않으며 재시도는 같은 요청 ID를 사용한다. (2026-11-22 이후 냉장고·구름섬 스토리 턴은 이 안내 대신 고정 대사로 진행한다. 아래 해당 절.)
 - 이번 정리에서는 실제 Gemini를 호출하지 않았다. 복구 후 1회 확인 방법은 `backend/README.md`를 따른다.
 
 ## 2026-11-21 냉장고·구름섬 위기 신호 안내 (기획 초안 반영)
@@ -403,3 +403,12 @@
 - 검증: 백엔드 pytest 324개, 프론트 테스트 74개·빌드, 데이터 검증 52/52·79/79·112/112, 서버 Mock 두 작품 10턴 완주(응답 20건에 남은 자리표시 0건).
 - main 통합(PR #19 결말 판정, #20 냉장고 표정 이미지 병합 후): #19의 단계별 예고편 대사는 `_fill_nickname` → `fill_user()`로 `{{user}}`를 채운다. 결과 화면·도감의 "회장님이 부르는 말"(`endingCollection.ts`, `StoryResult.tsx`)도 자체 표기 `{호칭}` 대신 `{{user}}`로 맞췄다. 통합 후 백엔드 pytest 331개, 프론트 테스트 76개·빌드, 데이터 검증 3종 통과.
 - 커밋/푸시 없음.
+
+
+## 2026-11-22 냉장고·구름섬 AI 실패 시 고정 대사 진행
+
+- 팀 결정으로 위의 "API 모드 실패 시 Mock으로 대체하지 않음" 원칙을 바꿨다. `/api/story-chat` 턴에서 AI가 실패하면(공급자 503·429·시간 초과·응답 검증 실패, 공급자 연결 실패 포함) 오류 응답 대신 장면 고정 대사로 이어 가고 장면도 정상 진행한다. 화면에는 "대체 응답"·"Mock" 표시를 하지 않는다. 서버에 연결 자체가 안 되는 네트워크 오류는 기존처럼 화면 오류 안내를 유지한다. 푸르마(`/api/chat`)는 범위 밖이다.
+- 선택지는 장면 데이터의 반응 예시(`reference_reply`)를 쓴다. 구름섬은 반응 방향의 따옴표 앞 대원을 화자로, 냉장고는 따옴표 앞 `[디스플레이: …]`를 함께 쓴다. 따옴표 대사가 없는 선택지(구름섬 6턴 키키형, 7·8·9턴 나나형, 9턴 균형형)와 자유 입력은 `backend/app/services/story_fallback_lines.py`의 장면별 대사(초안, 팀 검토 전)를 쓴다. 이 대사는 시나리오 원문에 없어 장면 카드 JSON(원문 일치 검사 대상)에 넣지 않았다.
+- 턴 기록·메시지의 provider는 `fallback`, model은 `scene-fallback-v1`이다. 사유 코드(`provider_http_503`, `provider_quota_*`, `provider_timeout`, `provider_connection`, `response_control:…`)는 메시지 extra `story_fallback.reason`과 로그(`app.services.story_turn_service`, 실패 로그 파일 대상에 추가)에만 남긴다. 대사·입력·키는 남기지 않는다. 같은 request_id는 저장된 고정 대사를 재생하므로 공급자가 회복된 뒤에도 바뀌지 않는다. 대체 턴은 Qwen 재작성을 건너뛴다. 자유 입력 대체 턴은 의도가 없어 결말 판정에서 0점이다.
+- 프론트는 `provider=fallback`을 정상 응답으로 받는다(그 밖의 공급자 불일치는 오류 유지). 스모크 스크립트는 `fallback`을 실제 연동 성공으로 보지 않고 실패 처리한다. 위기 입력 안내와 10턴 고정 연출은 바꾸지 않았다.
+- 검증: 백엔드 pytest 347개, 프론트 테스트 77개·빌드, 데이터 검증 52/79/112 통과. 로컬 가짜 Gemini(503·429·형식 오류)로 띄운 서버에서 두 작품 10턴을 HTTP와 브라우저로 결과 화면까지 진행했다. 실제 Gemini·Qwen 호출과 실제 30초 시간 초과의 종단 확인, 실기기는 하지 않았다.
