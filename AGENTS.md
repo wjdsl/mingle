@@ -400,3 +400,4 @@
 - 1턴 장면 이미지 표는 `frontend/src/projects/stories/cloudScenes.ts` 한 곳이다. API·서버 Mock 모드(`scenario_draft_v1`)와 브라우저 Mock(`catalog.ts` 첫 미션) 모두 1턴에만 넣는다. 도입 장면이라 이어하기로 2턴 이후부터 들어오면 다시 보여 주지 않는다. 채팅 진입 배경(`chatIntros.ts`)은 바꾸지 않았다.
 - 썸네일은 `Home.tsx`에서 구름섬만 이미지 커버(`.p-cloud-cover`)로 바꿨다. 작품 소개·결과 화면의 대원 원화는 그대로다.
 - 검증: 프론트 테스트 75개·빌드 통과, 헤드리스 Chrome에서 홈 썸네일과 브라우저 Mock 1턴 이미지 표시 확인. 서버 모드 화면·실기기는 미확인.
+- 홈 카드의 "이어서 하기" 배지는 썸네일 왼쪽 위에 겹쳐 표시한다(`.p-progress-badge` 절대 위치). 배지가 있어도 세 카드의 썸네일 시작 위치가 같다(헤드리스 Chrome 1440px에서 확인).
