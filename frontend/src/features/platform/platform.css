@@ -232,6 +232,7 @@
 
 /* 홈의 가로 카드에는 세로 포스터 대신 원룸 장면을 채운다. */
 .p-poster > .p-fridge-cover { display:block; width:100%; height:100%; object-fit:cover; object-position:50% 42%; }
+.p-poster > .p-cloud-cover { display:block; width:100%; height:100%; object-fit:cover; object-position:50% 45%; }
 .theme-fridge .p-poster-genre { padding:4px 7px; border-radius:3px; background:var(--w-surface); }
 
 /* 최초 세션 진입 연출. 대화는 마운트 상태를 유지하며 도입 중 접근만 막는다. */

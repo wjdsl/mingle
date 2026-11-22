@@ -1,6 +1,7 @@
 import { teamGithubUrl } from '../../projects/site'
 import { FeedbackButton } from './FeedbackButton'
 import fridgeScene from '../../assets/fridge/fridge-smug.webp'
+import cloudScene from '../../assets/cloud/sky-islands.webp'
 import { projects } from '../../projects/stories/catalog'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { CharacterPortrait } from './shared'
@@ -19,7 +20,7 @@ export function ProjectCard({ project, onSelect }: { project: StoryProject; onSe
   return <button className={`p-project-card theme-${project.id}`} onClick={onSelect} aria-label={`${project.title} 작품 보기${saved ? `, ${resumeText}` : ''}`}>
     {saved && <span className="p-progress-badge" aria-hidden="true">{resumeText}</span>}
     <span className="p-book-label">STORY {project.number} / {project.genre}</span>
-    <div className="p-poster">{project.id === 'fridge' ? <img className="p-fridge-cover" src={fridgeScene} alt="원룸에서 자신만만한 표정을 짓는 냉장고 회장" /> : <CharacterPortrait project={project} />}</div>
+    <div className="p-poster">{project.id === 'fridge' ? <img className="p-fridge-cover" src={fridgeScene} alt="원룸에서 자신만만한 표정을 짓는 냉장고 회장" /> : project.id === 'cloud' ? <img className="p-cloud-cover" src={cloudScene} alt="구름 위에 떠 있는 하늘섬들과 출발을 기다리는 구조선" /> : <CharacterPortrait project={project} />}</div>
     <h3>{project.id === 'fridge' ? <>우리 집 냉장고가<br />재벌 회장님이다</> : project.title}</h3><p className="p-book-description">{summaries[project.id]}</p>
   </button>
 }
