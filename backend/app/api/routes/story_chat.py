@@ -31,8 +31,10 @@ from app.schemas.story_chat import (
 )
 from app.services.llm import LLMError
 from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
+from app.services.story_safety import SAFETY_MODEL, SAFETY_PROVIDER
 from app.services.story_scenes import get_project
 from app.services.story_turn_service import (
+    StorySafetyOutcome,
     StoryTurnError,
     StoryTurnOutcome,
     count_completed,
@@ -69,6 +71,7 @@ def _http_error(exc: StoryTurnError) -> HTTPException:
 
 def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
     record = outcome.record
+    dialogue = outcome.dialogue
     return StoryTurnResponse(
         conversation_id=outcome.conversation.id,
         project=outcome.project.id,
@@ -84,6 +87,30 @@ def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
         finished=outcome.completed_turns >= outcome.project.total_turns,
         replayed=outcome.replayed,
         guardrail_triggered=outcome.guardrail_triggered,
+        story_provider=dialogue.story_provider if dialogue else record.provider,
+        dialogue_provider=dialogue.dialogue_provider if dialogue else record.provider,
+        qwen_used=dialogue.qwen_used if dialogue else False,
+        qwen_latency_ms=dialogue.qwen_latency_ms if dialogue else None,
+        fallback_reason=dialogue.fallback_reason if dialogue else None,
+    )
+
+
+def _safety_response(outcome: StorySafetyOutcome) -> StoryTurnResponse:
+    return StoryTurnResponse(
+        conversation_id=outcome.conversation.id,
+        project=outcome.project.id,
+        request_id=outcome.request_id,
+        turn=outcome.turn,
+        replies=[StoryReplyLine(speaker=line.speaker, text=line.text) for line in outcome.lines],
+        reaction="",
+        provider=SAFETY_PROVIDER,
+        model=SAFETY_MODEL,
+        latency_ms=0,
+        completed_turns=outcome.completed_turns,
+        total_turns=outcome.project.total_turns,
+        finished=False,
+        replayed=False,
+        safety_notice=True,
     )
 
 
@@ -246,4 +273,6 @@ async def send_turn(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
         ) from exc
+    if isinstance(outcome, StorySafetyOutcome):
+        return _safety_response(outcome)
     return _turn_response(outcome)

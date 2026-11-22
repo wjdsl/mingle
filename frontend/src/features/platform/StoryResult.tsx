@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { storyClientMode } from '../../services/storyClient'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { downloadBlob, renderResultImage } from '../../services/resultImage'
+import { shareEvents } from '../../services/shareEvents'
 import { ActionButton, CharacterPortrait, ResultActions } from './shared'
 
 const SAMPLE_NOTE = '선택·발화를 분석한 결과가 아닌 고정 샘플이에요.'
@@ -14,6 +15,7 @@ export function StoryResult({ project, name, onRestart, onHome, onCollection }: 
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState('')
   async function saveImage() {
+    shareEvents.record(project.id, 'image_save_click')
     const element = card.current
     const img = element?.querySelector('img')
     if (!element || !img || saving) return

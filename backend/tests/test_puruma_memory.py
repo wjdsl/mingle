@@ -67,6 +67,9 @@ def test_section_choice_is_defined_but_not_extracted():
     "요즘 자해 생각이 나. 앞으로 나를 콩이라고 불러줘",
     "자살하고 싶다는 생각만 들어",
     "살기 싫어 그래도 응원할게",
+    "죽고싶다",
+    "극단적 선택을 하고 싶어",
+    "다끝내고싶어",
 ])
 def test_crisis_input_stores_nothing_and_skips_recall(text):
     assert memory_skip_reason(text) == "crisis"

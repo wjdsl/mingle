@@ -19,6 +19,7 @@ class AdminOut(BaseModel):
     email: str
     name: str
     role: str
+    projects: list[str] = Field(default_factory=list)
 
 
 class TokenOut(BaseModel):
@@ -90,3 +91,35 @@ class DashboardOverview(BaseModel):
     daily: list[DailyPoint]
     stages: dict[str, int]
     recent_conversations: list[RecentConversation]
+
+
+class ChatStats(BaseModel):
+    sessions: int
+    conversations: int
+    completed_conversations: int
+    completion_rate: float | None = None
+    turns: int
+    avg_turns: float | None = None
+    messages: int
+
+
+class ShareStats(BaseModel):
+    share_clicks: int
+    image_save_clicks: int
+    link_opens: int
+    link_start_sessions: int
+
+
+class ProjectDailyPoint(BaseModel):
+    date: str
+    conversations: int = 0
+    turns: int = 0
+
+
+class ProjectStats(BaseModel):
+    project: str
+    range_days: int
+    generated_at: datetime
+    chat: ChatStats
+    share: ShareStats
+    daily: list[ProjectDailyPoint]

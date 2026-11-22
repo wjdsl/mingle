@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.config import settings
 
+from app.core.config import settings
 from app.db.models import (
     Conversation,
     MarketingEvent,
@@ -15,6 +16,7 @@ from app.db.models import (
     Message,
     Persona,
     RelationshipState,
+    StoryTurnRecord,
     UserSession,
     utcnow,
 )
@@ -26,8 +28,11 @@ from app.schemas.admin import (
     Totals,
     TriggerStats,
 )
+from app.services.story_scene_sets import scenario_persona_slug
+from app.services.story_scenes import PROJECTS
 
 KST = timezone(timedelta(hours=9), name="KST")
+DashboardProject = Literal["puruma", "fridge", "cloud"]
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -40,14 +45,53 @@ async def _count(db: AsyncSession, stmt) -> int:
     return int((await db.scalar(stmt)) or 0)
 
 
-async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
+async def build_overview(
+    db: AsyncSession, days: int = 14, project: DashboardProject | None = None
+) -> DashboardOverview:
     now = utcnow()
     # Inclusive KST calendar days, identical across KPI, tables and daily buckets.
     since = (now.astimezone(KST).replace(hour=0, minute=0, second=0, microsecond=0)
              - timedelta(days=days - 1)).astimezone(timezone.utc)
-    cohort = select(Conversation.id).where(Conversation.created_at >= since, Conversation.created_at <= now)
+    persona_query = select(Persona)
+    conversation_scope = select(Conversation.id)
+    session_times_query = select(UserSession.created_at).where(UserSession.created_at.between(since, now))
+    if project is not None:
+        slugs = ("puruma",)
+        if project != "puruma":
+            base_slug = PROJECTS[project].persona_slug
+            slugs = (base_slug, scenario_persona_slug(base_slug))
+        project_personas = Persona.slug.in_(slugs)
+        persona_query = persona_query.where(project_personas)
+        conversation_scope = conversation_scope.where(
+            Conversation.persona_id.in_(select(Persona.id).where(project_personas))
+        )
 
-    sessions_total = await _count(db, select(func.count()).select_from(UserSession).where(UserSession.created_at >= since, UserSession.created_at <= now))
+    cohort = conversation_scope.where(Conversation.created_at.between(since, now))
+    if project is not None:
+        session_times_query = (
+            select(func.min(Conversation.created_at))
+            .where(Conversation.id.in_(cohort))
+            .group_by(Conversation.session_id)
+        )
+    session_times = (await db.scalars(session_times_query)).all()
+    message_activity = and_(
+        Message.conversation_id.in_(conversation_scope),
+        Message.created_at.between(since, now),
+    )
+    message_countable = and_(message_activity, Message.role.in_(["user", "assistant"]))
+    marketing_activity = and_(
+        MarketingEvent.conversation_id.in_(conversation_scope),
+        MarketingEvent.created_at.between(since, now),
+    )
+    scene_counts = (
+        select(func.count())
+        .select_from(StoryTurnRecord)
+        .where(StoryTurnRecord.conversation_id == Conversation.id)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    turn_count = func.coalesce(RelationshipState.turn_count, scene_counts)
+    sessions_total = len(session_times)
     conversations_total = await _count(db, select(func.count()).select_from(Conversation).where(Conversation.id.in_(cohort)))
     completed_total = await _count(
         db,
@@ -55,12 +99,12 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
     )
     messages_total = await _count(
         db,
-        select(func.count()).select_from(Message).where(Message.role.in_(["user", "assistant"]), Message.created_at >= since, Message.created_at <= now),
+        select(func.count()).select_from(Message).where(message_countable),
     )
     avg_latency = (
         await db.scalar(
             select(func.avg(Message.latency_ms)).where(
-                Message.role == "assistant", Message.latency_ms.isnot(None), Message.created_at >= since, Message.created_at <= now
+                message_activity, Message.role == "assistant", Message.latency_ms.isnot(None)
             )
         )
     ) or 0.0
@@ -69,18 +113,18 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
         db,
         select(func.count())
         .select_from(MarketingEvent)
-        .where(MarketingEvent.event_type == "impression", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now),
+        .where(MarketingEvent.event_type == "impression", marketing_activity),
     )
     clicks_total = await _count(
         db,
         select(func.count())
         .select_from(MarketingEvent)
-        .where(MarketingEvent.event_type == "click", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now),
+        .where(MarketingEvent.event_type == "click", marketing_activity),
     )
 
     # --- 페르소나별 ---
     personas = (
-        await db.execute(select(Persona).order_by(Persona.sort_order, Persona.name))
+        await db.execute(persona_query.order_by(Persona.sort_order, Persona.name))
     ).scalars().all()
     persona_stats: list[PersonaStats] = []
     for persona in personas:
@@ -96,7 +140,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .select_from(Conversation)
             .where(
                 Conversation.persona_id == persona.id, Conversation.id.in_(cohort),
-                Conversation.status == "completed", Conversation.id.in_(cohort),
+                Conversation.status == "completed",
             ),
         )
         msg_count = await _count(
@@ -106,14 +150,14 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .join(Conversation, Conversation.id == Message.conversation_id)
             .where(
                 Conversation.persona_id == persona.id,
-                Message.role.in_(["user", "assistant"]), Message.created_at >= since, Message.created_at <= now,
+                message_countable,
             ),
         )
         avg_turns = (
             await db.scalar(
-                select(func.avg(RelationshipState.turn_count))
-                .select_from(RelationshipState)
-                .join(Conversation, Conversation.id == RelationshipState.conversation_id)
+                select(func.avg(turn_count))
+                .select_from(Conversation)
+                .outerjoin(RelationshipState, Conversation.id == RelationshipState.conversation_id)
                 .where(Conversation.persona_id == persona.id, Conversation.id.in_(cohort))
             )
         ) or 0.0
@@ -132,7 +176,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .join(Conversation, Conversation.id == MarketingEvent.conversation_id)
             .where(
                 Conversation.persona_id == persona.id,
-                MarketingEvent.event_type == "impression", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now,
+                MarketingEvent.event_type == "impression", marketing_activity,
             ),
         )
         clicks = await _count(
@@ -142,7 +186,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .join(Conversation, Conversation.id == MarketingEvent.conversation_id)
             .where(
                 Conversation.persona_id == persona.id,
-                MarketingEvent.event_type == "click", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now,
+                MarketingEvent.event_type == "click", marketing_activity,
             ),
         )
         persona_stats.append(
@@ -165,6 +209,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
         await db.execute(
             select(MarketingTriggerDef, Persona.name)
             .join(Persona, Persona.id == MarketingTriggerDef.persona_id)
+            .where(Persona.id.in_(persona_query.with_only_columns(Persona.id)))
             .order_by(Persona.sort_order, MarketingTriggerDef.priority.desc())
         )
     ).all()
@@ -176,7 +221,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .select_from(MarketingEvent)
             .where(
                 MarketingEvent.trigger_id == trigger.id,
-                MarketingEvent.event_type == "impression", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now,
+                MarketingEvent.event_type == "impression", marketing_activity,
             ),
         )
         clicks = await _count(
@@ -185,7 +230,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             .select_from(MarketingEvent)
             .where(
                 MarketingEvent.trigger_id == trigger.id,
-                MarketingEvent.event_type == "click", MarketingEvent.created_at >= since, MarketingEvent.created_at <= now,
+                MarketingEvent.event_type == "click", marketing_activity,
             ),
         )
         trigger_stats.append(
@@ -206,16 +251,13 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
         day = (now - timedelta(days=offset)).astimezone(KST).date().isoformat()
         bucket[day] = DailyPoint(date=day, sessions=0, conversations=0, messages=0)
 
-    session_times = (
-        await db.execute(select(UserSession.created_at).where(UserSession.created_at >= since, UserSession.created_at <= now))
-    ).scalars().all()
     for created_at in session_times:
         key = _as_utc(created_at).astimezone(KST).date().isoformat()
         if key in bucket:
             bucket[key].sessions += 1
 
     conv_times = (
-        await db.execute(select(Conversation.created_at).where(Conversation.created_at >= since, Conversation.created_at <= now))
+        await db.execute(select(Conversation.created_at).where(Conversation.id.in_(cohort)))
     ).scalars().all()
     for created_at in conv_times:
         key = _as_utc(created_at).astimezone(KST).date().isoformat()
@@ -224,9 +266,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
 
     msg_times = (
         await db.execute(
-            select(Message.created_at).where(
-                Message.role.in_(["user", "assistant"]), Message.created_at >= since, Message.created_at <= now
-            )
+            select(Message.created_at).where(message_countable)
         )
     ).scalars().all()
     for created_at in msg_times:
@@ -245,7 +285,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
     # --- 최근 대화 ---
     recent_rows = (
         await db.execute(
-            select(Conversation, Persona, RelationshipState, UserSession)
+            select(Conversation, Persona, RelationshipState, UserSession.code_hint, turn_count)
             .join(Persona, Persona.id == Conversation.persona_id)
             .outerjoin(
                 RelationshipState,
@@ -253,7 +293,7 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
             )
             .join(UserSession, UserSession.id == Conversation.session_id)
             .where(Conversation.id.in_(cohort))
-            .order_by(Conversation.last_message_at.desc().nullslast())
+            .order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
             .limit(10)
         )
     ).all()
@@ -261,14 +301,14 @@ async def build_overview(db: AsyncSession, days: int = 14) -> DashboardOverview:
         RecentConversation(
             conversation_id=conversation.id,
             persona_name=persona.name,
-            session_hint=f"****{session.code_hint}" if session.code_hint else "****",
-            stage=state.stage if state else "낯섦",
+            session_hint=f"****{code_hint}" if project is None and code_hint else "****",
+            stage=state.stage if state else ("낯섦" if project is None else ""),
             affinity=state.affinity if state else 0,
-            turn_count=state.turn_count if state else 0,
+            turn_count=turns,
             status=conversation.status,
             last_message_at=_as_utc(conversation.last_message_at) if conversation.last_message_at else None,
         )
-        for conversation, persona, state, session in recent_rows
+        for conversation, persona, state, code_hint, turns in recent_rows
     ]
 
     ctr = round(clicks_total / impressions_total * 100, 1) if impressions_total else 0.0

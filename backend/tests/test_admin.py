@@ -164,3 +164,73 @@ async def test_legacy_default_password_is_not_a_usable_admin(client):
     assert login.status_code == 403
     overview = await client.get("/api/admin/overview", headers={"Authorization": f"Bearer {token}"})
     assert overview.status_code == 403
+
+
+async def test_project_overviews_count_only_their_chat_activity(client):
+    admin = await _login(client)
+    path = "/api/admin/overview"
+    projects = ("puruma", "fridge", "cloud")
+
+    async def overview(project):
+        response = await client.get(path, params={"project": project, "days": 14}, headers=admin)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    assert (await client.get(path, params={"project": "fridge"})).status_code == 401
+    assert (await client.get(path, params={"project": "momo-dalkom"}, headers=admin)).status_code == 422
+    before = {project: await overview(project) for project in projects}
+
+    puruma = await client.post("/api/sessions", json={"persona_slug": "puruma"})
+    assert puruma.status_code == 201
+    puruma_id = puruma.json()["conversation"]["id"]
+    response = await client.post(
+        "/api/chat",
+        headers={"X-Personal-Code": puruma.json()["personal_code"]},
+        json={"conversation_id": puruma_id, "message": "같이 학교를 둘러볼까요?"},
+    )
+    assert response.status_code == 200, response.text
+
+    story_ids = {}
+    for project, scene_set, input_turns in (("fridge", "ui_mock_v1", 1), ("cloud", "scenario_draft_v1", 9)):
+        session = await client.post("/api/sessions", json={"display_name": "집계에포함하지않을호칭"})
+        assert session.status_code == 201
+        headers = {"X-Personal-Code": session.json()["personal_code"]}
+        created = await client.post(
+            "/api/story-chat/conversations",
+            json={"project": project, "scene_set": scene_set},
+            headers=headers,
+        )
+        assert created.status_code == 201
+        story_ids[project] = created.json()["conversation_id"]
+        url = f"/api/story-chat/conversations/{story_ids[project]}/turns"
+        for turn in range(input_turns):
+            payload = {"request_id": f"dashboard-test-{turn}", "turn": turn, "input": {"text": "함께 진행해 볼게요."}}
+            response = await client.post(url, json=payload, headers=headers)
+            assert response.status_code == 200, response.text
+        replay = await client.post(url, json=payload, headers=headers)
+        assert replay.status_code == 200 and replay.json()["replayed"]
+        if project == "cloud":
+            fixed = await client.post(
+                f"/api/story-chat/conversations/{story_ids[project]}/fixed-turns",
+                json={"request_id": "dashboard-cloud-ending", "turn": input_turns},
+                headers=headers,
+            )
+            assert fixed.status_code == 200 and fixed.json()["finished"]
+
+    for project, conversation_id, turns, messages, completed in (
+        ("puruma", puruma_id, 1, 3, 0),  # 푸르마는 첫 인사도 저장합니다.
+        ("fridge", story_ids["fridge"], 1, 2, 0),
+        ("cloud", story_ids["cloud"], 10, 19, 1),  # 마지막 장면은 캐릭터 대사만 집계합니다.
+    ):
+        result = await overview(project)
+        for metric, delta in (("sessions", 1), ("conversations", 1), ("messages", messages), ("completed_conversations", completed)):
+            assert result["totals"][metric] - before[project]["totals"][metric] == delta, (project, metric)
+        for metric in ("sessions", "conversations", "messages"):
+            assert sum(day[metric] for day in result["daily"]) == result["totals"][metric]
+        recent = {row["conversation_id"]: row for row in result["recent_conversations"]}
+        assert recent[conversation_id]["turn_count"] == turns
+        assert recent[conversation_id]["session_hint"] == "****"
+        assert all(other_id not in recent for other_id in [puruma_id, *story_ids.values()] if other_id != conversation_id)
+        assert all(persona["slug"] != "momo-dalkom" for persona in result["personas"])
+        assert "집계에포함하지않을호칭" not in str(result)
+        assert "함께 진행해 볼게요." not in str(result)

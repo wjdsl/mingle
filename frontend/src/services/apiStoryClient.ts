@@ -149,7 +149,7 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
         ...(!fixed ? { input } : {}),
       }, signal, current.code)
       const reply = parseStoryTurnResponse(data, request)
-      if (sceneSet && (reply.meta?.provider !== (fixed ? 'fixed' : provider) || reply.meta.finished !== (request.turn + 1 === current.totalTurns))) {
+      if (sceneSet && !reply.safety && (reply.meta?.provider !== (fixed ? 'fixed' : provider) || reply.meta.finished !== (request.turn + 1 === current.totalTurns))) {
         throw new StoryApiError('server', 'Gemini 연결 및 서버 진행 상태를 확인해 주세요.')
       }
       return reply
@@ -160,6 +160,12 @@ export function createApiStoryClient({ displayName, sceneSet, provider = 'gemini
 export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnRequest, 'requestId' | 'turn'>): StoryReply {
   if (!isRecord(data) || !Array.isArray(data.replies)) throw new StoryApiError('invalid', MESSAGES.invalid)
   // 서버 진행 상태와 화면 진행 상태를 맞춘다.
+  if (data.safety_notice === true) {
+    // 위기 신호 안내: 서버는 장면을 진행하지 않았다(completed_turns가 요청 장면 그대로여야 한다).
+    if (data.request_id !== request.requestId || data.turn !== request.turn || data.completed_turns !== request.turn) throw new StoryApiError('conflict', MESSAGES.conflict)
+    const [line] = data.replies.filter((item): item is { speaker: string; text: string } => isRecord(item) && typeof item.speaker === 'string' && typeof item.text === 'string')
+    return { speaker: line?.speaker ?? '', text: line?.text ?? '', reaction: '', safety: true }
+  }
   if (data.request_id !== request.requestId || data.turn !== request.turn || data.completed_turns !== request.turn + 1) throw new StoryApiError('conflict', MESSAGES.conflict)
   const lines = data.replies.filter((line): line is { speaker: string; text: string } => isRecord(line) && typeof line.speaker === 'string' && typeof line.text === 'string' && line.text.trim() !== '')
   if (!lines.length || typeof data.provider !== 'string' || typeof data.model !== 'string') throw new StoryApiError('invalid', MESSAGES.invalid)
@@ -168,7 +174,15 @@ export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnReq
     speaker: first.speaker, text: first.text,
     reaction: typeof data.reaction === 'string' && data.reaction ? data.reaction : '이야기가 이어져요',
     followUps: rest.map(line => ({ speaker: line.speaker, text: line.text })),
-    meta: { provider: data.provider, model: data.model, latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0, replayed: data.replayed === true, finished: data.finished === true },
+    meta: {
+      provider: data.provider,
+      model: data.model,
+      latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
+      replayed: data.replayed === true,
+      finished: data.finished === true,
+      ...(typeof data.dialogue_provider === 'string' ? { dialogueProvider: data.dialogue_provider } : {}),
+      ...(typeof data.fallback_reason === 'string' ? { fallbackReason: data.fallback_reason } : {}),
+    },
   }
 }
 

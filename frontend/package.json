@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:puruma-api": "VITE_PURUMA_CLIENT=api vite",
+    "dev:api": "VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test tests/chat.test.ts tests/stories.test.ts tests/admin.test.ts tests/storyApi.test.ts tests/purumaMemory.test.ts tests/pendingNotice.test.ts tests/crisisSafety.test.ts tests/saveRestore.test.ts"
+    "test": "node --experimental-strip-types --test tests/chat.test.ts tests/stories.test.ts tests/admin.test.ts tests/storyApi.test.ts tests/purumaMemory.test.ts tests/pendingNotice.test.ts tests/devSource.test.ts tests/crisisSafety.test.ts tests/storySafety.test.ts tests/purumaSafety.test.ts tests/shareEvents.test.ts tests/saveRestore.test.ts tests/crisisProgress.test.ts"
   },
   "dependencies": {
     "react": "^19.2.0",

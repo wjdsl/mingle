@@ -382,3 +382,20 @@ class StoryTurnRecord(Base):
     model: Mapped[str] = mapped_column(String(80))
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ShareEvent(Base):
+    """결과 화면 공유 버튼·이미지 저장 버튼 사용과 공유 링크 유입 이벤트.
+
+    익명 세션 ID(브라우저가 만든 무작위 값), 작품 ID, 이벤트 종류, 시각만 저장한다.
+    호칭·대화·결과 내용·개인 코드는 저장하지 않는다.
+    """
+
+    __tablename__ = "share_events"
+    __table_args__ = (Index("ix_share_events_project_type_created", "project", "event_type", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    anon_id: Mapped[str] = mapped_column(String(64))
+    project: Mapped[str] = mapped_column(String(20))
+    event_type: Mapped[str] = mapped_column(String(24))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

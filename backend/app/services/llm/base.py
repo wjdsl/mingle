@@ -34,6 +34,11 @@ class LLMError(RuntimeError):
 class LLMProvider(ABC):
     name: str = "base"
     chat_model: str = "unknown"
+    # 공급자별 기능 지원 여부. 미지원 기능은 가짜 값으로 대체하지 않고 호출 측이 건너뛴다.
+    supports_embedding: bool = True
+    supports_streaming: bool = True
+    # 한 번에 요청할 수 있는 최대 생성 토큰 수(None이면 제한 없음).
+    max_tokens_limit: int | None = None
 
     @abstractmethod
     async def generate(

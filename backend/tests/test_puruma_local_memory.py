@@ -159,13 +159,52 @@ async def test_more_than_ten_notes_is_rejected(client, puruma):
 
 # --- 위기·민감 기억 ---
 
-async def test_crisis_input_skips_injection_and_update_but_keeps_notes(client, puruma, monkeypatch):
+async def test_crisis_input_returns_safety_reply_without_llm_and_keeps_notes(client, puruma, monkeypatch):
     _forbid_db_memory(monkeypatch)
     notes = [_note("interest:음악", "interest", "음악", "medium", 1)]
     response = await _chat(client, puruma, "요즘 죽고 싶어. 근데 그림은 좋아해", notes=notes)
     assert response.status_code == 200, response.text
-    assert response.json()["notes"] == notes  # 삭제·추가·갱신 없음
-    assert "### 사용자 기억" not in puruma["llm"].prompts[-1]  # 회상하지 않음
+    body = response.json()
+    assert body["safety_notice"] is True
+    assert body["provider"] == "safety"
+    assert body["reply"] == chat_service.PURUMA_CRISIS_REPLY
+    assert body["notes"] == notes  # 삭제·추가·갱신 없음
+    assert puruma["llm"].prompts == []  # LLM 미호출
+
+
+@pytest.mark.parametrize("message", ["죽고싶다", "죽고 싶다", "극단적 선택을 할까 해", "다끝내고싶어"])
+async def test_crisis_input_is_not_stored_and_turn_does_not_advance(client, puruma, message):
+    before = await client.get(f"/api/conversations/{puruma['conversation_id']}/messages", headers=puruma["headers"])
+    response = await _chat(client, puruma, message)  # notes 생략: 기존 DB 기억 모드
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["safety_notice"] is True and body["notes"] is None
+    assert body["state"]["turn_count"] == 0
+    after = await client.get(f"/api/conversations/{puruma['conversation_id']}/messages", headers=puruma["headers"])
+    assert len(after.json()) == len(before.json())  # 입력도 안내도 저장하지 않음
+    async with SessionLocal() as db:
+        saved = (await db.execute(select(func.count()).select_from(UserNote).where(UserNote.session_id == puruma["session_id"]))).scalar_one()
+    assert saved == 0
+    assert puruma["llm"].prompts == []
+
+
+async def test_crisis_input_stream_final_event_is_safety_response(client, puruma):
+    async with client.stream("POST", "/api/chat/stream", headers=puruma["headers"], json={
+        "conversation_id": puruma["conversation_id"], "message": "죽고싶다",
+    }) as response:
+        assert response.status_code == 200
+        text = "".join([chunk async for chunk in response.aiter_text()])
+    assert "event: token" not in text
+    final = json.loads([line for line in text.splitlines() if line.startswith("data: ")][-1][len("data: "):])
+    assert final["safety_notice"] is True and final["reply"] == chat_service.PURUMA_CRISIS_REPLY
+    assert puruma["llm"].prompts == []
+
+
+async def test_ordinary_hard_day_still_reaches_llm(client, puruma):
+    response = await _chat(client, puruma, "시험이 너무 힘들어서 다 포기하고 싶어")
+    assert response.status_code == 200, response.text
+    assert "safety_notice" not in response.json()
+    assert len(puruma["llm"].prompts) == 1
 
 
 async def test_sensitive_client_notes_are_removed_from_prompt_and_response(client, puruma, monkeypatch):

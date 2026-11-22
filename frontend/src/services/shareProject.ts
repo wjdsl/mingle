@@ -1,6 +1,9 @@
+import { SHARE_LINK_QUERY } from './shareEvents.ts'
+
 export async function shareProject(title: string, projectId: string): Promise<{ message: string; manualLink?: string }> {
   const url = new URL(window.location.href)
-  url.search = ''
+  // 공유 유입을 구분하는 표시만 붙인다.
+  url.search = `?${SHARE_LINK_QUERY}`
   url.hash = `/project/${projectId}`
   // 호칭, 대화, 결과를 공유 URL에 포함하지 않는다.
   const data = { title, text: 'MINGLE에서 새로운 이야기를 만나 보세요.', url: url.href }
