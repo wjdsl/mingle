@@ -6,14 +6,14 @@
 //   data/cloud_data/ending/cloud_result_types.json(result_cards). 둘 다 '가안'이다.
 
 // description: 구름섬은 cloud_result_types.json의 결과 카드 문구(가안) 그대로, 냉장고는 관계 단계 태도(tone)를 문장으로 옮겼다.
-// character: 결과 카드에 보여 줄 캐릭터(구름섬 대원 이름). address: 회장이 부르는 말({호칭}은 화면에서 채운다).
+// character: 결과 카드에 보여 줄 캐릭터(구름섬 대원 이름). address: 회장이 부르는 말({{user}}는 화면에서 채운다).
 export type Ending = { id: string; title: string; description: string; character?: string; address?: string }
 
 export const ENDINGS: Record<'fridge' | 'cloud', Ending[]> = {
   fridge: [
     { id: 'fridge_rel_stage_1', title: '고장 난 가전과 주인', address: '자네', description: '회장님은 여전히 거만하고 지시조예요. 아직은 당신을 믿지 않아요.' },
-    { id: 'fridge_rel_stage_2', title: '동거인', address: '{호칭} 사원', description: '회장님은 투덜대면서도 조언을 건네요. 고마운 마음은 숨긴 채로요.' },
-    { id: 'fridge_rel_stage_3', title: '동업자', address: '{호칭} 비서실장', description: '회장님이 당신을 믿고 사정을 조금 털어놓기 시작했어요. 자존심만큼은 여전하지만요.' },
+    { id: 'fridge_rel_stage_2', title: '동거인', address: '{{user}} 사원', description: '회장님은 투덜대면서도 조언을 건네요. 고마운 마음은 숨긴 채로요.' },
+    { id: 'fridge_rel_stage_3', title: '동업자', address: '{{user}} 비서실장', description: '회장님이 당신을 믿고 사정을 조금 털어놓기 시작했어요. 자존심만큼은 여전하지만요.' },
   ],
   cloud: [
     { id: 'cloud_result_toto', title: '앞장서는 돌격 대장형', character: '토토', description: "망설이는 순간에도 먼저 한 발 내딛는 당신. 당신의 '가자!' 한마디가 모두에게 용기가 돼요." },

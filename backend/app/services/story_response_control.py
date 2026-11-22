@@ -158,6 +158,6 @@ def correction_note(violations: list[Violation]) -> str:
         # 원문 없이 숫자만 알려 준다. 판정 기준(감탄 포함·상한 MAX_SENTENCES)은 그대로다.
         labels["too_many_sentences"] = (
             f"문장이 {max(counts)}개였다. '흠흠.' 같은 짧은 감탄도 한 문장으로 센다. "
-            f"{MAX_SENTENCES}문장 이하로 줄인다."
+            f"{MAX_SENTENCES}문장 이하로 줄인다. 감탄사·의성어는 쉼표로 다음 말에 붙여 문장 수를 줄인다."
         )
     return " ".join(dict.fromkeys(labels.get(v.code, v.code) for v in violations))

@@ -47,7 +47,7 @@ export function StoryResult({ project, name, ending, onRestart, onHome, onCollec
       setSaveStatus('이미지를 저장하지 못했어요. 화면을 캡처해 주세요.')
     } finally { setSaving(false) }
   }
-  const address = judged?.address?.replace('{호칭}', name)
+  const address = judged?.address?.replace('{{user}}', name)
   return <main className={`p-result ${project.id === 'fridge' ? 'p-fridge-result' : ''}`}><article className="p-result-card" ref={card}>
       {sample && <span className="p-result-label">결과 예시</span>}
       {kicker && <span className="p-result-label">{kicker}</span>}

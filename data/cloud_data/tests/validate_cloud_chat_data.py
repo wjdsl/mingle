@@ -138,7 +138,7 @@ def run() -> int:
     check("다섯 대원 모두 반말", all(get(x, "speech", "register") == "반말" for x in personas))
     check("토토 두려움 노출은 1회", next((x.get("hidden_side_exposure_limit_per_experience") for x in personas if x.get("id") == "cloud_toto"), None) == 1)
     dudu = next((x for x in personas if x.get("id") == "cloud_dudu"), {})
-    check("두두 사용자 호칭은 닉네임 변수", get(dudu, "speech", "user_address") == ["{nickname}"])
+    check("두두 사용자 호칭은 닉네임 변수", get(dudu, "speech", "user_address") == ["{{user}}"])
     check("두두 닉네임 첫 호명은 마지막 장면", get(dudu, "speech", "nickname_first_mention_phase_id") == "cloud_phase_teaser")
 
     facts = records(w["allowed_facts"])

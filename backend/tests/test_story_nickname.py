@@ -1,4 +1,4 @@
-"""선택지 문구의 [호칭]/[닉네임] 처리 테스트 (외부 API 없음).
+"""선택지 문구의 {{user}} 호칭 자리표시 처리 테스트 (외부 API 없음).
 
 - 서버 검증: 선택지 ID + 장면 데이터 원문 문구 정확 일치(변경 없음).
 - 검증 통과 후에만 safe_nickname() 기준 호칭으로 채워 LLM 입력·저장 대화에 쓴다.
@@ -17,7 +17,7 @@ from app.services.llm.base import LLMProvider, LLMResult
 from app.services.story_scenes import get_project
 
 SCENARIO = "scenario_draft_v1"
-PLACEHOLDER = re.compile(r"\[(호칭|닉네임)\]")
+PLACEHOLDER = re.compile(r"\{\{user\}\}|\[(호칭|닉네임)\]|\{nickname\}")
 
 
 class RecordingGemini(LLMProvider):
@@ -75,7 +75,7 @@ def test_only_fridge_first_choice_has_placeholder():
         if any(PLACEHOLDER.search(c.label) for c in scene.choices)
     }
     assert found == {("fridge", SCENARIO, 0)}
-    assert _first_choice().label == "(문을 닫으며) 죄송해요. 제 이름은 [호칭]입니다."  # 원본 데이터 유지
+    assert _first_choice().label == "(문을 닫으며) 죄송해요. 제 이름은 {{user}}입니다."  # 원본 데이터 유지
 
 
 async def test_validated_choice_is_filled_for_llm_and_history(client, monkeypatch):
@@ -106,7 +106,7 @@ async def test_choice_wording_reads_naturally_for_any_final_consonant(client, mo
 async def test_display_label_is_still_rejected_by_exact_validation(client, monkeypatch):
     fake, headers, url = await _start(client, monkeypatch)
     choice = _first_choice()
-    shown = choice.label.replace("[호칭]", "민트")
+    shown = choice.label.replace("{{user}}", "민트")
     rejected = await client.post(url, json=_payload(0, shown, choice.id), headers=headers)
     assert rejected.status_code == 422
     wrong_id = await client.post(url, json=_payload(0, choice.label, "fridge_t01_unknown"), headers=headers)
@@ -125,6 +125,6 @@ async def test_server_fallback_nickname_is_used(client, monkeypatch):
 
 async def test_free_text_is_kept_as_typed(client, monkeypatch):
     fake, headers, url = await _start(client, monkeypatch)
-    ok = await client.post(url, json=_payload(0, "저는 [호칭]이라고 불러 주세요"), headers=headers)
+    ok = await client.post(url, json=_payload(0, "저는 {{user}}라고 불러 주세요"), headers=headers)
     assert ok.status_code == 200, ok.text
-    assert _user_input(fake.calls[0]) == "저는 [호칭]이라고 불러 주세요"
+    assert _user_input(fake.calls[0]) == "저는 {{user}}라고 불러 주세요"

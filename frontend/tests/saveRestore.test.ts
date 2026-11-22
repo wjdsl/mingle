@@ -102,7 +102,7 @@ test('결말: 마지막 응답의 ending을 전달하고, 도감 목록에서 �
   assert.equal(parseStoryTurnResponse({ ...base, ending: 'cloud_result_dudu' }, { requestId: 'r', turn: 9 }).meta?.ending, 'cloud_result_dudu')
   assert.equal(parseStoryTurnResponse({ ...base, ending: null }, { requestId: 'r', turn: 9 }).meta?.ending, undefined)
   assert.equal(findEnding('cloud', 'cloud_result_dudu')?.character, '두두')
-  assert.equal(findEnding('fridge', 'fridge_rel_stage_2')?.address, '{호칭} 사원')
+  assert.equal(findEnding('fridge', 'fridge_rel_stage_2')?.address, '{{user}} 사원')
   assert.equal(findEnding('puruma', 'x'), undefined)
   assert.equal(findEnding('cloud', null), undefined)
 })

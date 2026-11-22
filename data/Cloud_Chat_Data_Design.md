@@ -51,7 +51,7 @@
 ### 말하기 및 사용자 처리
 
 - 모든 대원은 반말, 지문은 캐릭터마다 한 턴에 괄호 한 줄까지다.
-- 대원의 개인 말투와 금지 규칙은 `cloud_personas.json`, 전체 우선 규칙은 `cloud_chat_rules.json`으로 나눈다. **두두의 `speech.user_address`는 `{nickname}`만 담고, 첫 호명 단계는 `speech.nickname_first_mention_phase_id=cloud_phase_teaser`로 별도 명시한다.**
+- 대원의 개인 말투와 금지 규칙은 `cloud_personas.json`, 전체 우선 규칙은 `cloud_chat_rules.json`으로 나눈다. **두두의 `speech.user_address`는 `{{user}}`만 담고, 첫 호명 단계는 `speech.nickname_first_mention_phase_id=cloud_phase_teaser`로 별도 명시한다.**
 - 사용자는 임시 승무원이다. 실명·학교·연락처를 수집하거나 되풀이하지 않는다. 의심 닉네임은 `신입 대원`으로 대체한다. **구체적인 식별 로직은 미정**이다.
 - 자유 입력은 **그 턴의 확정된 선택지**에 가까운 의도로 분류한다. 현재 공식 선택지/점수가 없으므로 선택 ID를 임의 생성하지 않는다.
 
