@@ -2,7 +2,7 @@
 
 # MINGLE · Playful Storybook 프론트엔드
 
-현재 3개 작품의 React UI에 Figma 리디자인을 적용했다. 기본 실행은 **Mock 대화**다. 냉장고·구름섬은 `VITE_STORY_CLIENT=api npm run dev`로 백엔드 `/api/story-chat`(서버 측 Gemini)에 연결할 수 있다(2026-11-15, INTEGRATION_HANDOFF.md). 이 모드는 두 작품의 서버 10턴 장면 세트를 사용한다. 같은 장면을 비용 없이 검증하려면 백엔드를 Mock으로 실행하고 `VITE_STORY_CLIENT=scenario-mock npm run dev`를 사용한다. 실행 및 호출량 설정은 [백엔드 가이드](../backend/README.md#2026-11-17-냉장고구름섬-시연-실행)를 참고한다. 푸르마도 기본은 Mock이며, `VITE_PURUMA_CLIENT=api npm run dev`일 때만 백엔드 `/api/chat`(브라우저 로컬 기억 포함)에 연결한다. 두 환경변수는 독립적이라 함께 지정할 수 있고, 실제 Gemini 시연의 전체 실행 순서는 [백엔드 가이드의 푸르마 기억 시연 실행](../backend/README.md#2026-11-18-푸르마-기억-시연-실행)을 따른다. 팀 통합 지점과 검증은 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md), 디자인 기준은 [PLAYFUL_STORYBOOK_DESIGN.md](PLAYFUL_STORYBOOK_DESIGN.md)를 먼저 읽는다.
+현재 3개 작품의 React UI에 Figma 리디자인을 적용했다. 기본 실행은 **Mock 대화**다. 냉장고·구름섬은 `VITE_STORY_CLIENT=api npm run dev`로 백엔드 `/api/story-chat`(서버 측 Gemini)에 연결할 수 있다(2026-11-15, INTEGRATION_HANDOFF.md). 이 모드는 두 작품의 서버 10턴 장면 세트를 사용한다. 같은 장면을 비용 없이 검증하려면 백엔드를 Mock으로 실행하고 `VITE_STORY_CLIENT=scenario-mock npm run dev`를 사용한다. 실행 및 호출량 설정은 [백엔드 가이드](../backend/README.md#2026-11-17-냉장고구름섬-시연-실행)를 참고한다. 푸르마도 기본은 Mock이며, `VITE_PURUMA_CLIENT=api npm run dev`일 때만 백엔드 `/api/story-chat`의 푸르마 10턴(브라우저 로컬 기억 포함)에 연결한다(2026-11-22 이후, 아래 해당 절). 서버 Mock으로 확인하려면 `npm run dev:puruma-scenario-mock`을 쓴다. 두 환경변수는 독립적이라 함께 지정할 수 있고, 실제 Gemini 시연의 전체 실행 순서는 [백엔드 가이드의 푸르마 기억 시연 실행](../backend/README.md#2026-11-18-푸르마-기억-시연-실행)을 따른다. 팀 통합 지점과 검증은 [INTEGRATION_HANDOFF.md](INTEGRATION_HANDOFF.md), 디자인 기준은 [PLAYFUL_STORYBOOK_DESIGN.md](PLAYFUL_STORYBOOK_DESIGN.md)를 먼저 읽는다.
 
 > **2026-11-20 실제 API 확인용 실행**: `npm run dev`는 항상 Mock이다. 푸르마를 백엔드(`LLM_PROVIDER=qwen` 포함)에 연결하려면 `npm run dev:puruma-api`, 푸르마+냉장고·구름섬(Gemini 전용)은 `npm run dev:api`를 쓴다. 변경 후에는 Vite를 재시작해야 한다. 개발 빌드 화면 좌하단 `DEV · MOCK(...)` / `DEV · API · provider=…` 배지와 콘솔 `[mingle:*]` 로그로 출처를 확인한다. 냉장고·구름섬은 JSON 스토리 생성이 필요해 Gemini 백엔드에서만 동작하며 Qwen 백엔드에서는 Mock으로 대체되지 않고 오류가 표시된다.
 
@@ -103,7 +103,7 @@ API 키를 브라우저 코드나 `VITE_*` 환경변수에 넣지 않는다.
 
 ## 2026-11-22 진행 저장·결말 도감·결과 이미지 (냉장고·구름섬)
 
-위의 "새로고침하면 초기화" 설명은 이 절 이전 상태다. 푸르마는 지금도 새로고침하면 초기화된다.
+위의 "새로고침하면 초기화" 설명은 이 절 이전 상태다. 푸르마도 2026-11-22 푸르마 10턴 절부터 같은 방식으로 저장한다.
 
 - **진행 저장·이어하기** (`services/storyProgress.ts`): 이 기기의 `localStorage`(`mingle.progress.v1.<작품>`)에 호칭, 완료한 장면 수, API 모드의 개인 코드·대화 ID만 저장한다. 대화 원문은 저장하지 않는다. 실행 모드(mock / scenario-mock / api)가 다르면 다른 기록으로 본다. 작품 소개에 "이어하기 / 새로 시작", 홈 카드에 "이어서 하기" 표시가 나온다. 이어하기는 현재 장면의 첫 대사부터 다시 보여 준다.
 - **API 모드 이어하기**: 서버 `GET /api/story-chat/conversations/{id}`로 진행 장면을 먼저 확인한다. 서버 기록이 없거나 끝났거나 확인에 실패하면 저장 기록을 지우고 "이전 기록을 이어갈 수 없어 처음부터 시작해요"로 새 대화를 시작한다.
@@ -142,3 +142,17 @@ VITE_SITE_URL=https://배포-주소 npm run build
 
 - 서버가 AI 실패(503·429·시간 초과·응답 검증 실패) 때 장면 고정 대사로 응답하면(`provider=fallback`) `apiStoryClient.ts`는 일반 응답과 똑같이 진행한다. 말풍선에 별도 표시는 없고, 개발 빌드의 좌하단 배지에만 `provider=fallback`이 보인다. 그 밖의 공급자 불일치는 기존처럼 오류다.
 - 그래서 Gemini 503 대기(15초)·다시 시도 버튼은 서버가 대체할 대사가 없는 예외적인 경우에만 나타난다. 서버에 연결하지 못하는 네트워크 오류는 기존처럼 오류 안내와 다시 시도를 표시한다.
+
+## 2026-11-22 푸르마 10턴
+
+위의 '개강 2턴', '2턴 Mock', '`/api/chat` 연결' 설명은 이 절 이전 상태다.
+
+- **장면**: `src/projects/puruma/scenes.ts`에 10턴(개강 1~2 / 적응 3~4 / 중간고사 5~6 / 축제 7~8 / 기말·종강 9 / 방학 계획 10)의 첫 대사, 선택지, 반응 예시, 자유 입력 대사를 둔다. 서버 `backend/app/services/puruma_scenes.py`와 같은 문장이어야 하며 백엔드 테스트가 검사한다. 기존 `mockConversation.ts`는 삭제했다.
+- **실행 모드** (`VITE_PURUMA_CLIENT`)
+  - `mock`(기본, `npm run dev`): 브라우저 Mock. 고정 반응만 보여 주고 스탯·홍보·엔딩 판정은 없다. 결과는 디자인 샘플 카드다.
+  - `scenario-mock`(`npm run dev:puruma-scenario-mock`): 서버 Mock(백엔드 `LLM_PROVIDER=mock`). 대사는 고정이지만 홍보 카드, CC 분기, 엔딩 판정은 서버 규칙으로 실제 동작한다.
+  - `api`(`npm run dev:puruma-api`): 서버의 실제 Gemini. 10턴에 호출 10~20회.
+- **서버 클라이언트**: `src/services/apiPurumaStoryClient.ts`가 `/api/story-chat`에 `project=puruma`로 대화를 만들고 매 턴 로컬 기억(`notes`)을 함께 보낸다. 응답의 `emotion`, `promo`, `notes`, `ending`을 쓴다. 같은 requestId 재시도는 서버가 저장된 응답을 돌려준다.
+- **화면**: 진행 헤더는 구간과 10턴 진행을 보여 준다. 홍보는 대사 아래 링크 카드로 붙고 새 탭으로 열린다. 다 마치면 서버가 정한 엔딩 카드를 보여 주고 6칸 졸업 앨범에 기록한다.
+- **진행 저장·이어하기**: 냉장고·구름섬과 같은 `storyProgress.ts` 형식(`mingle.progress.v1.puruma`)이다. 서버 모드는 서버 진행 턴을 먼저 확인하고, 기록이 없거나 끝난 대화면 처음부터 시작한다. 이어하기는 현재 턴의 첫 대사부터 다시 보여 준다.
+- 테스트: `tests/purumaStory.test.ts`, `tests/chat.test.ts`.

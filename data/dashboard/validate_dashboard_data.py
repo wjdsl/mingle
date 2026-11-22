@@ -70,8 +70,9 @@ def main():
         rules = docs[required[2]]["검증_항목"]
         if len(rules) != 19 or len({r["id"] for r in rules}) != 19:
             raise ValueError("검증 항목이 19개가 아니거나 ID가 중복됨")
-        if len({x["key"] for x in docs[required[0]]["이벤트_필드"]}) != 7:
-            raise ValueError("이벤트 필드 중복 또는 7개 미충족")
+        keys = [x["key"] for x in docs[required[0]]["이벤트_필드"]]
+        if len(set(keys)) != len(keys):  # 개수는 D01이 검사한다
+            raise ValueError("이벤트 필드 중복")
         if len({x["이름"] for x in docs[required[1]]["지표"]}) != 10:
             raise ValueError("통계 지표 중복 또는 10개 미충족")
     except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:

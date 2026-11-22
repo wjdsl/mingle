@@ -21,8 +21,9 @@ async def _headers(client, email=ADMIN["email"], password=ADMIN["password"]):
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-async def _stats(client, headers, project, days=14):
-    response = await client.get(f"/api/admin/projects/{project}/stats", params={"days": days}, headers=headers)
+async def _stats(client, headers, project, days=14, data="all"):
+    # 테스트 서버는 Mock LLM이라 턴이 있는 대화는 샘플로 분류된다. 기존 지표 검증은 샘플 포함(all)으로 본다.
+    response = await client.get(f"/api/admin/projects/{project}/stats", params={"days": days, "data": data}, headers=headers)
     assert response.status_code == 200, response.text
     return response.json()
 
