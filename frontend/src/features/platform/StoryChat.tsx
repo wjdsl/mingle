@@ -4,6 +4,7 @@ import { DevSourceBadge } from './DevSourceBadge'
 import { useContext } from 'react'
 import { ChatEntryMessages } from './ChatIntro'
 import { SceneImage } from './SceneImage'
+import { CrisisNotice } from '../safety/CrisisNotice'
 import { useLayoutEffect, useRef } from 'react'
 import type { StoryProject } from '../../projects/stories/catalog'
 import { ActionButton, CharacterPortrait } from './shared'
@@ -11,7 +12,6 @@ import { useStoryChat } from './useStoryChat'
 import type { StoryMessage } from './useStoryChat'
 import { useEffect, useState } from 'react'
 import { loadStoryScenario } from '../../services/apiStoryClient'
-import { SAFETY_NOTICE } from '../../services/storySafety'
 
 export function MessageComposer({ disabled, onSend }: { disabled: boolean; onSend(text: string): void }) {
   const [draft, setDraft] = useState('')
@@ -25,14 +25,10 @@ export function MessageComposer({ disabled, onSend }: { disabled: boolean; onSen
     <span id="story-input-help">개인정보는 적지 않아도 돼요.<span>{Array.from(draft).length}/300</span></span>
   </form>
 }
-function SafetyNotice() {
-  // 대화 안의 서비스 시스템 말풍선. 팝업이 아니며 입력창은 그대로 쓸 수 있다.
-  return <div className="p-safety-notice" role="note" aria-label="안내">{SAFETY_NOTICE.map((line, i) => <p key={i}>{line.map((part, j) => part.href ? <a key={j} href={part.href}><b>{part.text}</b></a> : part.strong ? <b key={j}>{part.text}</b> : part.text)}</p>)}</div>
-}
 export function ChatBubble({ message, project, latest }: { message: StoryMessage; project: StoryProject; latest: boolean }) {
   if (message.kind === 'scene_image') return <SceneImage asset={message.asset} />
-  if (message.kind === 'safety') return <SafetyNotice />
   if (message.kind === 'system') return <p className="p-event-message"><span>사건 알림</span>{message.text}</p>
+  if (message.kind === 'crisis') return <CrisisNotice />
   const display = message.text.match(/\[디스플레이: ([^\]]+)\]/)?.[1]
   const spokenText = message.text.replace(/\[디스플레이: [^\]]+\]\s*/g, '').trim()
   const character = project.characters.find(c => c.name === message.speaker)

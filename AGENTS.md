@@ -330,7 +330,7 @@
 
 ## 2026-11-21 냉장고·구름섬 위기 신호 안내 (기획 초안 반영)
 
-- `docs/stories/safety-notice-and-name-check.md`(origin/main, 기획 초안·팀 확인 전)의 1장을 구현했다. 문구·번호(109·119)는 팀 확정 전이므로 확정되면 `frontend/src/services/storySafety.ts`의 한 곳만 고친다. 푸르마 화면과 데이터 파일(`data/*`)은 변경하지 않았다.
+- `docs/stories/safety-notice-and-name-check.md`(origin/main, 기획 초안·팀 확인 전)의 1장을 구현했다. 문구·번호(109·119)는 팀 확정 전이므로 확정되면 `frontend/src/services/crisisSafety.ts`의 한 곳만 고친다. 푸르마 화면과 데이터 파일(`data/*`)은 변경하지 않았다.
 - 자유 입력에 위기 표현(예: 죽고 싶다, 사라지고 싶다, 자해, 다 끝내고 싶다)이 있으면 프론트가 서버·LLM에 보내지 않고 대화 안 시스템 말풍선(`tel:109`, `tel:119`)과 캐릭터의 짧은 곁말을 보여 준다. 장면은 진행하지 않고 같은 장면에서 이어 입력할 수 있다. 선택지에는 적용하지 않는다.
 - 백엔드(`story_safety.py`, `process_story_turn`)도 같은 목록으로 한 번 더 막는다. 위기 입력이면 LLM을 호출하지 않고 턴·메시지를 저장하지 않으며 `safety_notice: true`로 응답한다. 입력 원문은 기록하지 않는다(로그는 작품·장면만).
 - 검증: 백엔드 283개, 프론트 53개, 빌드 통과. 브라우저(Mock 모드)에서 냉장고 안내 표시·링크·진행 유지·이후 정상 진행을 확인했다. 구름섬 화면과 실제 Gemini/Qwen 연동 상태의 화면 확인은 하지 않았다.
@@ -343,7 +343,7 @@
 
 ## 2026-11-21 위기 신호 서버 기준 통일 및 푸르마 서버 방어 (AI/LLM)
 
-- 서버 위기 단어 목록을 `backend/app/services/memory.py`의 `PURUMA_CRISIS_PATTERNS` 한 곳으로 모았다. 공백을 모두 지운 입력과 비교하므로 "죽고싶다"와 "죽고 싶다"를 함께 잡는다. `story_safety.py`는 이 목록과 `is_crisis_text`를 그대로 쓴다. 표현을 바꿀 때는 프론트 감지 목록(`storySafety.ts`, PR #15의 `crisisSafety.ts`)과 맞춘다.
+- 서버 위기 단어 목록을 `backend/app/services/memory.py`의 `PURUMA_CRISIS_PATTERNS` 한 곳으로 모았다. 공백을 모두 지운 입력과 비교하므로 "죽고싶다"와 "죽고 싶다"를 함께 잡는다. `story_safety.py`는 이 목록과 `is_crisis_text`를 그대로 쓴다. 표현을 바꿀 때는 프론트 감지 목록(`crisisSafety.ts`)과 맞춘다.
 - 푸르마도 서버에서 한 번 더 막는다. `chat_service.process_message`가 푸르마 페르소나의 위기 입력을 LLM 호출 전에 걸러 `ChatSafetyOutcome`을 돌려준다. 입력·안내 메시지·턴·관계 상태·기억을 저장하지 않으며 원문은 로그에 남기지 않는다. 응답은 `ChatSafetyResponse`(`safety_notice: true`, 고정 문구, `provider: "safety"`)이고 `/api/chat`과 `/api/chat/stream` 모두 같다. 다른 페르소나는 영향이 없다.
 - 푸르마 지침(`prompts/pruma_system.md`, `seed_puruma.py`)의 "힘든 마음이나 위기 신호"를 "자신을 해치려는 표현"으로 좁히고, 일상적으로 힘든 이야기는 장난을 줄여 공감하되 위기처럼 대하지 않도록 명시했다.
 - 검증: 백엔드 293개 통과. 실제 LLM 응답 톤과 프론트 푸르마 클라이언트의 `safety_notice` 응답 처리는 확인하지 않았다(PR #15는 위기 입력을 서버로 보내지 않는다).
@@ -354,3 +354,16 @@
 - 관리자 대시보드가 작품(푸르마·냉장고·구름섬)별 채팅(세션·대화·완료율·진행 턴)과 공유(링크 공유 버튼·이미지 저장 버튼·공유 링크 열기·링크로 체험 시작) 통계를 `GET /api/admin/projects/{project}/stats`로 조회한다. 작품 담당 계정은 배정된 작품만 보이며 다른 작품은 서버가 403으로 막는다. 전체 조회·채팅 원문 API는 전체 관리자 전용이다.
 - 공유 이벤트는 `POST /api/events/share`로 익명 세션 ID·작품·종류만 저장한다. 서버 연결/서버 Mock 모드에서만 전송하고 브라우저 전용 Mock은 기록하지 않는다. 결과 화면에 `이미지 저장` 버튼(브라우저에서 PNG 생성)을 추가했다. 집계 기준은 `frontend/ADMIN_GUIDE.md`.
 - 총 접속 수·재방문율·엔딩 분포는 범위 밖이다. 모델·프롬프트·위기 대응 로직은 변경하지 않았다. 커밋/푸시 없음.
+
+## 2026-11-21 관리자 계정 작품 지정
+
+- 기획 요청으로 관리자 계정에 볼 수 있는 작품을 지정하는 기반만 추가했다. 계정 종류는 플랫폼 관리자(`role=admin`, 전체)와 작품 담당자(`role=project`) 두 가지다.
+- 마이그레이션 도구가 없어 `admin_users`에 칸을 추가하지 않고 새 표 `admin_project_access`(admin_id, project_id)를 만들었다. 기존 SQLite DB 사본에서 서버 시작 시 새 표가 생성되고 기존 계정이 유지됨을 확인했다. PostgreSQL은 실행하지 않았다.
+- `scripts.create_admin`에 `--project {puruma,fridge,cloud}`(반복 가능)를 추가했다. `--reset`에 `--project`가 없으면 기존 종류·작품을 유지해 작품 담당자가 전체 관리자로 바뀌지 않게 했다.
+- 작품별 통계 필터·작품 권한 검사·프론트 작품 선택은 **미구현**이다. 그때까지 작품 담당자는 로그인과 모든 관리자 API에서 403으로 거부한다. 대화 원문 API를 작품 담당자에게 열지 않는 방향은 기획 제안이며 팀 확정 전이다.
+- 수정: `backend/app/db/models.py`, `backend/app/services/admin_access.py`(신규), `backend/app/api/deps.py`, `backend/app/api/routes/admin.py`, `backend/scripts/create_admin.py`, `backend/tests/test_admin_project_access.py`(신규), `frontend/ADMIN_GUIDE.md`, 본 문서. 백엔드 pytest 218개 통과(Mock). 프론트 코드는 변경하지 않았다.
+
+## 2026-11-22 main 통합 (Qwen 브랜치 ← origin/main)
+
+- 위기 안내 UI와 감지 목록은 PR #15의 `crisisSafety.ts`·`CrisisNotice`로 통일했다. 냉장고·구름섬 채팅은 이 공통 안내(109·119)와 캐릭터 곁말을 쓰며, 서버가 `safety_notice`로 응답해도 같은 안내를 보여 주고 장면을 진행하지 않는다. 프론트 감지 목록은 서버 `PURUMA_CRISIS_PATTERNS`와 같은 표현을 포함한다. 중복이던 `storySafety.ts`와 `p-safety-notice` 스타일은 제거했다.
+- 관리자 권한은 PR #16의 작품별 접근 방식을 유지한다(작품 담당자는 배정 작품의 통계만 조회, 전체·원문 API는 전체 관리자). main의 '작품 담당자 로그인 차단' 임시 처리는 이 기능으로 대체되었다.

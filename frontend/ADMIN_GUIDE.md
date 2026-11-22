@@ -19,6 +19,8 @@ Copy-Item .env.example .env
 ```
 
 - 기존 계정 재발급: 동일 명령에 `--reset` 추가. 발급자는 서버/DB에 접근 가능한 팀 담당자다.
+- 작품 담당자 계정(2026-11-21): `--project puruma`처럼 작품을 지정하면 `role=project` 계정이 되고 `admin_project_access` 표에 작품이 저장된다. 여러 작품은 `--project fridge --project cloud`. 작품 ID는 `puruma`/`fridge`/`cloud`만 허용한다. `--project` 없이 만들면 기존과 같은 플랫폼 관리자(`role=admin`, 전체 작품)다. `--reset`에 `--project`를 주지 않으면 계정 종류와 작품 목록을 유지한다.
+- **작품 담당자는 아직 로그인할 수 없다.** 작품별 통계 필터와 권한 검사가 없어 로그인과 모든 관리자 API에서 403("작품 담당자용 대시보드는 아직 준비 중")을 반환한다. 필터 구현 후 허용한다.
 - 기본 관리자 계정 자동 생성은 제거했다. 환경변수로 명시한 계정만 최초 생성하거나 CLI로 발급한다. 기존 예제 비밀번호를 쓰는 계정은 로그인/조회가 거부된다.
 - 기본/빈 JWT 키로 관리자 API를 사용할 수 없다(503). 키를 변경하면 기존 개인 코드 해시 등 다른 인증에도 영향이 있으므로 기존 서버에서는 팀 담당자가 설정을 관리한다.
 - 현재 실행 중인 검증 서버는 `.backups/admin-local.db`의 별도 DB와 `.backups/admin-local-access.json`의 무작위 자격 증명을 사용한다. 원본 `backend/data/app.db`를 사용하지 않는다. 편의용 로그인 정보는 `.backups/admin-local-login.txt`에만 있으며 Git에 포함되지 않는다.

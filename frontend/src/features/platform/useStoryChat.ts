@@ -4,13 +4,15 @@ import { mockStoryClient } from '../../services/storyClient'
 import { newRequestId } from '../../services/requestId'
 import type { StoryClient } from '../../services/storyClient'
 import { StoryApiError, storyRetryPolicy } from '../../services/apiStoryClient'
-import { companionLine, isCrisisText } from '../../services/storySafety'
+import { crisisCareLine, isCrisisText } from '../../services/crisisSafety'
+import type { CrisisProject } from '../../services/crisisSafety'
 
 type TextMessage = { kind?: 'text'; situation?: string; role: 'user' | 'character'; speaker: string; text: string; reaction?: string; provider?: string; model?: string; dialogueProvider?: string }
-export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string } | { kind: 'safety' }
+export type StoryMessage = TextMessage | { kind: 'scene_image'; asset: string } | { kind: 'system'; text: string } | { kind: 'crisis' }
+// 위기 신호: 안내 말풍선(CrisisNotice)과 캐릭터의 고정 곁말만 붙인다. 서버가 보낸 곁말이 있으면 그것을 쓴다.
 function safetyMessages(projectId: string, reply?: { speaker: string; text: string }): StoryMessage[] {
- const line = reply?.text ? reply : companionLine(projectId)
- return [{ kind: 'safety' }, ...(line ? [{ role: 'character' as const, speaker: line.speaker, text: line.text }] : [])]
+  const care = reply?.text ? reply : crisisCareLine(projectId as CrisisProject)
+  return [{ kind: 'crisis' }, { role: 'character', speaker: care.speaker, text: care.text }]
 }
 function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
  const step = project.steps[index]
@@ -94,6 +96,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
     if (busy.current || status !== 'idle' || (step.inputMode !== 'none' && !text.trim())) return
     // 위기 신호(자유 입력만): 서버·LLM에 보내지 않고 바로 안내한다. 입력은 이 화면의 메모리에만 있다. 장면은 진행하지 않는다.
     if (choice === undefined && step.inputMode !== 'none' && isCrisisText(text)) {
+      setSelected(undefined)
       setMessages(old => [...old, { role: 'user', speaker: name, text }, ...safetyMessages(project.id)])
       return
     }

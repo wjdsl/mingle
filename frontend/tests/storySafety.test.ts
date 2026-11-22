@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isCrisisText, companionLine, SAFETY_NOTICE } from '../src/services/storySafety.ts'
+import { isCrisisText } from '../src/services/crisisSafety.ts'
 import { parseStoryTurnResponse, StoryApiError } from '../src/services/apiStoryClient.ts'
 
 test('위기 신호 표현은 띄어쓰기와 무관하게 감지한다', () => {
@@ -9,18 +9,6 @@ test('위기 신호 표현은 띄어쓰기와 무관하게 감지한다', () => 
 
 test('일반적인 힘든 이야기와 평범한 입력은 감지하지 않는다', () => {
   for (const text of ['면접 또 떨어졌어요', '요즘 너무 지쳐요', '냉장고 문 열어도 돼요?', '오늘 일 끝내고 싶다', '아이스크림 먹고 싶어', '']) assert.equal(isCrisisText(text), false, text)
-})
-
-test('안내 문구는 109와 119를 전화 링크로 둔다', () => {
-  const hrefs = SAFETY_NOTICE.flat().filter(part => part.href).map(part => part.href)
-  assert.deepEqual(hrefs, ['tel:109', 'tel:119'])
-})
-
-test('냉장고와 구름섬에만 곁말이 있고 장난·약속·진행 유도가 없다', () => {
-  assert.equal(companionLine('fridge')?.speaker, '냉장고 회장')
-  assert.equal(companionLine('cloud')?.speaker, '나나')
-  assert.equal(companionLine('puruma'), undefined)
-  for (const id of ['fridge', 'cloud']) assert.doesNotMatch(companionLine(id)!.text, /괜찮아질|기억해|다음/)
 })
 
 test('서버의 위기 안내 응답은 장면을 진행하지 않는 safety 응답으로 읽는다', () => {
