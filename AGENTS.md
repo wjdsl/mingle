@@ -367,3 +367,4 @@
 
 - 위기 안내 UI와 감지 목록은 PR #15의 `crisisSafety.ts`·`CrisisNotice`로 통일했다. 냉장고·구름섬 채팅은 이 공통 안내(109·119)와 캐릭터 곁말을 쓰며, 서버가 `safety_notice`로 응답해도 같은 안내를 보여 주고 장면을 진행하지 않는다. 프론트 감지 목록은 서버 `PURUMA_CRISIS_PATTERNS`와 같은 표현을 포함한다. 중복이던 `storySafety.ts`와 `p-safety-notice` 스타일은 제거했다.
 - 관리자 권한은 PR #16의 작품별 접근 방식을 유지한다(작품 담당자는 배정 작품의 통계만 조회, 전체·원문 API는 전체 관리자). main의 '작품 담당자 로그인 차단' 임시 처리는 이 기능으로 대체되었다.
+- 푸르마 API 모드: 프론트 감지를 놓치고 서버만 위기 입력을 감지해 `safety_notice: true`(`ChatSafetyResponse`, `notes`가 비어 있을 수 있음)로 응답해도 오류가 아니라 같은 `CrisisNotice`와 차분한 반응으로 처리한다. 턴·감정·진행 상태와 기억은 바꾸지 않는다(`apiChatClient.ts`, `chatReducer.ts`, 회귀 테스트 `frontend/tests/purumaSafety.test.ts`).

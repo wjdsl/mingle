@@ -98,7 +98,12 @@ export function createApiChatClient({
     const current = await ensureSession(signal)
     const data = await call('/api/chat', {
       conversation_id: current.conversationId, message: request.input.text, notes: store.read(),
-    }, signal, current.code) as { reply?: unknown; notes?: unknown; provider?: unknown }
+    }, signal, current.code) as { reply?: unknown; notes?: unknown; provider?: unknown; safety_notice?: unknown }
+    if (data.safety_notice === true) {
+      // 위기 안내 응답: 서버는 입력·기억·상태를 바꾸지 않았다. 기억(notes)을 쓰지 않고 안내로만 처리한다.
+      if (typeof data.reply !== 'string' || !data.reply.trim()) throw new ApiChatError('server', MESSAGES.server)
+      return { text: data.reply.trim(), emotion: DEFAULT_EMOTION, safety: true }
+    }
     if (typeof data.reply !== 'string' || !data.reply.trim() || !Array.isArray(data.notes)) throw new ApiChatError('server', MESSAGES.server)
     recordSource(trace, { provider: typeof data.provider === 'string' ? data.provider : undefined })
     if (store.getEpoch() === epoch) store.write(data.notes) // 요청 중 사용자가 기억을 지웠다면 되살리지 않는다.
