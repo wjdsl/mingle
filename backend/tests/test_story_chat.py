@@ -113,7 +113,7 @@ async def test_cloud_full_progress_marks_completion_and_blocks_more_turns(client
     assert response.json()["finished"] is True
     assert response.json()["replies"][0]["speaker"] in PROJECTS["cloud"].speakers
     state = await client.get(f"/api/story-chat/conversations/{cid}", headers=headers)
-    assert state.json() == {"conversation_id": cid, "project": "cloud", "completed_turns": 3, "total_turns": 3, "finished": True, "scene_set": "ui_mock_v1"}
+    assert state.json() == {"conversation_id": cid, "project": "cloud", "completed_turns": 3, "total_turns": 3, "finished": True, "scene_set": "ui_mock_v1", "ending": None}
     more = await client.post(url, json=_turn(3, "더 할래"), headers=headers)
     assert more.status_code == 409
     detail = await client.get(f"/api/conversations/{cid}", headers=headers)

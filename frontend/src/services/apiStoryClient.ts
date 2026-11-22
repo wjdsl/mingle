@@ -1,6 +1,7 @@
 import type { StoryProject, StoryStep } from '../projects/stories/catalog.ts'
 import type { StoryClient, StoryTurnRequest } from './storyClient.ts'
 import type { StoryReply } from './mockStoryClient.ts'
+import { fridgeExpression, fridgeSceneImage } from '../projects/stories/fridgeExpressions.ts'
 
 // 냉장고·구름섬 실제 백엔드(/api/story-chat) 클라이언트.
 // - 개인 코드·대화 ID는 이 객체의 메모리에 두고, 이어하기용으로 storyProgress.ts가 이 기기 브라우저에만 저장한다.
@@ -182,6 +183,7 @@ export function parseStoryTurnResponse(data: unknown, request: Pick<StoryTurnReq
       finished: data.finished === true,
       ...(typeof data.dialogue_provider === 'string' ? { dialogueProvider: data.dialogue_provider } : {}),
       ...(typeof data.fallback_reason === 'string' ? { fallbackReason: data.fallback_reason } : {}),
+      ...(typeof data.ending === 'string' && data.ending ? { ending: data.ending } : {}),
     },
   }
 }
@@ -212,7 +214,7 @@ export async function loadStoryScenario(project: StoryProject, name: string, sig
       title: scene.title,
       situation: address(scene.situation),
       speaker: openingLines[0]?.speaker ?? project.characters[0].name,
-      sceneImage: project.id === 'fridge' && turn === 0 ? project.steps[0]?.sceneImage : undefined,
+      ...(project.id === 'fridge' ? { sceneImage: fridgeSceneImage(turn), expression: fridgeExpression(turn) } : {}),
       text: '',
       reply: '',
       inputMode: scene.input_mode,

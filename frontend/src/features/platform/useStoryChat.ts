@@ -17,8 +17,10 @@ function safetyMessages(projectId: string, reply?: { speaker: string; text: stri
   const care = reply?.text ? reply : crisisCareLine(projectId as CrisisProject)
   return [{ kind: 'crisis' }, { role: 'character', speaker: care.speaker, text: care.text }]
 }
-function opening(project: StoryProject, index: number, name?: string): StoryMessage[] {
- const step = project.steps[index]
+// resumed: 이어하기로 이 장면부터 시작하면, 새 표정이 아니어도(sceneImage 없음) 지금 장면의 표정(expression)을 한 번 보여 준다.
+function opening(project: StoryProject, index: number, name?: string, resumed = false): StoryMessage[] {
+ const found = project.steps[index]
+ const step = resumed && !found.sceneImage && found.expression ? { ...found, sceneImage: found.expression } : found
  if (step.openingLines) {
    return [
      ...(step.sceneImage ? [{ kind: 'scene_image' as const, asset: step.sceneImage }] : []),
@@ -33,11 +35,13 @@ function opening(project: StoryProject, index: number, name?: string): StoryMess
   { kind: 'text', role: 'character', speaker: step.speaker, text: `${name ? name + ', ' : ''}${step.text}`, situation: step.situation }
  ]
 }
-export function useStoryChat(project: StoryProject, name: string, onResult: () => void, client: StoryClient = mockStoryClient, options: StoryChatOptions = {}) {
+export function useStoryChat(project: StoryProject, name: string, onResult: (ending?: string) => void, client: StoryClient = mockStoryClient, options: StoryChatOptions = {}) {
+  // 마지막 장면 응답에 서버가 정한 결말 ID가 온다(API·서버 Mock 모드). 대화 중에는 호칭·단계를 바꾸지 않는다.
+  const ending = useRef<string | undefined>(undefined)
   const startTurn = Math.min(Math.max(options.startTurn ?? 0, 0), project.steps.length - 1)
   const [turn, setTurn] = useState(startTurn)
   const [messages, setMessages] = useState<StoryMessage[]>(() => options.resumed
-    ? [{ kind: 'system', label: '이어하기', text: RESUME_NOTICE }, ...opening(project, startTurn, startTurn === 0 ? name : undefined)]
+    ? [{ kind: 'system', label: '이어하기', text: RESUME_NOTICE }, ...opening(project, startTurn, startTurn === 0 ? name : undefined, true)]
     : [...(options.notice ? [{ kind: 'system' as const, label: '이어하기', text: options.notice }] : []), ...opening(project, 0, name)])
   // 진행 저장: 호칭과 완료한 장면 수, API 모드의 서버 대화 정보만 이 기기에 둔다(대화 원문 제외).
   const remember = (completedTurns: number) => saveProgress({ project: project.id, mode: storyClientMode(), name, completedTurns, api: client.session?.() ?? undefined })
@@ -77,6 +81,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
         const lines = [{ speaker: reply.speaker, text: reply.text }, ...(reply.followUps ?? [])]
         const meta = reply.meta ? { provider: reply.meta.provider, model: reply.meta.model, dialogueProvider: reply.meta.dialogueProvider } : {}
         setMessages(old => [...old, ...lines.map((line, i): StoryMessage => ({ role: 'character', ...line, ...meta, ...(i === lines.length - 1 ? { reaction: reply.reaction } : {}) }))])
+        if (reply.meta?.ending) ending.current = reply.meta.ending
         setErrorMessage(undefined); setStatus('replied')
         remember(turn + 1)
       }
@@ -117,7 +122,7 @@ export function useStoryChat(project: StoryProject, name: string, onResult: () =
   function advance() {
     if (status !== 'replied' || !pending.current) return
     const next = turn + 1
-    if (next === project.steps.length) { clearProgress(project.id); onResult(); return }
+    if (next === project.steps.length) { clearProgress(project.id); onResult(ending.current); return }
     setTurn(next); setSelected(undefined); pending.current = null; setStatus('idle')
     setMessages(old => [...old, ...opening(project, next)])
   }

@@ -29,6 +29,7 @@ class StoryConversationOut(BaseModel):
     total_turns: int
     finished: bool
     scene_set: str = "ui_mock_v1"
+    ending: str | None = Field(default=None, description="끝난 대화의 결말 ID(scenario_draft_v1만). 점수는 보내지 않는다.")
 
 
 class StoryTurnInput(StrictModel):
@@ -104,6 +105,7 @@ class StoryTurnResponse(BaseModel):
     finished: bool
     replayed: bool = Field(description="같은 request_id의 저장된 응답을 다시 반환했는지")
     guardrail_triggered: bool = False
+    ending: str | None = Field(default=None, description="마지막 장면이면 결말 ID(scenario_draft_v1만). 점수는 보내지 않는다.")
     # 하이브리드(냉장고 Qwen 대사) 추적용 추가 필드. 기존 필드 의미는 그대로이며 provider는 스토리 생성 공급자다.
     story_provider: str | None = None
     dialogue_provider: str | None = None

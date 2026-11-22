@@ -546,3 +546,10 @@ VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
 - Fallback(Gemini 재호출 없이 원본 사용): 연결 실패·타임아웃·HTTP 오류·응답 형식 오류·검증 실패·설정 누락·줄 구조가 예상과 다른 경우. 검증은 존댓말, 3문장 초과, JSON/마크다운 잔재, 일본어/한자 혼입, 개인정보, 차단어, 성별 호칭, 가칭, 실존 기업·투자, 프롬프트 노출, 이후 장면 선공개, 직전 대사 반복이다.
 - 응답 `/api/story-chat/.../turns`에 `story_provider`, `dialogue_provider`(gemini|qwen), `qwen_used`, `qwen_latency_ms`, `fallback_reason`을 추가했다(기존 필드·의미 동일, `provider`는 스토리 생성 공급자). 같은 값이 저장 메시지 `extra.dialogue`에도 남아 재시도 재생 때 그대로 반환된다. 로그에는 사유·지연시간만 남기고 대사·사용자 입력·키는 남기지 않는다.
 - 제한: Qwen 호출은 Gemini 뒤에 직렬이라 턴 지연이 최대 `FRIDGE_QWEN_TIMEOUT_SECONDS`만큼 늘 수 있다. 의미 수준 일관성(초안과의 사실 일치)은 프롬프트에 의존하며 결정적 검증은 위 목록뿐이다. 실제 Colab 연동 품질은 자동 테스트가 아니라 브라우저 확인이 필요하다.
+
+## 2026-11-22 냉장고·구름섬 결말 판정
+
+- `app/services/story_judgement.py`: 마지막 장면에서만 결말을 정한다(대화 중 호칭·단계 변화 없음). 장면 카드 JSON(`*_scene_cards_draft.json`)의 `choice_score_changes` 값과 버튼→의도 연결을 읽는다. 버튼 입력은 연결된 의도, 자유 입력은 턴마다 LLM이 분류해 메시지 `extra.intent_id`에 저장한 의도로 채점한다. 모르는 의도는 0점.
+- 냉장고: 1~9턴 합 5점 이하 `fridge_rel_stage_1`, 6~11점 `_2`, 12점 이상 `_3`. 10턴 고정 장면(`fixed-turns`)은 그 단계의 `fridge_trailer_cuts.json` 대사를 쓴다.
+- 구름섬: 두 축 누적, 두 축 모두 |값| ≤ 1이면 `cloud_result_dudu`, 아니면 부호로 토토·비비·나나·키키. 균형형은 각 축을 0 쪽으로 2씩 당긴다. 한 축이 0이면 9턴 선택 방향(균형형이면 +).
+- API: 턴 응답과 `GET /api/story-chat/conversations/{id}`에 `ending`(끝난 대화의 결말 ID, 아니면 `null`)을 추가했다. 점수는 응답에 넣지 않는다. 판정은 `scenario_draft_v1`에서만 하며 `ui_mock_v1`은 `ending: null`.

@@ -45,7 +45,7 @@ export function ChatBubble({ message, project, latest }: { message: StoryMessage
 // onRestart: 재시도할 수 없는 오류에서 새 세션(새 클라이언트·서버 대화)으로 다시 시작한다. 서버의 기존 대화 기록은 삭제하지 않는다.
 const RESUME_FAILED = '이전 기록을 이어갈 수 없어 처음부터 시작해요.'
 
-export function ChatLayout({ project, name, onResult, client, onRestart, resume }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void; resume?: SavedProgress | null }) {
+export function ChatLayout({ project, name, onResult, client, onRestart, resume }: { client?: StoryClient; project: StoryProject; name: string; onResult(ending?: string): void; onRestart?(): void; resume?: SavedProgress | null }) {
   if (client || storyClientMode() === 'mock') {
     const canResume = !!resume && resume.completedTurns < project.steps.length
     return <StoryConversation project={project} name={name} onResult={onResult} client={client} onRestart={onRestart} options={canResume ? { startTurn: resume.completedTurns, resumed: true } : {}} />
@@ -78,7 +78,7 @@ async function prepareScenario(project: StoryProject, name: string, resume: Save
   return { scenario, client: createSessionStoryClient(name), options: { notice: RESUME_FAILED } }
 }
 
-function ScenarioChat({ project, name, onResult, onRestart, resume }: { project: StoryProject; name: string; onResult(): void; onRestart?(): void; resume?: SavedProgress | null }) {
+function ScenarioChat({ project, name, onResult, onRestart, resume }: { project: StoryProject; name: string; onResult(ending?: string): void; onRestart?(): void; resume?: SavedProgress | null }) {
   const [prepared, setPrepared] = useState<Prepared>()
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -98,7 +98,7 @@ function ScenarioChat({ project, name, onResult, onRestart, resume }: { project:
   </main>
 }
 
-function StoryConversation({ project, name, onResult, client, onRestart, options }: { client?: StoryClient; project: StoryProject; name: string; onResult(): void; onRestart?(): void; options?: StoryChatOptions }) {
+function StoryConversation({ project, name, onResult, client, onRestart, options }: { client?: StoryClient; project: StoryProject; name: string; onResult(ending?: string): void; onRestart?(): void; options?: StoryChatOptions }) {
   const visibleMessages = useContext(ChatEntryMessages)
   // 세션(key)마다 새 클라이언트 → 새 서버 대화. 기본은 Mock, VITE_STORY_CLIENT=api일 때 실제 API.
   const [sessionClient] = useState(() => client ?? createSessionStoryClient(name))
@@ -132,7 +132,7 @@ function StoryConversation({ project, name, onResult, client, onRestart, options
     </div></div>
     <section className="p-composer" aria-label="답변 보내기">
       {status === 'error' && <div className="p-error" role="alert"><span>{errorMessage ?? '답변을 불러오지 못했어요.'}</span>{canRetry ? <button disabled={retryBlocked} onClick={() => void retry()}>{retryBlocked && retryWait > 0 ? `${retryWait}초 후 다시 시도` : '다시 시도'}</button> : onRestart && <button onClick={onRestart}>새로 시작</button>}</div>}
-      {status === 'replied' ? <button className="p-primary" ref={next} onClick={() => { follow.current = true; advance() }}>{turn === project.steps.length - 1 ? (project.id === 'fridge' ? '예고편 마무리' : '결과 예시 보기') : '다음 장면'} <span aria-hidden="true">→</span></button> : step.inputMode === 'none' ? <ActionButton disabled={status !== 'idle'} onClick={() => { follow.current = true; send('') }}>마지막 장면 재생</ActionButton> : <>
+      {status === 'replied' ? <button className="p-primary" ref={next} onClick={() => { follow.current = true; advance() }}>{turn === project.steps.length - 1 ? (project.id === 'fridge' ? '예고편 마무리' : storyClientMode() === 'mock' ? '결과 예시 보기' : '결과 보기') : '다음 장면'} <span aria-hidden="true">→</span></button> : step.inputMode === 'none' ? <ActionButton disabled={status !== 'idle'} onClick={() => { follow.current = true; send('') }}>마지막 장면 재생</ActionButton> : <>
         {project.id !== 'fridge' && <p className="p-input-label">선택하거나 직접 답해 보세요.</p>}<div className="p-choices">{step.choices.map((c, i) => <ActionButton secondary key={c.label} className={`p-choice ${selected === i ? 'p-selected' : ''}`} aria-pressed={selected === i} disabled={status !== 'idle'} onClick={() => { follow.current = true; send(c.label, i) }}><span className="p-ticket-number">{selected === i ? '✓' : String(i + 1).padStart(2, '0')}</span><span>{c.label}</span><span className="p-ticket-perforation" aria-hidden="true" /></ActionButton>)}</div>
         <MessageComposer disabled={status !== 'idle'} onSend={text => { follow.current = true; send(text) }} />
       </>}
