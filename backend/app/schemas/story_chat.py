@@ -29,6 +29,7 @@ class StoryConversationOut(BaseModel):
     total_turns: int
     finished: bool
     scene_set: str = "ui_mock_v1"
+    ending: str | None = Field(default=None, description="끝난 대화의 결말 ID(scenario_draft_v1만). 점수는 보내지 않는다.")
 
 
 class StoryTurnInput(StrictModel):
@@ -104,3 +105,4 @@ class StoryTurnResponse(BaseModel):
     finished: bool
     replayed: bool = Field(description="같은 request_id의 저장된 응답을 다시 반환했는지")
     guardrail_triggered: bool = False
+    ending: str | None = Field(default=None, description="마지막 장면이면 결말 ID(scenario_draft_v1만). 점수는 보내지 않는다.")

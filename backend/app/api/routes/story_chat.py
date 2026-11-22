@@ -31,6 +31,7 @@ from app.schemas.story_chat import (
 )
 from app.services.llm import LLMError
 from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
+from app.services.story_judgement import judge_conversation
 from app.services.story_scenes import get_project
 from app.services.story_turn_service import (
     StoryTurnError,
@@ -67,8 +68,11 @@ def _http_error(exc: StoryTurnError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=detail)
 
 
-def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
+async def _turn_response(db: AsyncSession, outcome: StoryTurnOutcome) -> StoryTurnResponse:
     record = outcome.record
+    finished = outcome.completed_turns >= outcome.project.total_turns
+    # 결말은 마지막 장면에서만 정한다(대화 중 호칭·단계 변화 없음).
+    ending = await judge_conversation(db, outcome.conversation, outcome.project.id, outcome.project.scene_set) if finished else None
     return StoryTurnResponse(
         conversation_id=outcome.conversation.id,
         project=outcome.project.id,
@@ -81,9 +85,10 @@ def _turn_response(outcome: StoryTurnOutcome) -> StoryTurnResponse:
         latency_ms=record.latency_ms,
         completed_turns=outcome.completed_turns,
         total_turns=outcome.project.total_turns,
-        finished=outcome.completed_turns >= outcome.project.total_turns,
+        finished=finished,
         replayed=outcome.replayed,
         guardrail_triggered=outcome.guardrail_triggered,
+        ending=ending,
     )
 
 
@@ -129,13 +134,15 @@ async def get_conversation(
     except StoryTurnError as exc:
         raise _http_error(exc) from exc
     completed = await count_completed(db, conversation.id)
+    finished = completed >= project.total_turns
     return StoryConversationOut(
         conversation_id=conversation.id,
         project=project.id,
         completed_turns=completed,
         total_turns=project.total_turns,
-        finished=completed >= project.total_turns,
+        finished=finished,
         scene_set=project.scene_set,
+        ending=await judge_conversation(db, conversation, project.id, project.scene_set) if finished else None,
     )
 
 
@@ -190,7 +197,7 @@ async def send_fixed_turn(
     except StoryTurnError as exc:
         await db.rollback()
         raise _http_error(exc) from exc
-    return _turn_response(outcome)
+    return await _turn_response(db, outcome)
 
 
 @router.post(
@@ -246,4 +253,4 @@ async def send_turn(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
         ) from exc
-    return _turn_response(outcome)
+    return await _turn_response(db, outcome)

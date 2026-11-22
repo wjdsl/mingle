@@ -527,3 +527,10 @@ VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
 - 모델 기본 설정은 `.env`의 값을 따른다. 임베딩 호출은 푸르마에서 발생하지 않는다(지식 문서가 없으면 검색을 건너뛴다). 규칙 기반 기억 추출만 쓰고 별도 LLM 추출 호출은 없다.
 - 이미 푸르마가 만들어진 DB에는 최신 `seed_puruma.py` 프롬프트가 반영되지 않는다(있으면 덮어쓰지 않음). 새 DB이거나 푸르마 행이 없는 DB에서 서버를 시작하면 최신 값으로 생성된다.
 - Gemini 429·503·504는 `/api/chat`에서 각각 429·503·504로 응답하며 그 외 LLM 오류는 502다.
+
+## 2026-11-22 냉장고·구름섬 결말 판정
+
+- `app/services/story_judgement.py`: 마지막 장면에서만 결말을 정한다(대화 중 호칭·단계 변화 없음). 장면 카드 JSON(`*_scene_cards_draft.json`)의 `choice_score_changes` 값과 버튼→의도 연결을 읽는다. 버튼 입력은 연결된 의도, 자유 입력은 턴마다 LLM이 분류해 메시지 `extra.intent_id`에 저장한 의도로 채점한다. 모르는 의도는 0점.
+- 냉장고: 1~9턴 합 5점 이하 `fridge_rel_stage_1`, 6~11점 `_2`, 12점 이상 `_3`. 10턴 고정 장면(`fixed-turns`)은 그 단계의 `fridge_trailer_cuts.json` 대사를 쓴다.
+- 구름섬: 두 축 누적, 두 축 모두 |값| ≤ 1이면 `cloud_result_dudu`, 아니면 부호로 토토·비비·나나·키키. 균형형은 각 축을 0 쪽으로 2씩 당긴다. 한 축이 0이면 9턴 선택 방향(균형형이면 +).
+- API: 턴 응답과 `GET /api/story-chat/conversations/{id}`에 `ending`(끝난 대화의 결말 ID, 아니면 `null`)을 추가했다. 점수는 응답에 넣지 않는다. 판정은 `scenario_draft_v1`에서만 하며 `ui_mock_v1`은 `ending: null`.

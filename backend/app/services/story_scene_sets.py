@@ -1,8 +1,9 @@
 """scenario_draft_v1 장면 세트: 시나리오 장면 카드 초안 JSON(10턴) → Scene 객체.
 
 - 장면 문장(첫 대사·사건·버튼·반응 방향·예외·먼저 말하면 안 되는 것)은 초안 JSON의 원문만 쓴다.
-- 점수(score_raw, choice_score_changes)는 읽지 않는다. 관계 단계·성향 판정이 미확정이기 때문이다.
-- 냉장고 10턴 마무리 대사는 공식 fridge_trailer_cuts.json의 1단계 대사를 쓴다(관계 단계 계산 미구현이라 1단계 고정).
+- 점수(score_raw, choice_score_changes)는 여기서 읽지 않는다. 결말 판정은 story_judgement.py가 따로 읽는다(2026-11-22).
+- 냉장고 10턴 마무리 대사는 여기서는 공식 fridge_trailer_cuts.json의 1단계 대사를 기본값으로 둔다. 실제 진행 시에는
+  process_fixed_turn이 story_judgement로 정한 관계 단계의 대사로 바꾼다(2026-11-22, 마지막에만 반영).
 - 화자 이름은 공식 페르소나 display_name을 쓴다(초안 표기 '회장' → '냉장고 회장').
 """
 

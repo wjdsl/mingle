@@ -193,9 +193,11 @@ async def test_fridge_scenario_full_ten_turns_with_fixed_lines(client, monkeypat
     final = await client.post(f"{url}/fixed-turns", json={"request_id": "fixed-final-01", "turn": 9}, headers=headers)
     assert final.status_code == 200, final.text
     body = final.json()
-    trailer = story_data.load_official("fridge").get("trailer")["relationship_variants"][0]["dialogue"]
+    # 매 턴 첫 버튼(+2)을 골라 18점 → 3단계 마무리 대사 (2026-11-22 결말 판정: 마지막에만 반영)
+    trailer = story_data.load_official("fridge").get("trailer")["relationship_variants"][2]["dialogue"].replace("[호칭]", "민트")
     assert (body["provider"], body["model"], body["finished"], body["completed_turns"]) == ("fixed", "scene-script", True, 10)
     assert body["replies"] == [{"speaker": "냉장고 회장", "text": f"[디스플레이: 환하게 켜지는 눈]\n{trailer}"}]
+    assert body["ending"] == "fridge_rel_stage_3"
     assert len(fake.calls) == calls_before  # 고정 장면은 LLM을 호출하지 않는다
     again = await client.post(f"{url}/fixed-turns", json={"request_id": "fixed-final-01", "turn": 9}, headers=headers)
     assert again.json()["replayed"] is True
@@ -222,6 +224,8 @@ async def test_cloud_scenario_ten_turns_and_fixed_teaser_with_nickname(client, m
     assert replies[0]["text"] == "……구름. 잘했어." and replies[1]["text"].startswith("[시스템]")
     assert replies[2]["text"].startswith("(머리 옆 구름이 놀라 튀어 오른다) ")
     assert final.json()["finished"] is True
+    # 매 턴 첫 버튼: 2~9턴 합 (10, 8) → 토토(+,+) (2026-11-22 결말 판정)
+    assert final.json()["ending"] == "cloud_result_toto"
 
 
 async def test_scene_set_endpoint_and_choice_validation(client, monkeypatch):
@@ -322,6 +326,7 @@ async def test_default_scene_set_keeps_existing_frontend_contract(client, monkey
     assert response.status_code == 200
     assert set(response.json()) == {
         "conversation_id", "project", "request_id", "turn", "replies", "reaction", "provider", "model",
-        "latency_ms", "completed_turns", "total_turns", "finished", "replayed", "guardrail_triggered",
+        "latency_ms", "completed_turns", "total_turns", "finished", "replayed", "guardrail_triggered", "ending",
     }
+    assert response.json()["ending"] is None  # 결말은 마지막 장면에서만 정한다
     assert "하게체" in fake.calls[0][0]["content"]  # 기본 세트도 공식 페르소나 규칙을 쓴다

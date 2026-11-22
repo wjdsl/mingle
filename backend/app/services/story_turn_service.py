@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +27,7 @@ from app.core.config import settings
 from app.db.models import Conversation, Message, Persona, StoryTurnRecord, UserSession, utcnow
 from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
+from app.services.story_judgement import fridge_trailer_text, judge_conversation
 from app.services.story_prompt import build_story_messages
 from app.services.story_response_control import correction_note, sentences, validate_lines
 from app.services.story_scenes import Scene, SceneChoice, SceneLine, StoryProjectDef, get_project, project_for_slug
@@ -643,7 +644,14 @@ async def process_fixed_turn(
     if scene.input_mode != "none" or not scene.fixed_lines:
         raise StoryTurnError(409, "이 장면은 사용자 입력이 필요합니다.", current_turn=turn)
     nickname = safe_nickname(session.display_name, project.nickname_fallback)
-    lines = fixed_reply_lines(project, scene.fixed_lines, nickname)
+    fixed = scene.fixed_lines
+    if project.id == "fridge":
+        # 냉장고 10턴은 지금까지의 판정 결과(관계 단계)에 맞는 마무리 대사를 쓴다. 대화 중에는 단계를 바꾸지 않는다.
+        ending = await judge_conversation(db, conversation, project.id, project.scene_set)
+        staged = fridge_trailer_text(ending)
+        if staged and fixed:
+            fixed = (replace(fixed[0], text=staged),) + fixed[1:]
+    lines = fixed_reply_lines(project, fixed, nickname)
     marker = Message(
         conversation_id=conversation.id,
         role="system",

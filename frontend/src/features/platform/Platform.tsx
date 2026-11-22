@@ -16,7 +16,7 @@ import { StoryCollection } from './StoryCollection'
 import { storyClientMode } from '../../services/storyClient'
 import { clearProgress, loadProgress } from '../../services/storyProgress'
 import type { SavedProgress } from '../../services/storyProgress'
-import { hasCollection } from '../../services/endingCollection'
+import { hasCollection, recordEnding } from '../../services/endingCollection'
 
 type Stage = 'intro' | 'setup' | 'chat' | 'result' | 'collection'
 function readProject() { return projects.find(p => window.location.hash.split('/')[2] === p.id) }
@@ -28,8 +28,15 @@ function Experience({ project }: { project: StoryProject }) {
   const [name, setName] = useState(project.defaultName)
   // 이어하기(냉장고·구름섬): 소개 화면에 올 때마다 이 기기의 저장 기록을 다시 읽는다.
   const [resume, setResume] = useState<SavedProgress | null>(null)
+  // 서버가 마지막 장면에서 정한 결말 ID(API·서버 Mock 모드). 브라우저 Mock은 없음 → 고정 샘플 결과.
+  const [ending, setEnding] = useState<string | null>(null)
+  function finish(result?: string) {
+    setEnding(result ?? null)
+    if (result && hasCollection(project.id)) recordEnding(project.id, result)
+    go('result')
+  }
   const saved = project.id !== 'puruma' && stage === 'intro' ? loadProgress(project.id, storyClientMode()) : null
-  function startChat(nextName: string, from: SavedProgress | null) { setName(nextName); setResume(from); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }
+  function startChat(nextName: string, from: SavedProgress | null) { setName(nextName); setResume(from); setEnding(null); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }
   const [session, setSession] = useState(0)
   const [started, setStarted] = useState(false)
   const [surface, setSurface] = useState('chat')
@@ -63,8 +70,8 @@ function Experience({ project }: { project: StoryProject }) {
     <AppShell immersive={chatting} project={project} onBack={stage === 'intro' ? undefined : back} onHome={home}>
       {stage === 'intro' && <ProjectIntro project={project} saved={saved} onStart={() => go('setup')} onResume={() => saved && startChat(saved.name, saved)} onCollection={hasCollection(project.id) ? () => go('collection') : undefined} />}
       {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { clearProgress(project.id); startChat(n, null) }} />}
-      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} resume={resume} onResult={() => go('result')} onRestart={() => { clearProgress(project.id); setResume(null); setSession(s => s + 1) }} />}</ChatIntro></div>}
-      {stage === 'result' && <StoryResult project={project} name={name} onRestart={() => go('setup')} onHome={openHome} onCollection={hasCollection(project.id) ? () => go('collection') : undefined} />}
+      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} resume={resume} onResult={finish} onRestart={() => { clearProgress(project.id); setResume(null); setSession(s => s + 1) }} />}</ChatIntro></div>}
+      {stage === 'result' && <StoryResult project={project} name={name} ending={ending} onRestart={() => go('setup')} onHome={openHome} onCollection={hasCollection(project.id) ? () => go('collection') : undefined} />}
       {stage === 'collection' && hasCollection(project.id) && <StoryCollection project={project} />}
     </AppShell>
     {exit && <ExitDialog onCancel={() => setExit(false)} onLeave={openHome} />}
