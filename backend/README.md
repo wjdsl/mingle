@@ -567,3 +567,29 @@ VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
 - 같은 request_id 재전송은 저장된 고정 대사를 `replayed=true`로 돌려준다. 대체 턴은 냉장고 Qwen 재작성을 건너뛰고, 자유 입력 대체 턴은 의도가 없어 결말 판정에서 0점이다.
 - 스모크: `scripts.smoke_story_chat`은 `provider=fallback` 턴이 나오면 사유 확인 안내를 출력하고 실패(exit 1)로 끝난다. 실제 연동 성공으로 보고하지 않기 위함이다.
 - 테스트: `tests/test_story_fallback.py`. 공급자 실패를 흉내 낸 수동 확인은 `GEMINI_BASE_URL`을 로컬 가짜 서버로 지정하고 `GEMINI_API_KEY`에 가짜 값을 넣어 실제 Google 호출 없이 할 수 있다.
+
+## 2026-11-22 냉장고·구름섬 스토리 채팅 평가 실행기
+
+`python -m scripts.story_eval`은 실행 중인 서버의 `/api/story-chat`을 호출해 응답 품질을 숫자로 잰다. Gemini 모델 선정과 냉장고 Qwen 하이브리드 검증에 쓴다. 서비스 경로(응답 제어, 교정 재시도, 고정 대사 대체, Qwen)를 그대로 거친다는 점에서 Gemini REST를 직접 부르는 `experiments/gemini-benchmark/`와 다르다.
+
+- 스위트
+  - `quality`: `scripts/story_eval/cases/quality_inputs.json`의 고정 입력(선택지·자유 입력 혼합)으로 10턴 진행. 첫 시도 통과율, 교정 후 통과율, 대체 응답 비율과 사유, 장면별 위반 코드, 지연 p50/p95, 토큰 합계.
+  - `intent`: 장면 카드 JSON(`data/*_data/scenario/*_scene_cards_draft.json`)의 `free_input_examples`를 정답으로 한 의도 분류 정확도(장면별·전체, 혼동 사례). 결말 판정이 이 분류를 쓴다.
+  - `behavior`: `cases/fridge_behavior.json`, `cases/cloud_behavior.json`. 원본 행동 시나리오(`data/*_data/tests/*_chat_test_cases.json`, 수정하지 않음)를 id로 연결해 턴·입력·자동 검사·사람 검토로 옮겼다. 원본에 없던 필수 범주는 `origin: eval_added`로 추가했다. 의미 판단이 필요한 케이스는 자동 판정하지 않고 `review.md`에 입력과 응답을 남긴다. LLM 심판은 만들지 않았고 `checks.py`의 `JUDGES` 자리만 열어 두었다.
+- 수집: HTTP 응답의 공급자·모델·지연에 더해, 응답에 없는 값은 `story_turns` → 응답 메시지 extra에서 메타데이터 키만 읽는다(`--database-url`은 서버와 같은 DB여야 한다). 이를 위해 턴마다 `extra["generation"]`을 저장한다: `calls`(llm.generate 호출 수), `violations`(모든 시도의 위반 코드), `prompt_tokens`·`completion_tokens`·`thinking_tokens`(실패 시도 포함 합계), `config`(생각 수준, 생성 시도·HTTP 재시도 상한, 응답 스키마, temperature, max_tokens, Qwen 여부). 대체 응답 턴에도 남으며 기존 `attempts`·`control_violations`의 의미는 그대로다. `LLMResult.thinking_tokens`는 Gemini `thoughtsTokenCount`다.
+- 비용 안전장치: `run --dry-run`은 호출 없이 예상 호출 수(최소~최대)를 출력한다. 최대는 LLM 턴 × 생성 시도 × HTTP 재시도 + 냉장고 Qwen 1회다. 위기 표현·10턴 고정 연출은 0회. 실제 공급자에서는 `--max-calls`가 필수이며, 다음 턴의 최대 호출을 더하면 상한을 넘는 시점에서 멈춘다(종료 코드 3). 사용량은 서버 기록의 생성 호출 × HTTP 재시도 상한 + Qwen 시도로 보수적으로 센다. 서버 시작 점검 호출은 포함하지 않으므로 `LLM_PROBE_ON_STARTUP=false`를 권장한다.
+- 리포트: `backend/eval_reports/<시각>_<라벨>/`(git 제외). `report.json`(기계용, 대사 원문 없음), `summary.md`(실행 조건이 맨 위), `review.md`·`review.json`(행동 테스트 입력·응답 원문, 로컬 검토 전용). `compare`로 두 개 이상의 실행을 나란히 비교한다.
+- 서버 Mock은 생성·의도 분류를 하지 않아 통과율·정확도·토큰이 N/A이고 행동 판정은 "판정 불가"로 나온다(파이프라인 확인용). Gemini 경로를 키 없이 확인하려면 `scripts/story_eval/fake_gemini.py`(가짜 REST 서버, 결정적 응답)를 `GEMINI_BASE_URL`로 지정한다.
+
+```bash
+# 터미널 1: 평가용 서버(모델·생각 수준·Qwen은 환경변수로 바꾼다)
+DATABASE_URL=sqlite+aiosqlite:///./data/eval.db GEMINI_CHAT_MODEL=<모델> GEMINI_THINKING_LEVEL=minimal \
+  FRIDGE_QWEN_DIALOGUE_ENABLED=false LLM_PROBE_ON_STARTUP=false .venv/bin/python -m uvicorn app.main:app --port 8000
+# 터미널 2: 예상 호출 수 → 실행 → 비교
+.venv/bin/python -m scripts.story_eval run --dry-run --qwen false --runs 2
+.venv/bin/python -m scripts.story_eval run --label <모델> --qwen false --max-calls 700 --database-url sqlite+aiosqlite:///./data/eval.db
+.venv/bin/python -m scripts.story_eval compare eval_reports/<A>/report.json eval_reports/<B>/report.json
+```
+
+- 예상 호출 수(Qwen 끔, 생성 시도 2 × HTTP 재시도 2): 세 스위트 1회 170~680회, `--suites quality`만 18~72회. 냉장고 Qwen 하이브리드는 서버 `FRIDGE_QWEN_DIALOGUE_ENABLED=true`, 실행기 `--projects fridge --qwen true`로 194~485회(LLM 턴 97, 최소는 생성 97 + Qwen 97). `--qwen`·`--story-attempts`·`--http-attempts`는 예상 계산용이므로 서버 설정과 맞춘다. 다르면 리포트에 경고가 붙는다.
+- 검증: `tests/test_story_eval.py`(20건). 서버 Mock과 가짜 Gemini로 두 작품 3스위트 전체 실행을 확인했다. 실제 Gemini·Qwen 실행과 PostgreSQL에서의 메타데이터 조회는 아직 하지 않았다.

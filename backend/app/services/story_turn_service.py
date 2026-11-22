@@ -495,6 +495,46 @@ class GeneratedReply:
     fallback_reason: str | None = None  # AI 실패로 고정 대사를 쓴 경우의 사유 코드(로그·extra 전용)
 
 
+@dataclass(slots=True)
+class GenerationTrace:
+    """한 턴의 생성 시도 기록(평가·비용 집계용). 성공·고정 대사 대체 모두 메시지 extra["generation"]에 남는다.
+
+    대사·입력 원문은 담지 않는다. calls는 llm.generate 호출 수이며 공급자 내부 HTTP 재시도는 포함하지 않는다.
+    """
+
+    calls: int = 0
+    violations: list[str] | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    thinking_tokens: int | None = None
+
+    def add_usage(self, result) -> None:
+        for name in ("prompt_tokens", "completion_tokens", "thinking_tokens"):
+            value = getattr(result, name, None)
+            if isinstance(value, int):
+                setattr(self, name, (getattr(self, name) or 0) + value)
+
+    def as_extra(self) -> dict:
+        llm = get_llm()
+        return {
+            "calls": self.calls,
+            "violations": list(self.violations or []),
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "thinking_tokens": self.thinking_tokens,
+            # 실행 조건(비밀값 없음): 평가 리포트가 서버 실제 설정을 기록하는 데 쓴다.
+            "config": {
+                "thinking_level": getattr(llm, "thinking_level", None),
+                "story_generation_attempts": settings.story_generation_attempts,
+                "http_attempts": getattr(llm, "http_attempts", None),
+                "response_schema": settings.story_response_schema,
+                "temperature": settings.llm_temperature,
+                "max_tokens": settings.llm_max_tokens,
+                "fridge_qwen_dialogue_enabled": settings.fridge_qwen_dialogue_enabled,
+            },
+        }
+
+
 async def _generate(
     project: StoryProjectDef,
     turn: int,
@@ -503,15 +543,18 @@ async def _generate(
     user_text: str,
     choice: SceneChoice | None,
     previous_replies: list[str],
+    trace: GenerationTrace | None = None,
 ) -> GeneratedReply:
     scene = project.scenes[turn]
     llm = get_llm()
+    trace = trace if trace is not None else GenerationTrace()
+    trace.violations = trace.violations if trace.violations is not None else []
     if llm.name == "mock":
         lines, reaction = _mock_reply(project, scene, choice)
         return GeneratedReply(lines, reaction, "mock", MOCK_STORY_MODEL, 0, None, 0, [], {})
     started = time.perf_counter()
     correction: str | None = None
-    seen: list[str] = []
+    seen = trace.violations
     # 스키마를 받는 공급자(Gemini)에만 전달한다. 다른 공급자·테스트 대역의 호출 형태는 그대로다.
     schema_kwargs = (
         {"json_schema": story_response_schema(project)}
@@ -520,6 +563,7 @@ async def _generate(
     )
     for attempt in range(1, min(settings.story_generation_attempts, MAX_ATTEMPTS) + 1):
         messages, versions = build_story_messages(project, nickname, turn, history, user_text, choice, correction)
+        trace.calls += 1
         result = await llm.generate(
             messages,
             temperature=settings.llm_temperature,
@@ -527,6 +571,7 @@ async def _generate(
             json_mode=True,
             **schema_kwargs,
         )
+        trace.add_usage(result)
         try:
             lines, reaction = parse_story_output(project, result.text)
         except ValueError as exc:
@@ -540,7 +585,7 @@ async def _generate(
         violations = validate_lines(project, turn, [(l.speaker, l.text) for l in lines], previous_replies, nickname)
         if not violations:
             latency = int((time.perf_counter() - started) * 1000)
-            return GeneratedReply(lines, reaction, result.provider, result.model, latency, parse_intent(result.text, scene), attempt, seen, versions)
+            return GeneratedReply(lines, reaction, result.provider, result.model, latency, parse_intent(result.text, scene), attempt, list(seen), versions)
         seen += [v.code for v in violations]
         # 원문·위반 상세(detail)는 남기지 않고 코드와 줄별 문장 수만 기록한다.
         logger.warning(
@@ -705,8 +750,9 @@ async def process_story_turn(
     # LLM 호출 동안 DB 트랜잭션(SQLite 잠금)을 잡고 있지 않는다.
     await db.commit()
     started = time.perf_counter()
+    trace = GenerationTrace()
     try:
-        generated = await _generate(project, turn, nickname, history, user_text, choice, previous)
+        generated = await _generate(project, turn, nickname, history, user_text, choice, previous, trace)
     except LLMError as exc:
         # AI 실패: 오류 화면 대신 장면 고정 대사로 이어 간다. 사유 코드만 기록하고 대사·입력·키는 남기지 않는다.
         reason = story_failure_reason(exc)
@@ -768,6 +814,7 @@ async def process_story_turn(
             "prompt_data_versions": generated.prompt_versions,
             "dialogue": dialogue.as_extra(),
             **({"story_fallback": {"reason": generated.fallback_reason}} if generated.fallback_reason else {}),
+            "generation": trace.as_extra(),
         },
         guardrail_triggered=guardrail_triggered,
         dialogue=dialogue,

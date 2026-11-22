@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "scene_set": "scenario_draft_v1",
+  "note": "10턴 진행 품질용 고정 입력. turn은 1부터 센다. choice는 장면 선택지 순서(0부터), text는 자유 입력이다. 10턴은 입력 없는 고정 연출이라 실행기가 fixed-turns로 진행한다. 의도 분류 정확도는 장면 카드의 free_input_examples를 따로 쓴다.",
+  "display_name": "민트",
+  "projects": {
+    "fridge": [
+      {"turn": 1, "text": "민트예요. 문 바로 닫을게요."},
+      {"turn": 2, "choice": 1},
+      {"turn": 3, "text": "규칙이 좀 너무 빡빡한 거 아니에요?"},
+      {"turn": 4, "choice": 0},
+      {"turn": 5, "text": "우연 아닐까요? 그래도 좀 신기하네요."},
+      {"turn": 6, "choice": 0},
+      {"turn": 7, "text": "판매자가 누군지부터 알아볼게요."},
+      {"turn": 8, "choice": 0},
+      {"turn": 9, "text": "끝까지 회장님 편이에요."}
+    ],
+    "cloud": [
+      {"turn": 1, "text": "민트야! 잘 부탁해."},
+      {"turn": 2, "choice": 1},
+      {"turn": 3, "text": "폭풍은 피해서 돌아가자."},
+      {"turn": 4, "choice": 2},
+      {"turn": 5, "text": "비비, 엔진 고치는 거 내가 도울게."},
+      {"turn": 6, "choice": 2},
+      {"turn": 7, "text": "밧줄 다리부터 놓자."},
+      {"turn": 8, "choice": 1},
+      {"turn": 9, "text": "무전으로 먼저 말 걸어 볼게."}
+    ]
+  },
+  "filler": {
+    "note": "의도 분류·행동 테스트에서 검사 대상이 없는 턴을 넘길 때 쓰는 입력. 선택지가 있으면 첫 선택지, 없으면 아래 문장.",
+    "fridge": "알겠어요.",
+    "cloud": "좋아, 같이 할게!"
+  }
+}

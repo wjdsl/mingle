@@ -436,3 +436,12 @@
 - `experiments/gemini-benchmark/`에서 Gemini 3.5 Flash-Lite와 3.6 Flash의 합성 단일 턴 24건과 멀티턴 30건을 비교합니다. 실행·재개 방법은 해당 README.md, 통제 조건과 채점 기준은 experiment_plan.md에 있습니다.
 - 승인된 세 번째 시나리오는 푸르마 첫 10턴입니다. 서비스의 개강 2턴 뒤는 기획에 따른 합성 장면입니다. 냉장고·구름섬 마지막 턴은 고정 컷 재현 문항입니다.
 - 전체 Mock을 실행했고 실제 생성은 모델별 연결 확인 1회씩 수행했습니다. v1 실측값과 화자 표기 재검토는 analysis.md에 기록했습니다. v2는 구름섬에서만 화자 이름을 검사하고, 고정 컷의 복제 진단은 생성 품질 점수에서 제외합니다. 실제 전체 실행과 최종 선정은 대기 중입니다.
+
+## 2026-11-22 냉장고·구름섬 스토리 채팅 평가 실행기
+
+- `backend/scripts/story_eval/`(`python -m scripts.story_eval`)이 실행 중인 서버의 `/api/story-chat`을 호출해 10턴 진행 품질, 자유 입력 의도 분류 정확도, 행동 테스트를 잰다. Gemini 모델 선정과 냉장고 Qwen 하이브리드 검증용이다. 서비스 경로를 그대로 거친다는 점에서 `experiments/gemini-benchmark/`(REST 직접 호출·사람 블라인드 채점)와 역할이 다르다.
+- 행동 테스트는 `scripts/story_eval/cases/*_behavior.json`에 원본(`data/*_data/tests/*_chat_test_cases.json`) id로 연결해 턴·입력·자동 검사·사람 검토로 옮겼다. 원본 데이터 파일은 수정하지 않았다. 원본에 없던 필수 범주(역할 변경·연애·실존 기업·학번)는 `eval_added`로 추가했다. 의미 판단은 자동 판정하지 않고 LLM 심판도 만들지 않았다.
+- 서비스 변경: 스토리 턴 메시지 extra에 `generation`(생성 호출 수, 모든 시도의 위반 코드, 입력·출력·생각 토큰, 서버 설정)을 저장한다. 대체 응답 턴에도 남으며 기존 `attempts`·`control_violations`·`story_fallback` 의미는 그대로다. `LLMResult`에 `thinking_tokens`를 추가했다. 대사·입력·키는 넣지 않는다.
+- 실제 공급자 실행은 `--max-calls`가 필수이며 `--dry-run`으로 예상 호출 수를 먼저 본다. 리포트는 `backend/eval_reports/`(git 제외)에 저장된다. `report.json`·`summary.md`에는 대사 원문이 없고, 행동 테스트 검토용 `review.md`·`review.json`에만 입력·응답이 있다. 사용법은 `backend/README.md` 해당 절.
+- 확인 필요: 스토리 프롬프트는 `intent_id`를 "점수에 쓰지 않는다"고 안내하지만 `story_judgement.py`는 이 값으로 결말을 판정한다.
+- 검증: 백엔드 pytest 367개(신규 20), 프론트 테스트 83개·빌드, 데이터 검증 52/79/112 통과. 서버 Mock과 가짜 Gemini(`scripts/story_eval/fake_gemini.py`)로 두 작품 3스위트 전체 실행·호출 상한 정지·비교표 생성을 확인했다. 실제 Gemini·Qwen 실행, PostgreSQL 메타데이터 조회는 하지 않았다. 커밋/푸시 없음.
