@@ -135,6 +135,12 @@ def fridge_trailer_text(ending_id: str | None) -> str | None:
 
 async def judge_conversation(db: AsyncSession, conversation: Conversation, project_id: str, scene_set: str | None) -> str | None:
     """결말 ID. 판정 대상이 아니거나 데이터가 없으면 None."""
+    if project_id == "puruma":
+        # 푸르마 10턴은 기획서 6.2 판정 순서를 줄인 시연용 6종(puruma_state.judge).
+        from app.services import puruma_state
+        from app.services.puruma_scenes import PURUMA_SCENE_SET
+
+        return await puruma_state.judge_conversation(db, conversation.id) if scene_set == PURUMA_SCENE_SET else None
     if scene_set != JUDGED_SCENE_SET or project_id not in ("fridge", "cloud"):
         return None
     tables = score_tables(project_id)

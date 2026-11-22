@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 
+from app.services.chat_service import PURUMA_CRISIS_REPLY
 from app.services.memory import PURUMA_CRISIS_PATTERNS, is_crisis_text
 
 SAFETY_PROVIDER = "safety"
@@ -29,4 +30,6 @@ def is_story_crisis(text: str) -> bool:
 COMPANION_LINES: dict[str, tuple[str, str]] = {
     "fridge": ("냉장고 회장", "…자네, 그 번호로 꼭 이야기해 보게. 나는 여기 있겠네."),
     "cloud": ("나나", "…말해 줘서 고마워. 위에 있는 번호, 꼭 눌러 봐."),
+    # 푸르마는 /api/chat 위기 응답과 같은 고정 문장을 쓴다.
+    "puruma": ("푸르마", PURUMA_CRISIS_REPLY),
 }

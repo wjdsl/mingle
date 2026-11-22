@@ -1,3 +1,5 @@
+import { PURUMA_ENDINGS } from '../projects/puruma/scenes.ts'
+
 // 냉장고·구름섬 결말 도감 (기획서 FR-44·45)
 // - 얻은 결말 ID만 이 기기 브라우저에 저장한다. 다시 시작해도 지우지 않는다.
 // - 결말은 서버가 마지막 장면에서 정한다(API·서버 Mock 모드, 2026-11-22 기획 결정). Platform이 결과 화면으로 갈 때
@@ -9,7 +11,9 @@
 // character: 결과 카드에 보여 줄 캐릭터(구름섬 대원 이름). address: 회장이 부르는 말({{user}}는 화면에서 채운다).
 export type Ending = { id: string; title: string; description: string; character?: string; address?: string }
 
-export const ENDINGS: Record<'fridge' | 'cloud', Ending[]> = {
+// 푸르마: 시연용 엔딩 6종(기획서 6.1 문구). 서버 Mock·API 모드에서 서버가 10턴 끝에 정한 엔딩만 기록한다.
+export const ENDINGS: Record<'fridge' | 'cloud' | 'puruma', Ending[]> = {
+  puruma: PURUMA_ENDINGS.map(({ id, title, description }) => ({ id, title, description })),
   fridge: [
     { id: 'fridge_rel_stage_1', title: '고장 난 가전과 주인', address: '자네', description: '회장님은 여전히 거만하고 지시조예요. 아직은 당신을 믿지 않아요.' },
     { id: 'fridge_rel_stage_2', title: '동거인', address: '{{user}} 사원', description: '회장님은 투덜대면서도 조언을 건네요. 고마운 마음은 숨긴 채로요.' },

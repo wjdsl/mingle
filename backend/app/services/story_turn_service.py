@@ -19,7 +19,7 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -27,9 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import Conversation, Message, Persona, StoryTurnRecord, UserSession, utcnow
+from app.services import puruma_state
 from app.services.chat_service import _BLOCKED_PATTERNS
 from app.services.llm import LLMError, get_llm
 from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
+from app.services.memory import PurumaNote
 from app.services.story_fallback_lines import FREE_INPUT_FALLBACK
 from app.services.story_judgement import fridge_trailer_text, judge_conversation
 from app.services.story_dialogue import DialogueInfo, info_from_extra, rewrite_fridge_dialogue
@@ -84,6 +86,7 @@ class StorySafetyOutcome:
     turn: int
     lines: list[ReplyLine]
     completed_turns: int
+    puruma: dict | None = None  # 푸르마만: 그대로 돌려줄 기억(notes)
 
 
 @dataclass(slots=True)
@@ -97,6 +100,7 @@ class StoryTurnOutcome:
     replayed: bool
     guardrail_triggered: bool
     dialogue: DialogueInfo | None = None  # 스토리/대사 생성 공급자 기록(냉장고 Qwen 하이브리드)
+    puruma: dict | None = None  # 푸르마만: emotion, promo, notes
 
 
 # --------------------------------------------------------------------------- #
@@ -280,8 +284,16 @@ def story_response_schema(project: StoryProjectDef) -> dict:
             },
             "reaction": {"type": "string"},
             "intent_id": {"type": "string"},
+            # 푸르마만: 감정 코드와 사용자 태도(상태 계산용). 스키마에 없으면 Gemini가 이 필드를 내지 않는다.
+            **({
+                "emotion": {"type": "string", "enum": list(puruma_state.EMOTIONS)},
+                "attitude": {"type": "string", "enum": list(puruma_state.ATTITUDES)},
+                # 주제 ID를 허용 값으로 묶는다(자유 문자열이면 목록 밖 값이 와서 분류가 버려졌다).
+                "intent_id": {"type": "string", "enum": [it.id for it in project.scenes[0].intents]},
+            } if project.id == "puruma" else {}),
         },
-        "required": ["lines"],
+        # 푸르마는 상태 계산에 쓰는 세 필드를 반드시 받는다. 냉장고·구름섬은 그대로.
+        "required": ["lines", "emotion", "intent_id", "attitude"] if project.id == "puruma" else ["lines"],
     }
 
 
@@ -493,6 +505,7 @@ class GeneratedReply:
     violations: list[str]
     prompt_versions: dict[str, str]
     fallback_reason: str | None = None  # AI 실패로 고정 대사를 쓴 경우의 사유 코드(로그·extra 전용)
+    extras: dict = field(default_factory=dict)  # 푸르마만: LLM이 고른 emotion·attitude
 
 
 @dataclass(slots=True)
@@ -544,6 +557,7 @@ async def _generate(
     choice: SceneChoice | None,
     previous_replies: list[str],
     trace: GenerationTrace | None = None,
+    context: str | None = None,
 ) -> GeneratedReply:
     scene = project.scenes[turn]
     llm = get_llm()
@@ -562,7 +576,7 @@ async def _generate(
         else {}
     )
     for attempt in range(1, min(settings.story_generation_attempts, MAX_ATTEMPTS) + 1):
-        messages, versions = build_story_messages(project, nickname, turn, history, user_text, choice, correction)
+        messages, versions = build_story_messages(project, nickname, turn, history, user_text, choice, correction, context)
         trace.calls += 1
         result = await llm.generate(
             messages,
@@ -585,7 +599,8 @@ async def _generate(
         violations = validate_lines(project, turn, [(l.speaker, l.text) for l in lines], previous_replies, nickname)
         if not violations:
             latency = int((time.perf_counter() - started) * 1000)
-            return GeneratedReply(lines, reaction, result.provider, result.model, latency, parse_intent(result.text, scene), attempt, list(seen), versions)
+            extras = puruma_state.parse_extras(result.text) if project.id == "puruma" else {}
+            return GeneratedReply(lines, reaction, result.provider, result.model, latency, parse_intent(result.text, scene), attempt, list(seen), versions, extras=extras)
         seen += [v.code for v in violations]
         # 원문·위반 상세(detail)는 남기지 않고 코드와 줄별 문장 수만 기록한다.
         logger.warning(
@@ -642,6 +657,7 @@ async def _save_turn(
     extra: dict,
     guardrail_triggered: bool,
     dialogue: DialogueInfo | None = None,
+    puruma: dict | None = None,
 ) -> StoryTurnOutcome:
     assistant_message = Message(
         conversation_id=conversation.id,
@@ -687,7 +703,9 @@ async def _save_turn(
         await db.refresh(conversation)
         winner = await _find_by_request(db, conversation.id, request_id)
         if winner is not None:
-            return await _replay(db, conversation, project, winner)
+            replayed = await _replay(db, conversation, project, winner)
+            replayed.puruma = puruma
+            return replayed
         raise StoryTurnError(409, "이 장면은 다른 요청으로 이미 진행되었습니다.", current_turn=await count_completed(db, conversation.id))
     return StoryTurnOutcome(
         conversation=conversation,
@@ -699,6 +717,7 @@ async def _save_turn(
         replayed=False,
         guardrail_triggered=guardrail_triggered,
         dialogue=dialogue or DialogueInfo(story_provider=provider, dialogue_provider=provider),
+        puruma=puruma,
     )
 
 
@@ -712,10 +731,17 @@ async def process_story_turn(
     text: str,
     choice_id: str | None,
     expected_provider: str | None = None,
+    client_notes: list[PurumaNote] | None = None,
 ) -> StoryTurnOutcome | StorySafetyOutcome:
     project = await resolve_project(db, conversation)
+    puruma = project.id == "puruma"
+    if client_notes is not None and not puruma:
+        raise StoryTurnError(422, "브라우저 로컬 기억(notes)은 푸르마 대화에서만 사용할 수 있습니다.")
+    notes = puruma_state.sanitize(client_notes) if puruma else []
     replay = await _check_turn(db, conversation, project, request_id, turn)
     if replay is not None:
+        if puruma:
+            replay.puruma = await _puruma_replay_payload(db, replay.record, notes, client_notes is not None)
         return replay
     # 위기 신호(자유 입력만): LLM 호출·저장·장면 진행 없이 안내 신호와 곁말만 돌려준다. 입력 원문은 기록하지 않는다.
     if choice_id is None and is_story_crisis(text):
@@ -728,6 +754,8 @@ async def process_story_turn(
             turn=turn,
             lines=[ReplyLine(speaker, line)] if line else [],
             completed_turns=await count_completed(db, conversation.id),
+            # 푸르마: 위기 입력은 기억을 추출·갱신하지 않고 받은 기억(재검증)만 돌려준다.
+            puruma={"notes": _notes_out(notes) if client_notes is not None else None} if puruma else None,
         )
     if expected_provider and get_llm().name != expected_provider:
         raise StoryTurnError(503, "요청한 스토리 공급자를 사용할 수 없습니다.")
@@ -746,13 +774,15 @@ async def process_story_turn(
         # 자유 입력은 사용자가 쓴 그대로 둔다.
         user_text = _fill_nickname(user_text, nickname)
     history, previous = await _history(db, conversation.id)
+    # 푸르마: 지금까지의 턴 기록으로 상태를 다시 계산하고 홍보·회상·덧붙일 고정 대사를 정한다(LLM 없음).
+    plan = puruma_state.plan_turn(await puruma_state.load_views(db, conversation.id), turn, choice_id, user_text, notes) if puruma else None
 
     # LLM 호출 동안 DB 트랜잭션(SQLite 잠금)을 잡고 있지 않는다.
     await db.commit()
     started = time.perf_counter()
     trace = GenerationTrace()
     try:
-        generated = await _generate(project, turn, nickname, history, user_text, choice, previous, trace)
+        generated = await _generate(project, turn, nickname, history, user_text, choice, previous, trace, plan.context if plan else None)
     except LLMError as exc:
         # AI 실패: 오류 화면 대신 장면 고정 대사로 이어 간다. 사유 코드만 기록하고 대사·입력·키는 남기지 않는다.
         reason = story_failure_reason(exc)
@@ -787,6 +817,25 @@ async def process_story_turn(
         if rewrite.text is not None:
             lines = [ReplyLine(lines[0].speaker, rewrite.text)]
     appended = fixed_reply_lines(project, scene.follow_up_lines + scene.closing_lines, nickname) if not guardrail_triggered else []
+    puruma_extra: dict = {}
+    puruma_payload: dict | None = None
+    if plan is not None:
+        if not guardrail_triggered:
+            appended += [ReplyLine(project.speakers[0], line) for line in plan.appended]
+        promo = plan.promo if not guardrail_triggered else None
+        emotion = generated.extras.get("emotion") or puruma_state.default_emotion(turn, choice_id)
+        puruma_extra = {"puruma": {
+            "topic": None if choice else generated.intent_id,
+            "attitude": None if choice else generated.extras.get("attitude"),
+            "emotion": emotion,
+            "promo_id": promo.id if promo else None,
+            "path": plan.path,
+        }}
+        puruma_payload = {
+            "emotion": emotion,
+            "promo": promo.as_dict() if promo else None,
+            "notes": _notes_out(puruma_state.updated_notes(notes, user_text, choice_id, turn)) if client_notes is not None else None,
+        }
     user_message = Message(
         conversation_id=conversation.id,
         role="user",
@@ -815,10 +864,30 @@ async def process_story_turn(
             "dialogue": dialogue.as_extra(),
             **({"story_fallback": {"reason": generated.fallback_reason}} if generated.fallback_reason else {}),
             "generation": trace.as_extra(),
+            **puruma_extra,
         },
         guardrail_triggered=guardrail_triggered,
         dialogue=dialogue,
+        puruma=puruma_payload,
     )
+
+
+def _notes_out(notes: list[PurumaNote]) -> list[dict]:
+    return [asdict(note) for note in notes]
+
+
+async def _puruma_replay_payload(db: AsyncSession, record: StoryTurnRecord, notes: list[PurumaNote], with_notes: bool) -> dict:
+    """같은 request_id 재전송: 저장된 감정·홍보를 그대로, 기억은 같은 입력으로 다시 계산(결정적)해 돌려준다."""
+    message = await db.get(Message, record.assistant_message_id)
+    user_message = await db.get(Message, record.user_message_id)
+    extra = ((message.extra or {}) if message else {}).get("puruma") or {}
+    promo = puruma_state.promo_info(extra.get("promo_id"))
+    updated = puruma_state.updated_notes(notes, user_message.content if user_message else "", record.choice_id, record.turn_index)
+    return {
+        "emotion": extra.get("emotion") or puruma_state.default_emotion(record.turn_index, record.choice_id),
+        "promo": promo.as_dict() if promo else None,
+        "notes": _notes_out(updated) if with_notes else None,
+    }
 
 
 async def process_fixed_turn(

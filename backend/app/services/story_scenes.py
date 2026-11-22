@@ -332,10 +332,15 @@ PROJECTS: dict[str, StoryProjectDef] = {
 
 
 DEFAULT_SCENE_SET = "ui_mock_v1"
-SCENE_SETS = ("ui_mock_v1", "scenario_draft_v1")
+SCENE_SETS = ("ui_mock_v1", "scenario_draft_v1", "puruma_draft_v1")
 
 
 def get_project(project_id: str, scene_set: str = DEFAULT_SCENE_SET) -> StoryProjectDef | None:
+    if project_id == "puruma" or scene_set == "puruma_draft_v1":
+        # 푸르마 10턴 장면 초안(2026-11-22). 냉장고·구름섬 세트와 섞이지 않는다.
+        from app.services.puruma_scenes import PURUMA_SCENE_SET, puruma_project
+
+        return puruma_project() if project_id == "puruma" and scene_set == PURUMA_SCENE_SET else None
     if scene_set == DEFAULT_SCENE_SET:
         return PROJECTS.get(project_id)
     if scene_set == "scenario_draft_v1":
@@ -346,6 +351,10 @@ def get_project(project_id: str, scene_set: str = DEFAULT_SCENE_SET) -> StoryPro
 
 
 def project_for_slug(slug: str) -> StoryProjectDef | None:
+    from app.services.puruma_scenes import PURUMA_STORY_SLUG, puruma_project
+
+    if slug == PURUMA_STORY_SLUG:
+        return puruma_project()
     found = next((p for p in PROJECTS.values() if p.persona_slug == slug), None)
     if found is not None:
         return found

@@ -29,6 +29,7 @@ from app.schemas.story_chat import (
     StoryTurnResponse,
 )
 from app.services.llm import LLMError
+from app.services.memory import PurumaNote
 from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, GeminiTimeoutError
 from app.services.story_judgement import judge_conversation
 from app.services.story_safety import SAFETY_MODEL, SAFETY_PROVIDER
@@ -87,6 +88,7 @@ async def _turn_response(db: AsyncSession, outcome: StoryTurnOutcome) -> StoryTu
         qwen_used=dialogue.qwen_used if dialogue else False,
         qwen_latency_ms=dialogue.qwen_latency_ms if dialogue else None,
         fallback_reason=dialogue.fallback_reason if dialogue else None,
+        **(outcome.puruma or {}),
     )
 
 
@@ -106,6 +108,7 @@ def _safety_response(outcome: StorySafetyOutcome) -> StoryTurnResponse:
         finished=False,
         replayed=False,
         safety_notice=True,
+        **(outcome.puruma or {}),
     )
 
 
@@ -120,7 +123,10 @@ async def create_conversation(
     session: UserSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db),
 ) -> StoryConversationOut:
-    project = get_project(payload.project, payload.scene_set)
+    scene_set = payload.scene_set or ("puruma_draft_v1" if payload.project == "puruma" else "ui_mock_v1")
+    if (payload.project == "puruma") != (scene_set == "puruma_draft_v1"):
+        raise HTTPException(status_code=422, detail="작품과 장면 세트가 맞지 않습니다.")
+    project = get_project(payload.project, scene_set)
     if project is None:
         raise HTTPException(status_code=503, detail="장면 데이터를 읽을 수 없습니다. STORY_DATA_DIR와 data/ 파일을 확인해 주세요.")
     conversation = await create_story_conversation(db, session, project)
@@ -192,6 +198,8 @@ async def get_scene_set(project_id: str, scene_set: SceneSet) -> SceneSetOut:
     note = (
         "시나리오 장면 카드 초안(팀 미확정). {{user}}(옛 표기 [호칭]/[닉네임]/{nickname} 포함)는 화면에서 사용자 호칭으로 바꿔 표시한다. 점수·관계 단계·판정은 포함하지 않는다."
         if scene_set == "scenario_draft_v1"
+        else "푸르마 10턴 장면 초안(팀 미확정). 스탯·친밀도·판정은 포함하지 않는다."
+        if scene_set == "puruma_draft_v1"
         else "현재 프론트 Mock 장면과 같은 기본 세트."
     )
     return SceneSetOut(project=project.id, scene_set=project.scene_set, total_turns=project.total_turns, scenes=scenes, note=note)
@@ -244,6 +252,7 @@ async def send_turn(
                 text=payload.input.text,
                 choice_id=payload.input.choice_id,
                 expected_provider=x_story_provider,
+                client_notes=[PurumaNote(**note.model_dump()) for note in payload.notes] if payload.notes is not None else None,
             )
     except StoryTurnError as exc:
         await db.rollback()

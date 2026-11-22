@@ -15,6 +15,7 @@ import { AppShell, ExitDialog } from './shared'
 import { shareEvents } from '../../services/shareEvents'
 import { StoryCollection } from './StoryCollection'
 import { storyClientMode } from '../../services/storyClient'
+import { purumaStoryMode } from '../../services/apiPurumaStoryClient'
 import { clearProgress, loadProgress } from '../../services/storyProgress'
 import type { SavedProgress } from '../../services/storyProgress'
 import { hasCollection, recordEnding } from '../../services/endingCollection'
@@ -36,7 +37,7 @@ function Experience({ project }: { project: StoryProject }) {
     if (result && hasCollection(project.id)) recordEnding(project.id, result)
     go('result')
   }
-  const saved = project.id !== 'puruma' && stage === 'intro' ? loadProgress(project.id, storyClientMode()) : null
+  const saved = stage === 'intro' ? loadProgress(project.id, project.id === 'puruma' ? purumaStoryMode() : storyClientMode()) : null
   function startChat(nextName: string, from: SavedProgress | null) { setName(nextName); setResume(from); setEnding(null); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }
   const [session, setSession] = useState(0)
   const [started, setStarted] = useState(false)
@@ -71,7 +72,7 @@ function Experience({ project }: { project: StoryProject }) {
     <AppShell immersive={chatting} project={project} onBack={stage === 'intro' ? undefined : back} onHome={home}>
       {stage === 'intro' && <ProjectIntro project={project} saved={saved} onStart={() => go('setup')} onResume={() => saved && startChat(saved.name, saved)} onCollection={hasCollection(project.id) ? () => go('collection') : undefined} />}
       {stage === 'setup' && <ProjectSetup project={project} initialName={name} onStart={n => { shareEvents.recordStart(project.id); clearProgress(project.id); startChat(n, null) }} />}
-      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} resume={resume} onResult={finish} onRestart={() => { clearProgress(project.id); setResume(null); setSession(s => s + 1) }} />}</ChatIntro></div>}
+      {started && <div className="p-session" hidden={stage !== 'chat'} key={session}><ChatIntro config={chatIntros[project.id]} active={stage === 'chat'} dataReady={true}>{project.id === 'puruma' ? <ChatScene nickname={name} resume={resume} onHome={openHome} onSurfaceChange={changeSurface} /> : <ChatLayout project={project} name={name} resume={resume} onResult={finish} onRestart={() => { clearProgress(project.id); setResume(null); setSession(s => s + 1) }} />}</ChatIntro></div>}
       {stage === 'result' && <StoryResult project={project} name={name} ending={ending} onRestart={() => go('setup')} onHome={openHome} onCollection={hasCollection(project.id) ? () => go('collection') : undefined} />}
       {stage === 'collection' && hasCollection(project.id) && <StoryCollection project={project} />}
     </AppShell>

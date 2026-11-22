@@ -187,3 +187,11 @@ textarea:disabled { background: #e8e7e1; border-style: dashed; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* 푸르마 홍보 링크 카드(기획서 7장 R1~R3). 대화 말풍선 아래 가볍게 붙고 새 탭으로 연다. */
+.promo-card { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; max-width: 88%; padding: 10px 12px; border: 1.5px dashed var(--ink); border-radius: 12px; background: #f4f8ff; color: var(--ink); text-decoration: none; }
+.promo-card:hover, .promo-card:focus-visible { background: #e8f0ff; }
+.promo-card:focus-visible { outline: 3px solid #293b7966; outline-offset: 2px; }
+.promo-kicker { font-size: 11px; letter-spacing: .04em; opacity: .75; }
+.promo-card b { font-size: 14px; line-height: 1.4; }
+.promo-card small { font-size: 12px; opacity: .8; }

@@ -50,5 +50,6 @@ export function useChat(client: ConversationClient = mockConversationClient) {
     inFlight.current = false
     dispatch({ type: 'reset' }); setDraft(''); setValidation(null)
   }
-  return { state, draft, setDraft, validation, send, retry, reset }
+  function restore(turn: number) { dispatch({ type: 'restore', turn }) }
+  return { state, draft, setDraft, validation, send, retry, reset, restore }
 }

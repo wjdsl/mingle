@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { chatReducer, initialState, validateInput } from '../src/features/chat/chatReducer.ts'
+import { SCENES, TOTAL_TURNS, openingText } from '../src/projects/puruma/scenes.ts'
 
 const request = { requestId: 'one', turn: 1, input: { kind: 'text' as const, text: '같이 가자' } }
 const response = { text: '고마워요!', emotion: 'happy' as const }
@@ -29,18 +30,26 @@ test('실패·재시도는 사용자 메시지와 턴을 중복 생성하지 않
   assert.equal(retry.messages.length, 2)
   assert.equal(retry.pending?.requestId, 'one')
   const success = chatReducer(retry, { type: 'success', requestId: 'one', response })
-  assert.equal(success.messages.length, 3)
+  assert.equal(success.messages.length, 4) // 응답 + 다음 장면 첫 대사
   assert.equal(success.completedTurns, 1)
 })
-test('2턴 시연 종료 후 추가 전송을 막고 다시 시작하면 초기화한다', () => {
-  const first = chatReducer(chatReducer(initialState(), { type: 'send', request }), { type: 'success', requestId: 'one', response })
-  const secondRequest = { ...request, requestId: 'two', turn: 2 }
-  const final = chatReducer(chatReducer(first, { type: 'send', request: secondRequest }), { type: 'success', requestId: 'two', response })
-  assert.equal(final.status, 'complete')
-  assert.equal(final.completedTurns, 2)
-  assert.equal(final.messages.length, 5)
-  assert.equal(chatReducer(final, { type: 'send', request: { ...request, turn: 3 } }), final)
-  assert.deepEqual(chatReducer(final, { type: 'reset' }), initialState())
+test('10턴을 마치면 엔딩을 남기고 추가 전송을 막으며 다시 시작하면 초기화한다', () => {
+  let state = initialState()
+  for (let turn = 1; turn <= TOTAL_TURNS; turn++) {
+    const id = `turn-${turn}`
+    state = chatReducer(state, { type: 'send', request: { ...request, requestId: id, turn } })
+    state = chatReducer(state, { type: 'success', requestId: id, response: { ...response, ending: turn === TOTAL_TURNS ? 'survivor_pruma' : null } })
+    if (turn < TOTAL_TURNS) {
+      assert.equal(state.status, 'idle')
+      assert.equal(state.messages.at(-1)?.text, openingText(turn)) // 다음 장면 첫 대사
+    }
+  }
+  assert.equal(state.status, 'complete')
+  assert.equal(state.completedTurns, TOTAL_TURNS)
+  assert.equal(state.ending, 'survivor_pruma')
+  assert.equal(state.messages.length, 1 + TOTAL_TURNS * 3 - 1)
+  assert.equal(chatReducer(state, { type: 'send', request: { ...request, turn: TOTAL_TURNS + 1 } }), state)
+  assert.deepEqual(chatReducer(state, { type: 'reset' }), initialState())
 })
 
 test('이전 메시지의 감정은 다음 턴 반응이 바뀌어도 유지한다', () => {
@@ -49,6 +58,7 @@ test('이전 메시지의 감정은 다음 턴 반응이 바뀌어도 유지한�
   const final = chatReducer(chatReducer(first, { type: 'send', request: next }), {
     type: 'success', requestId: 'two', response: { text: '또각!', emotion: 'sparkle' },
   })
-  assert.deepEqual(final.messages.filter(message => message.role === 'character').map(message => message.emotion), ['confused', 'happy', 'sparkle'])
+  assert.deepEqual(final.messages.filter(message => message.role === 'character').map(message => message.emotion),
+    ['confused', 'happy', SCENES[1].openingEmotion, 'sparkle', SCENES[2].openingEmotion])
   assert.equal(final.emotion, 'sparkle')
 })
