@@ -68,9 +68,9 @@ Figma 대표 화면과 달리 실제 스토리의 대사/지문/반응·진행 �
 - 프론트 API 모드는 기본 `ui_mock_v1`(냉장고 10장면·구름섬 3미션)을 사용한다. `backend/app/services/story_scenes.py`의 기본 장면과 프론트 카탈로그 간 일치는 `tests/test_story_chat.py`가 검사한다. 후속 P1에서 `story_data.py`가 저장소 루트 `data/` 또는 `STORY_DATA_DIR`의 공식 페르소나·규칙·세계관 JSON을 읽도록 추가했다. 공식 데이터가 없으면 내장 프롬프트 규칙을 사용한다.
 - 두 작품의 `scenario_draft_v1`은 API에서 대화 생성 시 선택할 수 있는 별도 10턴 초안이다. 현재 프론트는 해당 세트나 입력 없는 `fixed-turns` 경로에 연결되어 있지 않다.
 - 처리 `backend/app/services/story_turn_service.py`: 기존 `get_llm()`(GeminiProvider) 재사용, JSON 출력 검증(형식 오류 1회 재시도), 기존 금지어 가드레일, 연락처·이메일·긴 숫자 마스킹. 일반 `/api/chat`의 관계 점수·RAG·User Note·마케팅 Trigger는 쓰지 않는다. 스토리 페르소나 행은 비활성으로 생성돼 일반 채팅/페르소나 목록에서 제외된다(대시보드 페르소나 집계에는 표시될 수 있음).
-- 중복 방지: 새 표 `story_turns`의 (conversation_id, turn_index)·(conversation_id, request_id) 고유 제약. 같은 request_id 재시도는 저장된 응답을 `replayed:true`로 반환하고 메시지를 늘리지 않는다. LLM 실패 시 아무것도 저장하지 않는다(502). 요청 turn이 서버 진행과 다르면 409(`detail.current_turn`).
+- 중복 방지: 새 표 `story_turns`의 (conversation_id, turn_index)·(conversation_id, request_id) 고유 제약. 같은 request_id 재시도는 저장된 응답을 `replayed:true`로 반환하고 메시지를 늘리지 않는다. LLM 실패 시 아무것도 저장하지 않는다(502). (2026-11-22부터 냉장고·구름섬은 AI 실패 시 고정 대사 턴을 저장하고 진행한다. `backend/README.md` 해당 절.) 요청 turn이 서버 진행과 다르면 409(`detail.current_turn`).
 - 프론트 `src/services/apiStoryClient.ts`: 세션/대화를 메모리에서 1회 생성(실패 시 다음 시도에서 재생성), choice index → `fridge-01-a` 형식 ID, 응답의 request_id·turn·completed_turns가 화면 턴과 다르면 진행하지 않는다. 구름섬은 1~3명 대사를 각 말풍선으로 표시한다. 시간 초과 90초.
-- 모드: `VITE_STORY_CLIENT=api`일 때만 실제 API(기본은 기존 Mock). API 모드에서 실패하면 Mock으로 대체하지 않고 오류·재시도를 표시한다. 백엔드가 Mock 공급자로 응답하면 말풍선에 'AI 미연결 · 서버 고정 응답'을 표시하고 `data-provider/data-model` 속성을 남긴다.
+- 모드: `VITE_STORY_CLIENT=api`일 때만 실제 API(기본은 기존 Mock). API 모드에서 실패하면 Mock으로 대체하지 않고 오류·재시도를 표시한다. (2026-11-22부터는 서버가 AI 실패 시 장면 고정 대사 `provider=fallback`으로 응답하며 화면은 일반 응답처럼 진행한다. 네트워크 오류만 오류·재시도를 표시한다.) 백엔드가 Mock 공급자로 응답하면 말풍선에 'AI 미연결 · 서버 고정 응답'을 표시하고 `data-provider/data-model` 속성을 남긴다.
 - 키: 백엔드 `backend/.env`의 `GEMINI_API_KEY`(+ `LLM_PROVIDER=gemini`, 필요 시 `GEMINI_CHAT_MODEL`). GeminiProvider는 키를 URL 쿼리 대신 `x-goog-api-key` 헤더로 보내도록 바꿨다. 프론트 번들에는 키·공급자 설정이 없다.
 
 ### 실행

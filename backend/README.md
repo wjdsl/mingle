@@ -479,9 +479,11 @@ env -u GEMINI_API_KEY LLM_PROVIDER=gemini GEMINI_CHAT_MODEL=gemini-3.5-flash-lit
 
 확인 항목은 `provider=gemini`, `model=gemini-3.5-flash-lite`, 유효한 대사, `completed=1/10`, `replayed=True`다. 서버 로그에서 `generateContent` 1건 및 헤더 도착 시간·토큰 사용량을 확인한다. 첫 턴을 브라우저에서 확인할 경우 백엔드를 Vite 기본 프록시 포트인 8000번으로 시작하고 `VITE_STORY_CLIENT=api npm run dev`에서 한 번만 전송한다. 이 경우 CLI 생성 검증을 함께 실행하지 않는다.
 
+> 2026-11-22부터 냉장고·구름섬 스토리 턴에서는 AI 실패(503·429·시간 초과·응답 검증 실패)가 오류 응답 대신 장면 고정 대사(`provider=fallback`)로 이어지므로, 아래 503·429·502·504 화면 안내는 대체할 대사가 없는 예외적인 경우에만 나타난다. 이 문단은 그 이전 동작 기록이다. 아래 'AI 실패 시 고정 대사 진행' 절 참고.
+
 Google의 503은 스토리 API에서 `gemini_unavailable` 503으로 응답한다. 채팅 화면에는 일시적으로 Gemini가 응답할 수 없다는 안내가 표시되고, 다시 시도 버튼은 15초 동안 잠기며 남은 초를 표시한다. 대기 후 다시 시도하면 기존 입력과 요청 ID를 사용하므로 실패한 턴은 저장되지 않고 성공한 턴만 한 번 저장된다. 429는 기존처럼 `Retry-After`가 있으면 그 시간만 잠그고, 504·502는 즉시 다시 시도할 수 있다. `gemini_unavailable`이 아닌 503(공급자 불일치·장면 데이터 없음), 409·401·403·404, 요청 검증 422(장면에 없는 선택지·요청 형식 오류)는 다시 시도해도 해결되지 않으므로 다시 시도 버튼 대신 '새로 시작' 버튼을 표시한다. 새로 시작은 같은 호칭으로 새 세션·새 서버 대화를 만들며 서버의 기존 대화 기록은 삭제하지 않는다. 화면에 보이던 이전 대화는 새 세션에서 다시 표시되지 않는다. 정상 응답(200)의 형식 오류는 기존처럼 다시 시도할 수 있다.
 
-실패 로그를 서버 재시작 후에도 보존하려면 서버 시작 시 `LLM_FAILURE_LOG_FILE=logs/llm-failures.log`를 추가한다. 상대 경로는 서버 프로세스를 시작한 작업 디렉터리 기준으로 해석된다. 이 문서의 실행 명령처럼 `backend/`에서 시작하면 `backend/logs/llm-failures.log`가 되며 `backend/logs/`는 Git에서 제외된다. 다른 디렉터리에서 시작하면 그 디렉터리 아래에 만들어지고(Docker 이미지는 작업 디렉터리 `/app` 기준) Git 제외 대상이 아닐 수 있으므로, 위치를 고정하려면 절대 경로를 지정한다. 여러 서버 프로세스(`--workers` 등)가 같은 파일을 쓰면 회전이 어긋날 수 있으므로 프로세스마다 다른 파일을 지정한다. 파일에는 검토한 두 로거(`app.services.llm.gemini_provider`, `app.api.routes.story_chat`)의 WARNING 이상만 남고 성공 호출의 INFO 줄과 다른 라우트의 로그는 들어가지 않는다. 1MB마다 회전하며 최대 4개 파일을 유지한다. Docker Compose에는 이 변수와 볼륨을 추가하지 않았으므로 컨테이너를 다시 만들면 파일이 사라진다. 컨테이너에서 보존하려면 별도 볼륨 마운트가 필요하다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.
+실패 로그를 서버 재시작 후에도 보존하려면 서버 시작 시 `LLM_FAILURE_LOG_FILE=logs/llm-failures.log`를 추가한다. 상대 경로는 서버 프로세스를 시작한 작업 디렉터리 기준으로 해석된다. 이 문서의 실행 명령처럼 `backend/`에서 시작하면 `backend/logs/llm-failures.log`가 되며 `backend/logs/`는 Git에서 제외된다. 다른 디렉터리에서 시작하면 그 디렉터리 아래에 만들어지고(Docker 이미지는 작업 디렉터리 `/app` 기준) Git 제외 대상이 아닐 수 있으므로, 위치를 고정하려면 절대 경로를 지정한다. 여러 서버 프로세스(`--workers` 등)가 같은 파일을 쓰면 회전이 어긋날 수 있으므로 프로세스마다 다른 파일을 지정한다. 파일에는 검토한 로거(`app.services.llm.gemini_provider`, `app.api.routes.story_chat`, 2026-11-22부터 `app.services.story_turn_service`)의 WARNING 이상만 남고 성공 호출의 INFO 줄과 다른 라우트의 로그는 들어가지 않는다. 1MB마다 회전하며 최대 4개 파일을 유지한다. Docker Compose에는 이 변수와 볼륨을 추가하지 않았으므로 컨테이너를 다시 만들면 파일이 사라진다. 컨테이너에서 보존하려면 별도 볼륨 마운트가 필요하다. 검증 1회가 실패하면 추가 호출 범위를 확정하기 전까지 중단한다.
 
 ### 2026-11-18 푸르마 기억 시연 실행
 
@@ -553,3 +555,15 @@ VITE_PURUMA_CLIENT=api VITE_STORY_CLIENT=api npm run dev
 - 냉장고: 1~9턴 합 5점 이하 `fridge_rel_stage_1`, 6~11점 `_2`, 12점 이상 `_3`. 10턴 고정 장면(`fixed-turns`)은 그 단계의 `fridge_trailer_cuts.json` 대사를 쓴다.
 - 구름섬: 두 축 누적, 두 축 모두 |값| ≤ 1이면 `cloud_result_dudu`, 아니면 부호로 토토·비비·나나·키키. 균형형은 각 축을 0 쪽으로 2씩 당긴다. 한 축이 0이면 9턴 선택 방향(균형형이면 +).
 - API: 턴 응답과 `GET /api/story-chat/conversations/{id}`에 `ending`(끝난 대화의 결말 ID, 아니면 `null`)을 추가했다. 점수는 응답에 넣지 않는다. 판정은 `scenario_draft_v1`에서만 하며 `ui_mock_v1`은 `ending: null`.
+
+## 2026-11-22 냉장고·구름섬 AI 실패 시 고정 대사 진행
+
+팀 결정으로 `/api/story-chat` 턴에서 AI가 실패하면 오류 대신 장면 고정 대사로 진행한다. 화면에는 일반 응답처럼 보이며 장면도 정상 진행된다. 푸르마 `/api/chat`은 바뀌지 않았다.
+
+- 대상 실패: Gemini 503(`GeminiHTTPError`), 429(`GeminiQuotaError`), 시간 초과(`GeminiTimeoutError`), 공급자 연결 실패, 응답 형식·응답 제어 위반이 재생성 후에도 계속되는 경우(`스토리 응답 검증 실패`). `X-Story-Provider` 공급자 불일치(503)와 요청 검증 오류(409·422)는 기존 그대로다.
+- 고정 대사: 선택지는 장면의 반응 예시(`reference_reply`), 자유 입력과 따옴표 대사가 없는 선택지는 `app/services/story_fallback_lines.py`(장면별 초안, `{{user}}` 자리표시는 `fill_user()`로 치환). `ui_mock_v1`은 장면의 `default_reply`를 쓴다. 냉장고 4턴 두 번째 대사·9턴 마무리 지문은 기존처럼 뒤에 붙는다.
+- 기록: `story_turns.provider`와 메시지 provider는 `fallback`, model은 `scene-fallback-v1`. 메시지 extra `story_fallback.reason`에 사유 코드(`provider_http_503`, `provider_quota_<kind>`, `provider_timeout`, `provider_connection`, `provider_response_format`, `response_control:<코드>`, `provider_other`)를 남긴다. 턴 응답의 `fallback_reason`은 기존 의미(냉장고 Qwen 실패 사유)를 유지하며 이 사유는 넣지 않는다.
+- 로그 예: `스토리 AI 실패, 고정 대사로 진행: project=fridge turn=0 conversation=<id> input=free type=GeminiHTTPError reason=provider_http_503`. 대사·사용자 입력·키는 남기지 않는다.
+- 같은 request_id 재전송은 저장된 고정 대사를 `replayed=true`로 돌려준다. 대체 턴은 냉장고 Qwen 재작성을 건너뛰고, 자유 입력 대체 턴은 의도가 없어 결말 판정에서 0점이다.
+- 스모크: `scripts.smoke_story_chat`은 `provider=fallback` 턴이 나오면 사유 확인 안내를 출력하고 실패(exit 1)로 끝난다. 실제 연동 성공으로 보고하지 않기 위함이다.
+- 테스트: `tests/test_story_fallback.py`. 공급자 실패를 흉내 낸 수동 확인은 `GEMINI_BASE_URL`을 로컬 가짜 서버로 지정하고 `GEMINI_API_KEY`에 가짜 값을 넣어 실제 Google 호출 없이 할 수 있다.

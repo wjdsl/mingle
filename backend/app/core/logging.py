@@ -21,7 +21,8 @@ def configure_logging(level: int = logging.INFO) -> None:
 
 
 # 원문·키 없이 분류 정보만 남기도록 검토한 로거만 파일에 보존한다.
-FAILURE_LOGGERS = ("app.services.llm.gemini_provider", "app.api.routes.story_chat")
+# story_turn_service: AI 실패 시 고정 대사로 진행한 턴의 사유 코드(2026-11-22)와 형식·응답 제어 위반 코드.
+FAILURE_LOGGERS = ("app.services.llm.gemini_provider", "app.api.routes.story_chat", "app.services.story_turn_service")
 _FAILURE_HANDLER_NAME = "llm-failure-file"
 
 

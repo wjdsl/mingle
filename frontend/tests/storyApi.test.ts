@@ -255,3 +255,17 @@ test('요청 검증 422는 재시도 불가이며 정상 응답의 형식 오류
   assert.deepEqual(storyRetryPolicy(await failingTurn(() => Response.json({ detail: 'x' }, { status: 504 }))), { canRetry: true, waitSeconds: 0 })
   assert.deepEqual(storyRetryPolicy(await failingTurn(() => Response.json({ detail: 'x' }, { status: 502 }))), { canRetry: true, waitSeconds: 0 })
 })
+
+test('서버 장면 세트: AI 실패 시 고정 대사(provider=fallback)는 일반 응답처럼 진행하고, 다른 공급자 불일치는 오류다', async () => {
+  const reply = (provider: string) => (body: any) => Response.json({ conversation_id: 'conv-1', project: 'fridge', request_id: body.request_id, turn: body.turn, replies: [{ speaker: '냉장고 회장', text: '좋네, 민트. 우선 문부터 닫고 이야기하세.' }], reaction: '이야기가 이어져요', provider, model: provider === 'fallback' ? 'scene-fallback-v1' : 'm', latency_ms: 3, completed_turns: body.turn + 1, finished: false })
+  const conversation = () => Response.json({ conversation_id: 'conv-1', project: 'fridge', completed_turns: 0, total_turns: fridge.steps.length, finished: false, scene_set: 'scenario_draft_v1' }, { status: 201 })
+  const fallback = fakeBackend(fridge, { conversation, turn: reply('fallback') })
+  const client = createApiStoryClient({ displayName: '민트', sceneSet: 'scenario_draft_v1', provider: 'gemini', fetch: fallback.fetch })
+  const ok = await client.sendTurn({ requestId: 'req-fb-0001', project: fridge, turn: 0, input: { text: '안녕' } }, signal())
+  assert.equal(ok.text, '좋네, 민트. 우선 문부터 닫고 이야기하세.')
+  assert.equal(ok.meta?.provider, 'fallback')
+
+  const mismatch = fakeBackend(fridge, { conversation, turn: reply('mock') })
+  const strict = createApiStoryClient({ displayName: '민트', sceneSet: 'scenario_draft_v1', provider: 'gemini', fetch: mismatch.fetch })
+  await assert.rejects(strict.sendTurn({ requestId: 'req-fb-0002', project: fridge, turn: 0, input: { text: '안녕' } }, signal()), StoryApiError)
+})
