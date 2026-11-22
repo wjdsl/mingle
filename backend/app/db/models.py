@@ -399,3 +399,31 @@ class ShareEvent(Base):
     project: Mapped[str] = mapped_column(String(20))
     event_type: Mapped[str] = mapped_column(String(24))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AnalyticsEvent(Base):
+    """대시보드 2차 통계 이벤트(작품 시작 화면 진입, 체험 시작·완료, 홍보 노출·클릭).
+
+    기획서 7장 이벤트 필드(session_id, project, section, turn, event_type, content_id, timestamp)를 따른다.
+    재방문율을 위해 브라우저에 오래 남는 무작위 익명 ID(visitor_id)를 시작·완료 이벤트에만 함께 받는다.
+    sample은 서버 Mock(LLM 공급자 mock)으로 동작 중에 받은 이벤트 표시(FR-73, 대화의 샘플 판정과 같은 기준).
+    이름·학번·연락처·호칭·대화 원문은 저장하지 않는다. 공유 이벤트(share_events)와는 별도 표다.
+    """
+
+    __tablename__ = "analytics_events"
+    __table_args__ = (
+        Index("ix_analytics_events_project_type_created", "project", "event_type", "created_at"),
+        Index("ix_analytics_events_session", "session_id"),
+        Index("ix_analytics_events_visitor", "visitor_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    session_id: Mapped[str] = mapped_column(String(64))
+    visitor_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    project: Mapped[str] = mapped_column(String(20))
+    event_type: Mapped[str] = mapped_column(String(24))
+    section: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    turn: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    content_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    sample: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -184,6 +184,44 @@ class FallbackStats(BaseModel):
     reasons: list[ReasonCount] = Field(default_factory=list)
 
 
+class EventScope(BaseModel):
+    """2차 이벤트(접속·홍보·재방문)의 샘플 구분. 서버 Mock으로 동작 중에 받은 이벤트가 샘플이다."""
+
+    real_sessions: int = 0
+    sample_sessions: int = 0
+
+
+class AccessStats(BaseModel):
+    sessions: int = 0  # 작품 시작 화면에 들어온 익명 세션 수(재진입은 한 번)
+
+
+class PromoContentStats(BaseModel):
+    id: str
+    label: str
+    impressions: int = 0  # 노출된 세션 수(세션·콘텐츠당 한 번)
+    clicks: int = 0  # 클릭 횟수(같은 세션의 반복 클릭 포함)
+    click_sessions: int = 0  # 클릭한 세션 수
+    ctr: float | None = None  # 클릭한 세션 / 노출된 세션
+
+
+class PromoStats(BaseModel):
+    applicable: bool = False  # 확인된 홍보 콘텐츠가 있는 작품만 True
+    impressions: int = 0
+    clicks: int = 0
+    click_sessions: int = 0
+    ctr: float | None = None
+    contents: list[PromoContentStats] = Field(default_factory=list)
+
+
+class RevisitStats(BaseModel):
+    """기획서 정의: 두 번째 이상 시작한 세션 / 완료한 세션."""
+
+    revisit_sessions: int = 0
+    completed_sessions: int = 0
+    rate: float | None = None
+    visitors: int = 0  # 기간 안에 시작한 익명 방문자(브라우저) 수
+
+
 class ProjectStats(BaseModel):
     project: str
     range_days: int
@@ -197,3 +235,7 @@ class ProjectStats(BaseModel):
     dwell: DwellStats = Field(default_factory=DwellStats)
     interest: InterestStats = Field(default_factory=InterestStats)
     fallback: FallbackStats = Field(default_factory=FallbackStats)
+    events_scope: EventScope = Field(default_factory=EventScope)
+    access: AccessStats = Field(default_factory=AccessStats)
+    promo: PromoStats = Field(default_factory=PromoStats)
+    revisit: RevisitStats = Field(default_factory=RevisitStats)

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { project } from '../../projects/puruma/config'
 import { SCENES, SECTION_COUNT, TOTAL_TURNS } from '../../projects/puruma/scenes'
 import { recordEnding } from '../../services/endingCollection'
+import { analyticsEvents } from '../../services/analyticsEvents'
 import { clearProgress, saveProgress } from '../../services/storyProgress'
 import type { SavedProgress } from '../../services/storyProgress'
 import { useChat } from './useChat'
@@ -11,7 +12,7 @@ import { DevSourceBadge } from '../platform/DevSourceBadge'
 import { UserNotePanel } from './UserNotePanel'
 import { PendingNotice } from './PendingNotice'
 import { CrisisNotice } from '../safety/CrisisNotice'
-import type { ChatState, Choice, Emotion, Message } from './types'
+import type { ChatState, Choice, Emotion, Message, Promo } from './types'
 import { EndingCollection } from '../endings/EndingCollection'
 import { useViewportHeight } from './useViewportHeight'
 
@@ -47,8 +48,23 @@ function MessageBubble({ message, latest, currentEmotion, nickname }: { message:
       {latest && <span className="reaction-symbol" aria-hidden="true">{emotion === 'confused' ? '?' : emotion === 'happy' ? '♥' : '✦'}</span>}
     </div>
     <div className="message-body"><div className="speaker-row"><span className="speaker">푸르마</span>{latest && <span className="reaction-caption">{comic ? '또각…!' : emotion === 'confused' ? '선배, SOS!' : emotion === 'happy' ? '히히힝!' : '반짝, 알아냈어요!'}</span>}</div><p>{message.text}</p>
-      {message.promo && <a className="promo-card" href={message.promo.url} target="_blank" rel="noopener noreferrer"><span className="promo-kicker">학교 공식 안내</span><b>{message.promo.label}</b><small>{message.promo.sourceName} · 새 탭에서 열려요 ↗</small></a>}</div>
+      {message.promo && <PromoCard promo={message.promo} />}</div>
   </div>
+}
+// 홍보 카드: 화면에 절반 이상 보였을 때 노출 1회(같은 탭·콘텐츠는 한 번), 클릭은 기록만 하고 링크 이동을 막지 않는다.
+function PromoCard({ promo }: { promo: Promo }) {
+  const link = useRef<HTMLAnchorElement>(null)
+  useEffect(() => {
+    const element = link.current
+    if (!element) return
+    if (typeof IntersectionObserver === 'undefined') { analyticsEvents.promoImpression('puruma', promo.id); return }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { analyticsEvents.promoImpression('puruma', promo.id); observer.disconnect() }
+    }, { threshold: 0.5 })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [promo.id])
+  return <a ref={link} className="promo-card" href={promo.url} target="_blank" rel="noopener noreferrer" onClick={() => analyticsEvents.promoClick('puruma', promo.id)}><span className="promo-kicker">학교 공식 안내</span><b>{promo.label}</b><small>{promo.sourceName} · 새 탭에서 열려요 ↗</small></a>
 }
 const RESUME_FAILED = '이전 기록을 이어갈 수 없어 처음부터 시작해요.'
 
@@ -124,6 +140,7 @@ export function ChatScene({ nickname = '선배', onHome, onSurfaceChange, resume
   function restart() { client.reset(); reset(); setNotice(null); setView('chat') }
   // 서버가 정한 엔딩(서버 Mock·API 모드)만 도감에 기록한다. 브라우저 Mock은 판정이 없어 기록하지 않는다.
   useEffect(() => { if (state.status === 'complete' && state.ending) recordEnding('puruma', state.ending) }, [state.status, state.ending])
+  useEffect(() => { if (state.status === 'complete') analyticsEvents.complete('puruma') }, [state.status])
   const composing = useRef(false)
   const disabled = state.status !== 'idle' || !ready
   function submit() { if (!composing.current) send({ kind: 'text', text: draft }) }

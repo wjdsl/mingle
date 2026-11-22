@@ -17,6 +17,11 @@
 - 관심 분야: 푸르마 자유 입력 턴에 저장된 주제(topic). 다른 작품은 해당 없음.
 - AI 대체 응답 비율: 장면형 턴 중 고정 연출을 뺀 턴에서 provider=fallback인 비율과 사유 코드별 건수.
 - 공유: 결과 화면 버튼을 누른 시점의 이벤트 수. 링크 열기·링크로 체험 시작은 별도 지표다.
+- 2차 이벤트(analytics_events, 샘플은 이벤트를 받을 때 서버가 Mock이었는지로 구분):
+  · 총 접속 수: 기간 안에 작품 시작 화면에 들어온 익명 세션(탭) 수. 같은 세션의 재진입은 한 번.
+  · 홍보: 콘텐츠별 노출 세션 수(카드가 화면에 절반 이상 보인 세션), 클릭 횟수·클릭 세션 수, 클릭률 = 클릭 세션 / 노출 세션.
+  · 재방문율(기획서 정의 그대로): 기간 안에 시작한 세션 중 그 방문자(브라우저 익명 ID)의 두 번째 이상 시작 세션 수
+    / 기간 안에 완료한 세션 수. 방문자의 첫 시작 세션은 기간 이전 기록까지 본다. 같은 세션의 다시 하기는 재방문이 아니다.
 채팅 원문·호칭·개인 코드는 읽지도 반환하지도 않는다. 메시지 extra에서는 JSON 경로로 분류 값만 꺼낸다.
 """
 
@@ -29,9 +34,14 @@ from datetime import timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Conversation, Message, Persona, RelationshipState, ShareEvent, StoryTurnRecord, utcnow
+from app.db.models import AnalyticsEvent, Conversation, Message, Persona, RelationshipState, ShareEvent, StoryTurnRecord, utcnow
 from app.schemas.admin import (
+    AccessStats,
     ChatStats,
+    EventScope,
+    PromoContentStats,
+    PromoStats,
+    RevisitStats,
     DataScope,
     DwellStats,
     EndingCount,
@@ -47,6 +57,7 @@ from app.schemas.admin import (
     TopicCount,
 )
 from app.services import puruma_state
+from app.services.analytics_events import promo_contents
 from app.services.analytics import KST, DashboardProject, _as_utc
 from app.services.memory import PURUMA_PERSONA_SLUG
 from app.services.puruma_scenes import PURUMA_SCENE_SET, PURUMA_STORY_SLUG, SECTIONS, TOPIC_INTENTS
@@ -141,6 +152,62 @@ def _judge(project: DashboardProject, turns: list) -> str | None:
         return None
     intents = {t.turn_index: _intent_for(t.turn_index, t.choice_id, t.intent_id, tables) for t in turns}
     return judge_fridge(intents, tables)[0] if project == "fridge" else judge_cloud(intents, tables)[0]
+
+
+async def build_event_stats(db: AsyncSession, project: DashboardProject, since, now, mode: str):
+    """2차 이벤트 지표: (샘플 구분, 총 접속 수, 홍보, 재방문율). 세션 ID는 집계에만 쓰고 반환하지 않는다."""
+    rows = (await db.execute(
+        select(AnalyticsEvent.session_id, AnalyticsEvent.visitor_id, AnalyticsEvent.event_type,
+               AnalyticsEvent.content_id, AnalyticsEvent.sample)
+        .where(AnalyticsEvent.project == project, AnalyticsEvent.created_at.between(since, now))
+    )).all()
+    scope = EventScope(
+        real_sessions=len({r.session_id for r in rows if not r.sample}),
+        sample_sessions=len({r.session_id for r in rows if r.sample}),
+    )
+
+    def keep(sample: bool) -> bool:
+        return mode == "all" or sample == (mode == "sample")
+
+    rows = [r for r in rows if keep(r.sample)]
+    access = AccessStats(sessions=len({r.session_id for r in rows if r.event_type == "entry_view"}))
+
+    contents = promo_contents().get(project, {})
+    items = []
+    for content_id, label in contents.items():
+        shown = {r.session_id for r in rows if r.event_type == "promo_impression" and r.content_id == content_id}
+        clicks = [r.session_id for r in rows if r.event_type == "promo_click" and r.content_id == content_id]
+        items.append(PromoContentStats(
+            id=content_id, label=label, impressions=len(shown), clicks=len(clicks),
+            click_sessions=len(set(clicks)), ctr=_rate(len(set(clicks)), len(shown)),
+        ))
+    impressions = sum(i.impressions for i in items)
+    click_sessions = sum(i.click_sessions for i in items)
+    promo = PromoStats(
+        applicable=bool(contents), impressions=impressions, clicks=sum(i.clicks for i in items),
+        click_sessions=click_sessions, ctr=_rate(click_sessions, impressions), contents=items,
+    )
+
+    starts = [r for r in rows if r.event_type == "story_start" and r.visitor_id]
+    visitors = {r.visitor_id for r in starts}
+    first_session: dict[str, str] = {}
+    if visitors:
+        history = (await db.execute(
+            select(AnalyticsEvent.visitor_id, AnalyticsEvent.session_id, AnalyticsEvent.sample)
+            .where(AnalyticsEvent.project == project, AnalyticsEvent.event_type == "story_start",
+                   AnalyticsEvent.visitor_id.in_(visitors), AnalyticsEvent.created_at <= now)
+            .order_by(AnalyticsEvent.created_at, AnalyticsEvent.id)
+        )).all()
+        for h in history:
+            if keep(h.sample):
+                first_session.setdefault(h.visitor_id, h.session_id)
+    revisit_sessions = len({r.session_id for r in starts if first_session.get(r.visitor_id) != r.session_id})
+    completed_sessions = len({r.session_id for r in rows if r.event_type == "story_complete"})
+    revisit = RevisitStats(
+        revisit_sessions=revisit_sessions, completed_sessions=completed_sessions,
+        rate=_rate(revisit_sessions, completed_sessions), visitors=len(visitors),
+    )
+    return scope, access, promo, revisit
 
 
 async def build_project_stats(db: AsyncSession, project: DashboardProject, days: int, mode: str = "real") -> ProjectStats:
@@ -330,6 +397,8 @@ async def build_project_stats(db: AsyncSession, project: DashboardProject, days:
         ) or 0
     )
 
+    events_scope, access, promo, revisit = await build_event_stats(db, project, since, now, mode)
+
     return ProjectStats(
         project=project,
         range_days=days,
@@ -356,4 +425,8 @@ async def build_project_stats(db: AsyncSession, project: DashboardProject, days:
         dwell=dwell,
         interest=interest,
         fallback=fallback,
+        events_scope=events_scope,
+        access=access,
+        promo=promo,
+        revisit=revisit,
     )

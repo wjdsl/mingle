@@ -13,6 +13,7 @@ import { ChatLayout } from './StoryChat'
 import { StoryResult } from './StoryResult'
 import { AppShell, ExitDialog } from './shared'
 import { shareEvents } from '../../services/shareEvents'
+import { analyticsEvents } from '../../services/analyticsEvents'
 import { StoryCollection } from './StoryCollection'
 import { storyClientMode } from '../../services/storyClient'
 import { purumaStoryMode } from '../../services/apiPurumaStoryClient'
@@ -34,11 +35,12 @@ function Experience({ project }: { project: StoryProject }) {
   const [ending, setEnding] = useState<string | null>(null)
   function finish(result?: string) {
     setEnding(result ?? null)
+    analyticsEvents.complete(project.id)
     if (result && hasCollection(project.id)) recordEnding(project.id, result)
     go('result')
   }
   const saved = stage === 'intro' ? loadProgress(project.id, project.id === 'puruma' ? purumaStoryMode() : storyClientMode()) : null
-  function startChat(nextName: string, from: SavedProgress | null) { setName(nextName); setResume(from); setEnding(null); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }
+  function startChat(nextName: string, from: SavedProgress | null) { analyticsEvents.start(project.id); setName(nextName); setResume(from); setEnding(null); setSession(s => s + 1); setStarted(true); setSurface('chat'); go('chat') }
   const [session, setSession] = useState(0)
   const [started, setStarted] = useState(false)
   const [surface, setSurface] = useState('chat')
@@ -61,6 +63,8 @@ function Experience({ project }: { project: StoryProject }) {
     return () => window.removeEventListener('popstate', pop)
   }, [project.id])
   useEffect(() => { heading.current?.focus({ preventScroll: true }); window.scrollTo(0, 0) }, [stage])
+  // 총 접속 수: 작품 시작 화면(소개)에 들어온 세션. 같은 탭의 재진입은 한 번만 보낸다.
+  useEffect(() => { if (stage === 'intro') analyticsEvents.entry(project.id) }, [stage, project.id])
   const changeSurface = useCallback((next: string, back: () => void) => { setSurface(next); surfaceBack.current = back }, [])
   function home() { if (stage === 'chat' && surface === 'chat') setExit(true); else openHome() }
   function back() {

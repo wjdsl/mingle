@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,8 +33,9 @@ from app.schemas.admin import (
     TriggerStats,
 )
 from app.services.admin_access import PLATFORM_ROLE, PROJECT_IDS, PROJECT_ROLE, load_projects
-from app.services.analytics import DashboardProject, build_overview
+from app.services.analytics import KST, DashboardProject, build_overview
 from app.services.project_stats import build_project_stats
+from app.services.stats_csv import project_stats_csv
 from app.services.memory import load_notes
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_configuration)])
@@ -111,6 +112,25 @@ async def project_stats(
     if project not in await _allowed_projects(db, admin):
         raise HTTPException(status_code=403, detail="이 작품의 통계를 볼 권한이 없습니다.")
     return await build_project_stats(db, project, days, data)
+
+
+@router.get("/projects/{project}/stats.csv", summary="작품별 집계 통계 CSV 내려받기 (FR-74)")
+async def project_stats_csv_download(
+    project: DashboardProject,
+    days: int = Query(default=14, ge=1, le=90),
+    data: Literal["real", "sample", "all"] = Query(default="real"),
+    admin: AdminUser = Depends(get_dashboard_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    if project not in await _allowed_projects(db, admin):
+        raise HTTPException(status_code=403, detail="이 작품의 통계를 볼 권한이 없습니다.")
+    stats = await build_project_stats(db, project, days, data)
+    filename = f"mingle-{project}-{days}d-{data}-{stats.generated_at.astimezone(KST):%Y%m%d}.csv"
+    return Response(
+        content=project_stats_csv(stats),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
 
 
 @router.get(

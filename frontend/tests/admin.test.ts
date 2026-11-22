@@ -73,3 +73,18 @@ test('대시보드 표시: 샘플 표시 여부, 체류 시간 단위, 결말 �
   assert.equal(rateText(null), '—')
   assert.equal(rateText(12.5), '12.5%')
 })
+
+test('CSV 내려받기는 인증 헤더와 선택 조건을 보내고 서버의 파일 이름을 쓴다', async () => {
+  const calls: { url: string; init?: RequestInit }[] = []
+  const client = createAdminClient((async (url, init) => {
+    calls.push({ url: String(url), init })
+    return new Response('﻿구분,지표,항목,값\r\n', { headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="mingle-cloud-7d-real-20261122.csv"' } })
+  }) as typeof fetch)
+  const result = await client.statsCsv('test-only-token', 'cloud', 7, 'real', new AbortController().signal)
+  assert.equal(calls[0].url, '/api/admin/projects/cloud/stats.csv?days=7&data=real')
+  assert.equal((calls[0].init?.headers as Record<string, string>).Authorization, 'Bearer test-only-token')
+  assert.equal(result.filename, 'mingle-cloud-7d-real-20261122.csv')
+  assert.match(await result.blob.text(), /구분,지표/)
+  const denied = createAdminClient((async () => new Response('', { status: 403 })) as typeof fetch)
+  await assert.rejects(denied.statsCsv('t', 'fridge', 7, 'real', new AbortController().signal), (e: unknown) => e instanceof AdminApiError && e.status === 403)
+})

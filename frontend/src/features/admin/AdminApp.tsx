@@ -18,6 +18,7 @@ export function AdminApp() {
   const [project, setProject] = useState('')
   const [days, setDays] = useState(14)
   const [mode, setMode] = useState<DataMode>('real')
+  const [csvBusy, setCsvBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [data, setData] = useState<ProjectStats | null>(null)
   const loginRequest = useRef<AbortController | null>(null)
@@ -64,6 +65,22 @@ export function AdminApp() {
   }, [session])
   const chat = data?.chat, share = data?.share
   const sample = showsSample(data?.scope.mode ?? mode)
+  async function downloadCsv() {
+    if (!session || !project || csvBusy) return
+    setCsvBusy(true); setError('')
+    const controller = new AbortController()
+    try {
+      const { blob, filename } = await adminClient.statsCsv(session.access_token, project, days, mode, controller.signal)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = filename
+      document.body.appendChild(link); link.click(); link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      if (err instanceof AdminApiError && err.status === 401) logout(err.message)
+      else setError(err instanceof AdminApiError && err.status === 403 ? '이 작품의 통계를 내려받을 권한이 없습니다.' : 'CSV를 내려받지 못했습니다. 다시 시도해 주세요.')
+    } finally { setCsvBusy(false) }
+  }
   const peak = data ? Math.max(1, ...data.daily.map(d => d.conversations)) : 1
   return <div className="a-app">
     <header className="a-header"><a href="#/" className="a-brand">mingle<span> / ADMIN</span></a>{admin && <div><span>{admin.name}</span><button onClick={() => logout()}>로그아웃</button></div>}</header>
@@ -88,15 +105,22 @@ export function AdminApp() {
             {DATA_MODES.map(item => <option value={item.id} key={item.id}>{item.label}</option>)}
           </select>
           <button onClick={() => setRefresh(n => n + 1)} disabled={busy || !project}>새로고침</button>
+          <button onClick={downloadCsv} disabled={csvBusy || !project || !data}>{csvBusy ? '내려받는 중…' : 'CSV 내려받기'}</button>
         </div>
       </div>
-      <p className="a-notice">서버에 저장된 채팅과 공유 이벤트를 집계해요. 브라우저에서만 동작하는 Mock 체험은 기록되지 않고, 서버 Mock 체험은 기록돼요.</p>
+      <p className="a-notice">서버에 저장된 채팅과 공유·접속·홍보 이벤트를 집계해요. 브라우저에서만 동작하는 Mock 체험은 기록되지 않고, 서버 Mock 체험은 기록돼요.</p>
       {!allowed.length && <p className="a-empty">조회할 수 있는 작품이 배정되지 않았어요. 운영 담당자에게 문의해 주세요.</p>}
       {busy && <p role="status" className="a-loading">통계를 불러오는 중…</p>}{error && <div role="alert" className="a-error">{error} <button onClick={() => setRefresh(n => n + 1)}>다시 시도</button></div>}
       {data && chat && share && <>
         <p className="a-updated">{sample && <span className="a-sample">샘플 데이터</span>}KST 오늘 포함 {data.range_days}일 · {new Date(data.generated_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} 갱신</p>
-        {sample ? <p className="a-notice a-notice-sample" role="note"><strong>샘플 데이터{data.scope.mode === 'all' ? '가 섞여 있어요' : '예요'}</strong><span>서버 Mock(테스트 응답)으로 만든 대화{data.scope.mode === 'all' ? '를 실제 대화와 함께 집계했어요' : '만 집계했어요'}. 실제 이용 통계로 쓰지 마세요. 이 기간: 실제 {number(data.scope.real_conversations)}건 · 샘플 {number(data.scope.sample_conversations)}건{data.scope.unclassified_conversations ? ` · 판정 불가 ${number(data.scope.unclassified_conversations)}건` : ''}</span></p>
-          : (data.scope.sample_conversations > 0 || data.scope.unclassified_conversations > 0) && <p className="a-notice" role="note">{data.scope.sample_conversations > 0 && <span>이 기간의 샘플 데이터(서버 Mock 대화) {number(data.scope.sample_conversations)}건은 제외했어요. 위의 데이터 선택에서 따로 볼 수 있어요.</span>}{data.scope.unclassified_conversations > 0 && <span>저장된 턴이 없는 대화 {number(data.scope.unclassified_conversations)}건은 샘플 여부를 알 수 없어 실제 대화로 셌어요.</span>}</p>}
+        {sample ? <p className="a-notice a-notice-sample" role="note"><strong>샘플 데이터{data.scope.mode === 'all' ? '가 섞여 있어요' : '예요'}</strong><span>서버 Mock(테스트 응답)으로 만든 대화{data.scope.mode === 'all' ? '를 실제 대화와 함께 집계했어요' : '만 집계했어요'}. 실제 이용 통계로 쓰지 마세요. 이 기간 대화: 실제 {number(data.scope.real_conversations)}건 · 샘플 {number(data.scope.sample_conversations)}건{data.scope.unclassified_conversations ? ` · 판정 불가 ${number(data.scope.unclassified_conversations)}건` : ''} · 접속·홍보·재방문 이벤트 세션: 실제 {number(data.events_scope.real_sessions)} · 샘플 {number(data.events_scope.sample_sessions)}</span></p>
+          : (data.scope.sample_conversations > 0 || data.scope.unclassified_conversations > 0 || data.events_scope.sample_sessions > 0) && <p className="a-notice" role="note">{data.events_scope.sample_sessions > 0 && <span>서버 Mock 상태에서 받은 접속·홍보·재방문 이벤트 세션 {number(data.events_scope.sample_sessions)}개는 제외했어요.</span>}{data.scope.sample_conversations > 0 && <span>이 기간의 샘플 데이터(서버 Mock 대화) {number(data.scope.sample_conversations)}건은 제외했어요. 위의 데이터 선택에서 따로 볼 수 있어요.</span>}{data.scope.unclassified_conversations > 0 && <span>저장된 턴이 없는 대화 {number(data.scope.unclassified_conversations)}건은 샘플 여부를 알 수 없어 실제 대화로 셌어요.</span>}</p>}
+        <section className="a-kpis" aria-label="방문 지표">{[
+          ['총 접속 수', number(data.access.sessions), '작품 시작 화면에 들어온 세션 · 같은 탭 재진입은 한 번'],
+          ['재방문율', rateText(data.revisit.rate), `두 번째 이상 시작한 세션 ${number(data.revisit.revisit_sessions)} / 완료한 세션 ${number(data.revisit.completed_sessions)}`],
+          ['시작한 방문자', number(data.revisit.visitors), '체험을 시작한 브라우저 수(익명 ID)'],
+        ].map(([label, value, help]) => <article className="a-kpi" key={label}><h2>{label}</h2><strong>{value}</strong><p>{help}</p></article>)}</section>
+        <p className="a-notice">재방문율은 기획서 정의(두 번째 이상 시작한 세션 ÷ 완료한 세션)대로 계산해요. 분자가 분모에 포함되지 않아 100%를 넘을 수 있어요. 같은 탭에서 다시 하기는 재방문으로 세지 않아요.</p>
         <section className="a-kpis a-kpis-5" aria-label="채팅 지표">{[
           ['채팅 이용 세션', number(chat.sessions), '기간 내 대화를 시작한 세션'],
           ['시작한 대화', number(chat.conversations), '기간 내 생성된 대화'],
@@ -120,7 +144,14 @@ export function AdminApp() {
           ['링크로 체험 시작', number(share.link_start_sessions), `공유 링크 열기 대비 ${percent(share.link_start_sessions, share.link_opens)}`],
         ].map(([label, value, help]) => <article className="a-kpi" key={label}><h2>{label}</h2><strong>{value}</strong><p>{help}</p></article>)}</section>
         <p className="a-notice">공유 버튼은 누른 횟수이며 외부에 실제로 올렸는지는 알 수 없어요. 공유 이벤트는 대화와 연결되지 않아 샘플 여부를 나누지 않고 모든 데이터 선택에서 같은 값을 보여요.</p>
-        <section className="a-panel" aria-labelledby="admin-promo"><h2 id="admin-promo">홍보 콘텐츠 클릭률</h2><p className="a-empty">아직 수집하지 않는 지표예요. 홍보 노출·클릭 이벤트를 모으기 시작하면 표시돼요.</p></section>
+        <section className="a-panel" aria-labelledby="admin-promo"><h2 id="admin-promo">홍보 콘텐츠 클릭률</h2>
+          {!data.promo.applicable ? <p className="a-empty">해당 없음 · 이 작품에는 아직 연결된 홍보 링크가 없어요(결과 화면 영화관 바로가기 주소 미정).</p>
+            : !data.promo.impressions && !data.promo.clicks ? <p className="a-empty">선택한 기간에 홍보 카드가 노출되지 않았어요.</p> : <>
+              <p>노출은 카드가 화면에 절반 이상 보인 세션 수(세션·콘텐츠당 한 번), 클릭률은 클릭한 세션 ÷ 노출된 세션이에요. 전체: 노출 {number(data.promo.impressions)} · 클릭 {number(data.promo.clicks)}회 · 클릭률 {rateText(data.promo.ctr)}</p>
+              {data.promo.contents.map(c => <div className="a-stage" key={c.id}><span className="a-stage-label">{c.label}</span><meter min={0} max={100} value={c.ctr ?? 0} aria-label={`${c.label} 클릭률`} /><span className="a-stage-value">{rateText(c.ctr)} · 노출 {number(c.impressions)}</span></div>)}
+              <details><summary>콘텐츠별 수치 표로 보기</summary><div className="a-table-scroll"><table><thead><tr><th>콘텐츠</th><th>노출 세션</th><th>클릭</th><th>클릭 세션</th><th>클릭률</th></tr></thead><tbody>{data.promo.contents.map(c => <tr key={c.id}><th>{c.label}<small>{c.id}</small></th><td>{number(c.impressions)}</td><td>{number(c.clicks)}</td><td>{number(c.click_sessions)}</td><td>{rateText(c.ctr)}</td></tr>)}</tbody></table></div></details>
+            </>}
+        </section>
         <section className="a-panel" aria-labelledby="admin-endings"><h2 id="admin-endings">엔딩 분포</h2>
           <p>끝난 대화 {number(data.endings.judged)}건의 결말이에요. 서버에 저장된 턴 기록으로 결말 판정 규칙을 다시 적용해 계산해요.{data.endings.unjudged_completed > 0 && ` 판정 대상이 아닌(이전 장면 세트) 끝난 대화 ${number(data.endings.unjudged_completed)}건은 뺐어요.`}</p>
           {data.endings.judged ? <>
