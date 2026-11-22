@@ -15,7 +15,15 @@ export interface ProjectStats {
   chat: { sessions: number; conversations: number; completed_conversations: number; completion_rate: number | null; turns: number; avg_turns: number | null; messages: number }
   share: { share_clicks: number; image_save_clicks: number; link_opens: number; link_start_sessions: number }
   daily: { date: string; conversations: number; turns: number }[]
+  scope: { mode: DataMode; real_conversations: number; sample_conversations: number; unclassified_conversations: number }
+  segments: { scene_set: string; conversations: number; legacy_conversations: number; segments: { id: string; title: string; start_turn: number; reached: number; rate: number | null }[] } | null
+  endings: { judged: number; unjudged_completed: number; endings: { id: string; count: number; rate: number | null }[] }
+  dwell: { conversations: number; median_seconds: number | null; p90_seconds: number | null }
+  interest: { applicable: boolean; free_inputs: number; unclassified: number; topics: { id: string; label: string; count: number; rate: number | null }[] }
+  fallback: { llm_turns: number; fallback_turns: number; rate: number | null; reasons: { code: string; count: number }[] }
 }
+// real: 샘플(서버 Mock) 대화 제외, sample: 샘플만, all: 둘 다. 서버가 대화 단위로 판정한다.
+export type DataMode = 'real' | 'sample' | 'all'
 export class AdminApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) { super(message); this.status = status }
@@ -42,8 +50,8 @@ export function createAdminClient(fetcher: typeof fetch = fetch) {
     login: (email: string, password: string, signal: AbortSignal) => request<AdminSession>('/login', undefined, signal, { email, password }),
     me: (token: string, signal: AbortSignal) => request<Admin>('/me', token, signal),
     projects: (token: string, signal: AbortSignal) => request<string[]>('/projects', token, signal),
-    projectStats: (token: string, project: string, days: number, signal: AbortSignal) =>
-      request<ProjectStats>(`/projects/${encodeURIComponent(project)}/stats?${new URLSearchParams({ days: String(days) })}`, token, signal),
+    projectStats: (token: string, project: string, days: number, signal: AbortSignal, data?: DataMode) =>
+      request<ProjectStats>(`/projects/${encodeURIComponent(project)}/stats?${new URLSearchParams({ days: String(days), ...(data ? { data } : {}) })}`, token, signal),
     overview: (token: string, days: number, signal: AbortSignal, project?: string) => {
       const query = new URLSearchParams({ days: String(days) })
       if (project) query.set('project', project)

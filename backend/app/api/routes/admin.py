@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,12 +102,15 @@ async def my_projects(admin: AdminUser = Depends(get_dashboard_admin), db: Async
 async def project_stats(
     project: DashboardProject,
     days: int = Query(default=14, ge=1, le=90),
+    data: Literal["real", "sample", "all"] = Query(
+        default="real", description="real: 샘플(서버 Mock) 대화 제외, sample: 샘플만, all: 모두"
+    ),
     admin: AdminUser = Depends(get_dashboard_admin),
     db: AsyncSession = Depends(get_db),
 ):
     if project not in await _allowed_projects(db, admin):
         raise HTTPException(status_code=403, detail="이 작품의 통계를 볼 권한이 없습니다.")
-    return await build_project_stats(db, project, days)
+    return await build_project_stats(db, project, days, data)
 
 
 @router.get(

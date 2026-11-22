@@ -336,12 +336,12 @@ async def test_notes_are_rejected_for_other_projects_and_fridge_shape_unchanged(
 
 async def test_project_stats_count_puruma_story_turns(client):
     async with SessionLocal() as db:
-        before = await build_project_stats(db, "puruma", 1)
+        before = await build_project_stats(db, "puruma", 1, "all")
     headers, cid = await start(client)
     for turn, choice_id in enumerate(CAREER_ROUTE[:3]):
         await client.post(f"/api/story-chat/conversations/{cid}/turns", json=choose(turn, choice_id), headers=headers)
     async with SessionLocal() as db:
-        after = await build_project_stats(db, "puruma", 1)
+        after = await build_project_stats(db, "puruma", 1, "all")
     assert after.chat.conversations == before.chat.conversations + 1
     assert after.chat.turns == before.chat.turns + 3
 

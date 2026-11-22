@@ -116,6 +116,74 @@ class ProjectDailyPoint(BaseModel):
     turns: int = 0
 
 
+class DataScope(BaseModel):
+    """샘플(서버 Mock) 구분. 기간 안 대화를 모드와 무관하게 센다(FR-73)."""
+
+    mode: str = "real"  # real | sample | all
+    real_conversations: int = 0
+    sample_conversations: int = 0
+    unclassified_conversations: int = 0  # 저장된 턴이 없어 샘플 여부를 알 수 없음(실제 쪽에 포함)
+
+
+class SegmentReach(BaseModel):
+    id: str
+    title: str
+    start_turn: int  # 1부터
+    reached: int
+    rate: float | None = None
+
+
+class SegmentStats(BaseModel):
+    scene_set: str
+    conversations: int = 0  # 분모: 현재 장면 세트로 시작한 대화
+    legacy_conversations: int = 0  # 이전 장면 세트·이전 푸르마 대화(구간 정의가 달라 제외)
+    segments: list[SegmentReach] = Field(default_factory=list)
+
+
+class EndingCount(BaseModel):
+    id: str
+    count: int
+    rate: float | None = None
+
+
+class EndingStats(BaseModel):
+    judged: int = 0  # 분모: 끝난 대화 중 판정 대상(현재 장면 세트)
+    unjudged_completed: int = 0  # 끝났지만 판정 대상이 아닌 대화(이전 장면 세트 등)
+    endings: list[EndingCount] = Field(default_factory=list)
+
+
+class DwellStats(BaseModel):
+    conversations: int = 0  # 턴 시각이 2개 이상인 대화
+    median_seconds: int | None = None
+    p90_seconds: int | None = None
+
+
+class TopicCount(BaseModel):
+    id: str
+    label: str
+    count: int
+    rate: float | None = None
+
+
+class InterestStats(BaseModel):
+    applicable: bool = False  # 주제 분류가 저장되는 작품(푸르마)만 True
+    free_inputs: int = 0
+    unclassified: int = 0  # 자유 입력이지만 주제가 저장되지 않은 턴(AI 대체 응답·Mock)
+    topics: list[TopicCount] = Field(default_factory=list)
+
+
+class ReasonCount(BaseModel):
+    code: str
+    count: int
+
+
+class FallbackStats(BaseModel):
+    llm_turns: int = 0  # AI가 응답해야 했던 턴(고정 연출 제외)
+    fallback_turns: int = 0
+    rate: float | None = None
+    reasons: list[ReasonCount] = Field(default_factory=list)
+
+
 class ProjectStats(BaseModel):
     project: str
     range_days: int
@@ -123,3 +191,9 @@ class ProjectStats(BaseModel):
     chat: ChatStats
     share: ShareStats
     daily: list[ProjectDailyPoint]
+    scope: DataScope = Field(default_factory=DataScope)
+    segments: SegmentStats | None = None
+    endings: EndingStats = Field(default_factory=EndingStats)
+    dwell: DwellStats = Field(default_factory=DwellStats)
+    interest: InterestStats = Field(default_factory=InterestStats)
+    fallback: FallbackStats = Field(default_factory=FallbackStats)
