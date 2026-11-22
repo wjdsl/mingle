@@ -4,6 +4,7 @@ from app.api.routes import (
     admin,
     chat,
     conversations,
+    events,
     health,
     marketing,
     notes,
@@ -25,6 +26,7 @@ routers = [
     story_chat.router,
     marketing.router,
     share.router,
+    events.router,
     admin.router,
 ]
 

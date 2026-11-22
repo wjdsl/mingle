@@ -7,6 +7,7 @@
 - forbidden_address: 성별을 가정하는 호칭(총각/아가씨 등, 사용자 호칭 뒤 군/양)
 - tentative_name: 화면에 아직 나오지 않은 가칭 고유명사 사용
 - real_finance: 실존 기업 이름·투자 권유 표현
+- fourth_wall: 대사가 이야기 밖 표현(가상·작품 속·시나리오 등)을 말함
 - prompt_leak: 시스템 프롬프트·내부 규칙 표기 노출
 - future_scene: 이후 장면의 첫 대사·사건 알림 문장을 미리 말함 (장면 이탈)
 - repetition: 이전 응답 또는 현재 장면 첫 대사와 거의 같은 문장 반복
@@ -32,6 +33,8 @@ GENDER_ADDRESS = ("총각", "아가씨")
 GENDER_SUFFIXES = ("군", "양")
 TENTATIVE_NAMES = ("가람그룹", "윤 실장", "한빛전자", "방울섬")  # 구름섬 9턴 등대지기는 이름 없음(2026-11-21)
 REAL_COMPANIES = ("삼성전자", "삼성", "현대자동차", "현대차", "SK하이닉스", "LG전자", "카카오", "네이버", "애플", "테슬라", "엔비디아", "구글", "아마존", "마이크로소프트")
+# 캐릭터가 이야기 밖(작품·설정·AI)에서 말하는 표현. 대사에 나오면 몰입이 깨지므로 재생성 대상이다.
+META_TERMS = ("가상", "작품 속", "작품 안", "이 작품", "시나리오", "설정상", "인공지능", "언어 모델")
 INVEST_PHRASES = ("매수", "매도", "사세요", "투자하세요", "투자해", "종목 추천", "주식을 사")
 MAX_SENTENCES = 3
 REPEAT_RATIO = 0.9
@@ -111,6 +114,9 @@ def validate_lines(
 
     if any(word in joined for word in GENDER_ADDRESS) or _gendered_nickname(joined, nickname):
         found.append(Violation("forbidden_address", "성별을 가정하는 호칭"))
+    meta = [t for t in META_TERMS if t in joined]
+    if meta:
+        found.append(Violation("fourth_wall", ", ".join(meta)))
     unseen = [name for name in TENTATIVE_NAMES if name in joined and name not in visible]
     if unseen:
         found.append(Violation("tentative_name", ", ".join(unseen)))
@@ -141,6 +147,7 @@ def correction_note(violations: list[Violation]) -> str:
         "forbidden_address": "성별을 가정하는 호칭을 썼다.",
         "tentative_name": "화면에 나오지 않은 고유명사를 썼다.",
         "real_finance": "실존 기업·투자 표현을 썼다.",
+        "fourth_wall": "이야기 밖 표현(가상·작품 속 등)을 썼다. 이야기 속 인물의 말로만 쓴다.",
         "prompt_leak": "내부 규칙 표현이 드러났다.",
         "future_scene": "이후 장면 내용을 미리 말했다. 현재 장면에 머문다.",
         "repetition": "이전 대사를 반복했다. 새로운 말로 답한다.",

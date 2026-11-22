@@ -28,6 +28,10 @@ MOCK_FREE_REPLY = "[Mock] 자유 입력에 대한 고정 응답입니다. AI가 
 _HANDLED_NOTES = {"입력 없음", "대사 앞 지문"}
 
 
+def scenario_persona_slug(base_slug: str) -> str:
+    return f"{base_slug}-scenario-v1"
+
+
 def _first_quote(text: str) -> str:
     match = re.search(r'"([^"]+)"', text or "")
     return match.group(1) if match else ""
@@ -145,7 +149,7 @@ def scenario_project(project_id: str) -> StoryProjectDef | None:
     return StoryProjectDef(
         id=project_id,
         title=base.title,
-        persona_slug=f"{base.persona_slug}-scenario-v1",
+        persona_slug=scenario_persona_slug(base.persona_slug),
         persona_name=f"{base.persona_name} (시나리오 초안)",
         speakers=speakers,
         max_lines=max_lines,

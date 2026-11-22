@@ -26,6 +26,12 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
     case 'failure': return state.pending?.requestId === action.requestId && state.status === 'responding' ? { ...state, status: 'error' } : state
     case 'success':
       if (state.status !== 'responding' || state.pending?.requestId !== action.requestId) return state
+      if (action.response.safety) {
+        // 서버가 위기 입력으로 판단: 턴·감정·진행 상태는 그대로 두고 안내와 차분한 반응만 붙인다.
+        return { ...state, pending: null, status: 'idle', messages: [...state.messages,
+          { id: `${action.requestId}-notice`, role: 'notice', text: '' },
+          { id: `${action.requestId}-care`, role: 'character', text: action.response.text, emotion: 'confused', calm: true }] }
+      }
       return { ...state, completedTurns: state.completedTurns + 1, pending: null,
         status: state.completedTurns + 1 === 2 ? 'complete' : 'idle', emotion: action.response.emotion,
         messages: [...state.messages, { id: `${action.requestId}-reply`, role: 'character', text: action.response.text, emotion: action.response.emotion }] }

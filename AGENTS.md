@@ -328,6 +328,33 @@
 - 기존 Flash는 HTTPX 읽기 타임아웃, Flash Lite는 Google HTTP 503 후 기존 앱 HTTP 502로 기록됐다. 스토리 API에서 공급자 503을 전용 코드로 전달하고 화면에 재시도 안내를 표시한다. 실패 시 진행은 저장되지 않으며 재시도는 같은 요청 ID를 사용한다.
 - 이번 정리에서는 실제 Gemini를 호출하지 않았다. 복구 후 1회 확인 방법은 `backend/README.md`를 따른다.
 
+## 2026-11-21 냉장고·구름섬 위기 신호 안내 (기획 초안 반영)
+
+- `docs/stories/safety-notice-and-name-check.md`(origin/main, 기획 초안·팀 확인 전)의 1장을 구현했다. 문구·번호(109·119)는 팀 확정 전이므로 확정되면 `frontend/src/services/crisisSafety.ts`의 한 곳만 고친다. 푸르마 화면과 데이터 파일(`data/*`)은 변경하지 않았다.
+- 자유 입력에 위기 표현(예: 죽고 싶다, 사라지고 싶다, 자해, 다 끝내고 싶다)이 있으면 프론트가 서버·LLM에 보내지 않고 대화 안 시스템 말풍선(`tel:109`, `tel:119`)과 캐릭터의 짧은 곁말을 보여 준다. 장면은 진행하지 않고 같은 장면에서 이어 입력할 수 있다. 선택지에는 적용하지 않는다.
+- 백엔드(`story_safety.py`, `process_story_turn`)도 같은 목록으로 한 번 더 막는다. 위기 입력이면 LLM을 호출하지 않고 턴·메시지를 저장하지 않으며 `safety_notice: true`로 응답한다. 입력 원문은 기록하지 않는다(로그는 작품·장면만).
+- 검증: 백엔드 283개, 프론트 53개, 빌드 통과. 브라우저(Mock 모드)에서 냉장고 안내 표시·링크·진행 유지·이후 정상 진행을 확인했다. 구름섬 화면과 실제 Gemini/Qwen 연동 상태의 화면 확인은 하지 않았다.
+- 위기 신호 판정은 키워드 방식이라 우회·오탐 가능성이 있다. 일반 힘든 이야기(면접 탈락 등)는 안내하지 않는다. 기획 문서의 나머지 항목(`TENTATIVE_NAMES`의 "소복이" 제거, `crisis_referral_text` 데이터 반영)은 담당자 몫으로 남아 있다.
+
+## 2026-11-21 채팅과 관리자 통계 연결
+
+- 플랫폼 관리자 화면에서 푸르마, 냉장고, 구름섬을 선택해 같은 백엔드에 저장된 채팅을 조회합니다. 작품별 채팅 이용 세션, 시작한 대화와 완료율, 메시지, 진행 턴을 KST 기준으로 집계합니다.
+- 브라우저 전용 Mock은 서버에 기록을 남기지 않습니다. 서버 Mock은 연결한 DB에 기록을 남깁니다. 집계 기준과 실행 방법은 `frontend/ADMIN_GUIDE.md`를 참고하세요.
+
+## 2026-11-21 위기 신호 서버 기준 통일 및 푸르마 서버 방어 (AI/LLM)
+
+- 서버 위기 단어 목록을 `backend/app/services/memory.py`의 `PURUMA_CRISIS_PATTERNS` 한 곳으로 모았다. 공백을 모두 지운 입력과 비교하므로 "죽고싶다"와 "죽고 싶다"를 함께 잡는다. `story_safety.py`는 이 목록과 `is_crisis_text`를 그대로 쓴다. 표현을 바꿀 때는 프론트 감지 목록(`crisisSafety.ts`)과 맞춘다.
+- 푸르마도 서버에서 한 번 더 막는다. `chat_service.process_message`가 푸르마 페르소나의 위기 입력을 LLM 호출 전에 걸러 `ChatSafetyOutcome`을 돌려준다. 입력·안내 메시지·턴·관계 상태·기억을 저장하지 않으며 원문은 로그에 남기지 않는다. 응답은 `ChatSafetyResponse`(`safety_notice: true`, 고정 문구, `provider: "safety"`)이고 `/api/chat`과 `/api/chat/stream` 모두 같다. 다른 페르소나는 영향이 없다.
+- 푸르마 지침(`prompts/pruma_system.md`, `seed_puruma.py`)의 "힘든 마음이나 위기 신호"를 "자신을 해치려는 표현"으로 좁히고, 일상적으로 힘든 이야기는 장난을 줄여 공감하되 위기처럼 대하지 않도록 명시했다.
+- 검증: 백엔드 293개 통과. 실제 LLM 응답 톤과 프론트 푸르마 클라이언트의 `safety_notice` 응답 처리는 확인하지 않았다(PR #15는 위기 입력을 서버로 보내지 않는다).
+- 남은 일: 프론트 감지 목록과 서버 목록 대조(PR #15 병합 후), `crisis_referral_text` 데이터 반영(데이터 담당), 푸르마 학생상담센터 연락처 확인(기획).
+
+## 2026-11-21 작품별 채팅·공유 통계 대시보드
+
+- 관리자 대시보드가 작품(푸르마·냉장고·구름섬)별 채팅(세션·대화·완료율·진행 턴)과 공유(링크 공유 버튼·이미지 저장 버튼·공유 링크 열기·링크로 체험 시작) 통계를 `GET /api/admin/projects/{project}/stats`로 조회한다. 작품 담당 계정은 배정된 작품만 보이며 다른 작품은 서버가 403으로 막는다. 전체 조회·채팅 원문 API는 전체 관리자 전용이다.
+- 공유 이벤트는 `POST /api/events/share`로 익명 세션 ID·작품·종류만 저장한다. 서버 연결/서버 Mock 모드에서만 전송하고 브라우저 전용 Mock은 기록하지 않는다. 결과 화면에 `이미지 저장` 버튼(브라우저에서 PNG 생성)을 추가했다. 집계 기준은 `frontend/ADMIN_GUIDE.md`.
+- 총 접속 수·재방문율·엔딩 분포는 범위 밖이다. 모델·프롬프트·위기 대응 로직은 변경하지 않았다. 커밋/푸시 없음.
+
 ## 2026-11-21 관리자 계정 작품 지정
 
 - 기획 요청으로 관리자 계정에 볼 수 있는 작품을 지정하는 기반만 추가했다. 계정 종류는 플랫폼 관리자(`role=admin`, 전체)와 작품 담당자(`role=project`) 두 가지다.
@@ -336,12 +363,20 @@
 - 작품별 통계 필터·작품 권한 검사·프론트 작품 선택은 **미구현**이다. 그때까지 작품 담당자는 로그인과 모든 관리자 API에서 403으로 거부한다. 대화 원문 API를 작품 담당자에게 열지 않는 방향은 기획 제안이며 팀 확정 전이다.
 - 수정: `backend/app/db/models.py`, `backend/app/services/admin_access.py`(신규), `backend/app/api/deps.py`, `backend/app/api/routes/admin.py`, `backend/scripts/create_admin.py`, `backend/tests/test_admin_project_access.py`(신규), `frontend/ADMIN_GUIDE.md`, 본 문서. 백엔드 pytest 218개 통과(Mock). 프론트 코드는 변경하지 않았다.
 
+## 2026-11-22 main 통합 (Qwen 브랜치 ← origin/main)
+
+- 위기 안내 UI와 감지 목록은 PR #15의 `crisisSafety.ts`·`CrisisNotice`로 통일했다. 냉장고·구름섬 채팅은 이 공통 안내(109·119)와 캐릭터 곁말을 쓰며, 서버가 `safety_notice`로 응답해도 같은 안내를 보여 주고 장면을 진행하지 않는다. 프론트 감지 목록은 서버 `PURUMA_CRISIS_PATTERNS`와 같은 표현을 포함한다. 중복이던 `storySafety.ts`와 `p-safety-notice` 스타일은 제거했다.
+- 관리자 권한은 PR #16의 작품별 접근 방식을 유지한다(작품 담당자는 배정 작품의 통계만 조회, 전체·원문 API는 전체 관리자). main의 '작품 담당자 로그인 차단' 임시 처리는 이 기능으로 대체되었다.
+- 푸르마 API 모드: 프론트 감지를 놓치고 서버만 위기 입력을 감지해 `safety_notice: true`(`ChatSafetyResponse`, `notes`가 비어 있을 수 있음)로 응답해도 오류가 아니라 같은 `CrisisNotice`와 차분한 반응으로 처리한다. 턴·감정·진행 상태와 기억은 바꾸지 않는다(`apiChatClient.ts`, `chatReducer.ts`, 회귀 테스트 `frontend/tests/purumaSafety.test.ts`).
+
 ### 2026-11-21 관리자 아이디 로그인과 가칭 목록 정리
 
 - 기획서 FR-70(아이디·비밀번호 로그인)에 맞춰 관리자 아이디가 이메일이 아니어도 되게 했다. 규칙은 `admin_access.normalize_login_id`(3~200자, 영문 소문자·숫자·`._-+@`, 영문/숫자로 시작). 기존 이메일 형식 계정도 그대로 로그인된다. DB 칸 이름 `admin_users.email`과 로그인 API 필드 `email`은 호환을 위해 유지했다.
 - `create_admin`은 `--id`를 쓰고 예전 `--email`도 같은 뜻으로 받는다. 로그인 화면 입력칸을 '아이디'(type=text)로, 오류 문구를 '아이디 또는 비밀번호'로 바꿨다.
 - 구름섬 9턴 등대지기 이름 삭제에 따라 `story_response_control.TENTATIVE_NAMES`에서 "소복이"를 뺐다.
 - 백엔드 pytest 220개, 프론트 테스트 42개·빌드 통과. 브라우저에서 로그인 화면을 직접 확인하지는 않았다.
+- 2026-11-22 2차 main 통합(#14 관리자 아이디 로그인, #18 진행 저장·이어 하기·결말 도감·결과 이미지): 결과 이미지는 #18의 `renderResultImage`를 냉장고·구름섬 결과 화면의 단일 버튼으로 쓰고 `image_save_click` 공유 이벤트를 함께 기록한다. 푸르마 졸업 카드는 기존 `saveResultImage`(DOM 캡처)를 유지한다. 위기 입력은 진행 저장(`saveProgress`)·완료 턴·통계에 반영하지 않는다(`tests/crisisProgress.test.ts`).
+
 
 ## 2026-11-21~22 위기 안내 · 아이디 로그인 · 진행 저장 · 결말 판정
 

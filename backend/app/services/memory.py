@@ -319,9 +319,14 @@ PURUMA_FIELD_LABELS = {
 }
 
 # 위기 신호: 기억 추출·저장과 (API 연결 후) 회상을 모두 건너뛴다.
+# 공백을 모두 지운 입력과 비교하므로 "죽고싶다"·"죽고 싶다"를 함께 잡는다. 냉장고·구름섬 위기 안내
+# (story_safety.py)도 이 목록을 그대로 쓴다. 표현을 추가할 때는 프론트 crisisSafety/storySafety 목록과 맞춘다.
 PURUMA_CRISIS_PATTERNS = (
     "자살", "죽고 싶", "죽어버리", "죽을래", "자해", "사라지고 싶", "살기 싫", "살고 싶지 않",
+    "다 끝내고 싶", "끝내버리고 싶", "목숨을 끊", "생을 마감", "세상을 떠나고 싶", "극단적 선택",
 )
+_CRISIS_SPACES = re.compile(r"\s+")
+_CRISIS_SQUASHED = tuple(dict.fromkeys(_CRISIS_SPACES.sub("", p) for p in PURUMA_CRISIS_PATTERNS))
 # 개인정보·민감정보 신호: 중요도 판정 전에 제외한다(강한 기억 요청이 있어도 저장하지 않음).
 _PII_PATTERNS = (
     re.compile(r"(?<!\d)(?:\+?82[- ]?)?0\d{1,2}[- .]?\d{3,4}[- .]?\d{4}(?!\d)"),  # 전화번호
@@ -407,7 +412,8 @@ class PurumaNote:
 
 
 def is_crisis_text(text: str) -> bool:
-    return any(pattern in (text or "") for pattern in PURUMA_CRISIS_PATTERNS)
+    squashed = _CRISIS_SPACES.sub("", text or "")
+    return any(pattern in squashed for pattern in _CRISIS_SQUASHED)
 
 
 def is_sensitive_text(text: str) -> bool:

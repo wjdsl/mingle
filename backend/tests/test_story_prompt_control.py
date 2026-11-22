@@ -271,6 +271,13 @@ def test_forbidden_content_rules():
     assert "tentative_name" not in codes("fridge", 7, [("냉장고 회장", "윤 실장이 문제일세.")])
 
 
+def test_fourth_wall_terms_are_rejected():
+    # 캐릭터가 이야기 밖 표현(가상·작품 속 등)을 말하면 재생성 대상이다
+    assert "fourth_wall" in codes("fridge", 3, [("냉장고 회장", "그 정보는 가상 기업 내부에서 얻은 것일세.")])
+    assert "fourth_wall" in codes("fridge", 3, [("냉장고 회장", "작품 속 이야기일 뿐이네.")])
+    assert "fourth_wall" not in codes("fridge", 3, [("냉장고 회장", "그 회사 소식은 내가 안다네.")])
+
+
 def test_scene_departure_and_repetition_rules():
     project = get_project("fridge", SCENARIO)
     future = project.scenes[4].opening_lines[0].text  # 5턴 첫 대사
@@ -327,6 +334,10 @@ async def test_default_scene_set_keeps_existing_frontend_contract(client, monkey
     assert set(response.json()) == {
         "conversation_id", "project", "request_id", "turn", "replies", "reaction", "provider", "model",
         "latency_ms", "completed_turns", "total_turns", "finished", "replayed", "guardrail_triggered", "ending",
+        # 하이브리드 추적용 추가 필드(기존 필드는 그대로)
+        "story_provider", "dialogue_provider", "qwen_used", "qwen_latency_ms", "fallback_reason",
+        # 위기 신호 안내(기본 false)
+        "safety_notice",
     }
     assert response.json()["ending"] is None  # 결말은 마지막 장면에서만 정한다
     assert "하게체" in fake.calls[0][0]["content"]  # 기본 세트도 공식 페르소나 규칙을 쓴다

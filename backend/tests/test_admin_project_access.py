@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.core.security import create_access_token
 from app.db.base import SessionLocal
 from app.db.models import AdminUser
-from app.services.admin_access import PROJECT_DASHBOARD_NOT_READY, load_projects, normalize_projects
+from app.services.admin_access import load_projects, normalize_projects
 from scripts.create_admin import provision
 
 PASSWORD = "project-pass-12345"
@@ -45,20 +45,23 @@ async def test_platform_account_has_no_projects_and_can_login(client):
     assert response.status_code == 200, response.text
 
 
-async def test_project_account_login_is_blocked_until_dashboard_ready(client):
+async def test_project_account_can_login_and_sees_only_assigned_projects(client):
     await provision("viewer@fridge", "담당자", PASSWORD, False, ["fridge"])
     response = await client.post("/api/admin/login", json={"email": "viewer@fridge", "password": PASSWORD})
-    assert response.status_code == 403
-    assert response.json()["detail"] == PROJECT_DASHBOARD_NOT_READY
+    assert response.status_code == 200, response.text
+    assert response.json()["admin"]["role"] == "project"
+    assert response.json()["admin"]["projects"] == ["fridge"]
 
 
-async def test_project_account_token_cannot_read_admin_api(client):
+async def test_project_account_token_cannot_read_platform_wide_admin_api(client):
     await provision("token@cloud", "담당자", PASSWORD, False, ["cloud"])
     admin, _ = await _account("token@cloud")
     token = create_access_token(admin.id, {"email": admin.email, "role": admin.role, "name": admin.name})
-    for path in ["/me", "/overview", "/conversations", "/triggers"]:
-        response = await client.get(f"/api/admin{path}", headers={"Authorization": f"Bearer {token}"})
+    headers = {"Authorization": f"Bearer {token}"}
+    for path in ["/overview", "/overview?project=cloud", "/conversations", "/conversations/x", "/triggers", "/triggers/x/config"]:
+        response = await client.get(f"/api/admin{path}", headers=headers)
         assert response.status_code == 403, path
+    assert (await client.get("/api/admin/me", headers=headers)).status_code == 200
 
 
 async def test_reset_without_project_keeps_project_role(client):

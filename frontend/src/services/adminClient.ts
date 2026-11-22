@@ -1,4 +1,4 @@
-export interface Admin { id: string; email: string; name: string; role: string }
+export interface Admin { id: string; email: string; name: string; role: string; projects?: string[] }
 export interface AdminSession { access_token: string; expires_in: number; admin: Admin }
 export interface Overview {
   environment?: string
@@ -9,6 +9,12 @@ export interface Overview {
   stages: Record<string, number>
   triggers: { trigger_id: string; name: string; persona_name: string; impressions: number; clicks: number; ctr: number }[]
   recent_conversations: { conversation_id: string; persona_name: string; stage: string; turn_count: number; status: string; last_message_at: string | null }[]
+}
+export interface ProjectStats {
+  project: string; range_days: number; generated_at: string
+  chat: { sessions: number; conversations: number; completed_conversations: number; completion_rate: number | null; turns: number; avg_turns: number | null; messages: number }
+  share: { share_clicks: number; image_save_clicks: number; link_opens: number; link_start_sessions: number }
+  daily: { date: string; conversations: number; turns: number }[]
 }
 export class AdminApiError extends Error {
   readonly status: number
@@ -35,7 +41,14 @@ export function createAdminClient(fetcher: typeof fetch = fetch) {
   return {
     login: (email: string, password: string, signal: AbortSignal) => request<AdminSession>('/login', undefined, signal, { email, password }),
     me: (token: string, signal: AbortSignal) => request<Admin>('/me', token, signal),
-    overview: (token: string, days: number, signal: AbortSignal) => request<Overview>(`/overview?days=${days}`, token, signal),
+    projects: (token: string, signal: AbortSignal) => request<string[]>('/projects', token, signal),
+    projectStats: (token: string, project: string, days: number, signal: AbortSignal) =>
+      request<ProjectStats>(`/projects/${encodeURIComponent(project)}/stats?${new URLSearchParams({ days: String(days) })}`, token, signal),
+    overview: (token: string, days: number, signal: AbortSignal, project?: string) => {
+      const query = new URLSearchParams({ days: String(days) })
+      if (project) query.set('project', project)
+      return request<Overview>(`/overview?${query}`, token, signal)
+    },
   }
 }
 export const adminClient = createAdminClient()

@@ -106,3 +106,11 @@ class StoryTurnResponse(BaseModel):
     replayed: bool = Field(description="같은 request_id의 저장된 응답을 다시 반환했는지")
     guardrail_triggered: bool = False
     ending: str | None = Field(default=None, description="마지막 장면이면 결말 ID(scenario_draft_v1만). 점수는 보내지 않는다.")
+    # 하이브리드(냉장고 Qwen 대사) 추적용 추가 필드. 기존 필드 의미는 그대로이며 provider는 스토리 생성 공급자다.
+    story_provider: str | None = None
+    dialogue_provider: str | None = None
+    qwen_used: bool = False
+    qwen_latency_ms: int | None = None
+    fallback_reason: str | None = None
+    # 위기 신호 입력이면 true: 장면을 진행하지 않았고 입력은 저장하지 않았다(completed_turns는 그대로).
+    safety_notice: bool = False

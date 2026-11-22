@@ -39,6 +39,7 @@ from app.services.memory import (
     PURUMA_MAX_NOTES,
     PURUMA_PERSONA_SLUG,
     PurumaNote,
+    is_crisis_text,
     load_notes,
     merge_puruma_notes,
     puruma_notes_for_prompt,
@@ -72,6 +73,21 @@ class ConversationCompletedError(RuntimeError):
 
 class LocalMemoryNotAllowedError(ValueError):
     """푸르마가 아닌 페르소나에 브라우저 로컬 기억(notes)을 보낸 경우."""
+
+
+# 푸르마 위기 입력 때 서버가 직접 돌려주는 고정 반응(LLM 미호출). 상담 번호 안내는 화면이 그린다.
+PURUMA_CRISIS_REPLY = "말해 줘서 고마워요. 위에 있는 번호로 꼭 이야기해 보세요. 저도 여기 있을게요."
+SAFETY_PROVIDER = "safety"
+
+
+@dataclass(slots=True)
+class ChatSafetyOutcome:
+    """위기 입력의 결과. 메시지·상태·기억을 바꾸지 않고 LLM도 부르지 않는다."""
+
+    conversation: Conversation
+    state: RelationshipState
+    reply: str
+    client_notes: list[PurumaNote] | None = None
 
 
 @dataclass(slots=True)
@@ -194,12 +210,21 @@ async def process_message(
     *,
     emit: TokenEmitter | None = None,
     client_notes: list[PurumaNote] | None = None,
-) -> ChatOutcome:
+) -> ChatOutcome | ChatSafetyOutcome:
     if conversation.status == "completed":
         raise ConversationCompletedError("이미 엔딩에 도달한 대화입니다.")
 
     persona = await load_persona(db, conversation.persona_id)
     local_memory = client_notes is not None
+    if persona.slug == PURUMA_PERSONA_SLUG and is_crisis_text(user_text):
+        # 위기 신호(자신을 해치려는 표현): 메시지·턴·기억을 저장하지 않고 LLM도 부르지 않는다. 원문은 기록하지 않는다.
+        logger.warning("푸르마 위기 신호 안내: conversation=%s", conversation.id)
+        return ChatSafetyOutcome(
+            conversation=conversation,
+            state=await get_or_create_state(db, conversation.id),
+            reply=PURUMA_CRISIS_REPLY,
+            client_notes=merge_puruma_notes(client_notes, [], limit=PURUMA_MAX_NOTES) if local_memory else None,
+        )
     if local_memory and persona.slug != PURUMA_PERSONA_SLUG:
         raise LocalMemoryNotAllowedError("브라우저 로컬 기억(notes)은 푸르마 대화에서만 사용할 수 있습니다.")
     state = await get_or_create_state(db, conversation.id)
@@ -257,20 +282,27 @@ async def process_message(
 
     llm = get_llm()
     started = time.perf_counter()
-    if emit is None:
+    max_tokens = settings.llm_max_tokens
+    token_limit = getattr(llm, "max_tokens_limit", None)
+    if token_limit is not None:
+        max_tokens = min(max_tokens, token_limit)
+    if emit is None or not getattr(llm, "supports_streaming", True):
         result = await llm.generate(
             messages,
             temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
+            max_tokens=max_tokens,
         )
         reply = result.text
         provider = result.provider
+        if emit is not None:
+            # 스트리밍 미지원 공급자: 실제 생성 결과를 한 번에 전달한다.
+            await emit(reply)
     else:
         parts: list[str] = []
         async for token in llm.stream(
             messages,
             temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
+            max_tokens=max_tokens,
         ):
             parts.append(token)
             await emit(token)
