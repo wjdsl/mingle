@@ -335,3 +335,10 @@
 - `scripts.create_admin`에 `--project {puruma,fridge,cloud}`(반복 가능)를 추가했다. `--reset`에 `--project`가 없으면 기존 종류·작품을 유지해 작품 담당자가 전체 관리자로 바뀌지 않게 했다.
 - 작품별 통계 필터·작품 권한 검사·프론트 작품 선택은 **미구현**이다. 그때까지 작품 담당자는 로그인과 모든 관리자 API에서 403으로 거부한다. 대화 원문 API를 작품 담당자에게 열지 않는 방향은 기획 제안이며 팀 확정 전이다.
 - 수정: `backend/app/db/models.py`, `backend/app/services/admin_access.py`(신규), `backend/app/api/deps.py`, `backend/app/api/routes/admin.py`, `backend/scripts/create_admin.py`, `backend/tests/test_admin_project_access.py`(신규), `frontend/ADMIN_GUIDE.md`, 본 문서. 백엔드 pytest 218개 통과(Mock). 프론트 코드는 변경하지 않았다.
+
+### 2026-11-21 관리자 아이디 로그인과 가칭 목록 정리
+
+- 기획서 FR-70(아이디·비밀번호 로그인)에 맞춰 관리자 아이디가 이메일이 아니어도 되게 했다. 규칙은 `admin_access.normalize_login_id`(3~200자, 영문 소문자·숫자·`._-+@`, 영문/숫자로 시작). 기존 이메일 형식 계정도 그대로 로그인된다. DB 칸 이름 `admin_users.email`과 로그인 API 필드 `email`은 호환을 위해 유지했다.
+- `create_admin`은 `--id`를 쓰고 예전 `--email`도 같은 뜻으로 받는다. 로그인 화면 입력칸을 '아이디'(type=text)로, 오류 문구를 '아이디 또는 비밀번호'로 바꿨다.
+- 구름섬 9턴 등대지기 이름 삭제에 따라 `story_response_control.TENTATIVE_NAMES`에서 "소복이"를 뺐다.
+- 백엔드 pytest 220개, 프론트 테스트 42개·빌드 통과. 브라우저에서 로그인 화면을 직접 확인하지는 않았다.

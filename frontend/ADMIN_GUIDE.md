@@ -13,7 +13,7 @@ python -m venv .venv
 Copy-Item .env.example .env
 # .env에 본인 환경 전용 SECRET_KEY 설정 (32자 이상, 예제 기본값 사용 불가)
 # 생성: .\.venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"
-.\.venv\Scripts\python -m scripts.create_admin --email 실제관리자이메일
+.\.venv\Scripts\python -m scripts.create_admin --id 관리자아이디   # 예: mingle-team (이메일 아니어도 됨)
 # 비밀번호는 터미널에 숨김 입력 (12~200자), 회원가입 화면 없음
 .\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
