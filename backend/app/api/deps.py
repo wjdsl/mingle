@@ -79,8 +79,6 @@ async def _load_admin(credentials: HTTPAuthorizationCredentials | None, db: Asyn
     admin = await db.get(AdminUser, admin_id)
     if admin is None or not admin.is_active:
         raise _unauthorized("관리자 계정을 찾을 수 없습니다.")
-    if verify_password("admin1234!", admin.password_hash):
-        raise HTTPException(status_code=403, detail="기본 비밀번호를 변경해야 합니다.")
     return admin
 
 

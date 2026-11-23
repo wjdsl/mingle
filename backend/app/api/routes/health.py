@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,3 +37,14 @@ async def health(db: AsyncSession = Depends(get_db)) -> dict:
         "personas": persona_count,
         "server_time": utcnow().isoformat(),
     }
+
+
+@router.get("/metrics", summary="Prometheus 메트릭")
+async def metrics() -> Response:
+    # 최소한의 프로세스/서비스 메트릭. 상세 계측은 추후 확장.
+    body = (
+        "# HELP mingle_up 서비스 가동 여부\n"
+        "# TYPE mingle_up gauge\n"
+        "mingle_up 1\n"
+    )
+    return Response(content=body, media_type="text/plain; version=0.0.4")

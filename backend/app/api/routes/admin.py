@@ -295,34 +295,27 @@ async def list_triggers(
             .order_by(Persona.sort_order, MarketingTriggerDef.priority.desc())
         )
     ).all()
+
+    # N+1 제거: 트리거별 impression/click 집계를 한 번의 GROUP BY로 가져온다.
+    counts = {
+        (row.trigger_id, row.event_type): int(row.cnt)
+        for row in (
+            await db.execute(
+                select(
+                    MarketingEvent.trigger_id,
+                    MarketingEvent.event_type,
+                    func.count().label("cnt"),
+                )
+                .where(MarketingEvent.event_type.in_(["impression", "click"]))
+                .group_by(MarketingEvent.trigger_id, MarketingEvent.event_type)
+            )
+        ).all()
+    }
+
     result: list[TriggerStats] = []
     for trigger, persona_name in triggers:
-        impressions = int(
-            (
-                await db.scalar(
-                    select(func.count())
-                    .select_from(MarketingEvent)
-                    .where(
-                        MarketingEvent.trigger_id == trigger.id,
-                        MarketingEvent.event_type == "impression",
-                    )
-                )
-            )
-            or 0
-        )
-        clicks = int(
-            (
-                await db.scalar(
-                    select(func.count())
-                    .select_from(MarketingEvent)
-                    .where(
-                        MarketingEvent.trigger_id == trigger.id,
-                        MarketingEvent.event_type == "click",
-                    )
-                )
-            )
-            or 0
-        )
+        impressions = counts.get((trigger.id, "impression"), 0)
+        clicks = counts.get((trigger.id, "click"), 0)
         result.append(
             TriggerStats(
                 trigger_id=trigger.id,

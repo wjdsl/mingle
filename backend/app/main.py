@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import uuid
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import routers
 from app.core.config import settings
 from app.core.logging import configure_failure_log, configure_logging
-from app.db.base import engine, init_db
-from app.db.seed import seed_database
+from app.db.base import engine
 from app.services.llm import ensure_llm_ready
 
 logger = logging.getLogger(__name__)
@@ -25,9 +26,7 @@ async def lifespan(app: FastAPI):
     logger.info("서비스 시작: %s v%s", settings.app_name, settings.app_version)
     if settings.llm_probe_on_startup:
         await ensure_llm_ready()
-    await init_db()
-    if settings.seed_on_startup:
-        await seed_database()
+    # 테이블 생성/시드는 Alembic 마이그레이션과 별도 명령으로 수행한다.
     yield
     await engine.dispose()
     logger.info("서비스 종료")
@@ -61,6 +60,15 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Request-Id"],
 )
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 for router in routers:
     app.include_router(router, prefix=settings.api_prefix)

@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     llm_failure_log_file: str = ""
     llm_temperature: float = 0.8
     llm_max_tokens: int = 700
+    # 일일 LLM 비용 상한(USD). 0 이면 제한 없음.
+    daily_llm_cost_cap_usd: float = 0.0
 
     # --- RAG ---
     embedding_dim: int = 1536
@@ -94,8 +96,11 @@ class Settings(BaseSettings):
     # --- 대화/마케팅 ---
     trigger_llm_judge_enabled: bool = False
     guardrail_enabled: bool = True
-    seed_on_startup: bool = True
+    seed_on_startup: bool = False
     llm_probe_on_startup: bool = True
+
+    # --- Redis (레이트 리밋 / 분산 락) ---
+    redis_url: str | None = None
 
     @property
     def is_postgres(self) -> bool:

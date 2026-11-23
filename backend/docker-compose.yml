@@ -21,7 +21,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://companion:companion@db:5432/companion
       SECRET_KEY: ${SECRET_KEY:-local-docker-secret-change-me-32bytes}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@companion.ai}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234!}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./test.db
+          LLM_PROVIDER: mock
+          SECRET_KEY: test-secret-key-0123456789-abcdefghij
+          ADMIN_EMAIL: admin@test.local
+          ADMIN_PASSWORD: testpass12345
+          SEED_ON_STARTUP: "true"
+        run: python -m pytest -q
