@@ -7,6 +7,9 @@
 - 입력 해시 % violation_every == 0 이면 첫 시도에 존댓말 문장을 넣어 style_polite 교정 재시도를 만든다.
 - 입력 해시 % fail_every == 0 이면 두 시도 모두 JSON이 아닌 응답을 내 고정 대사 대체(fallback)를 만든다.
 - usageMetadata에 입력·출력·생각 토큰 수를 넣는다.
+- 푸르마(스키마에 attitude가 있는 경우): 존댓말 한 줄, 스키마 enum에서 고른 emotion·attitude·intent_id(topic_*)를 넣는다.
+  위반 대상 입력이면 첫 시도에 링크 형태를 넣어 url 교정 재시도를 만든다(푸르마는 존댓말 검사를 하지 않는다).
+- --status-every N: 생성 요청 N번째마다 --status(기본 503)로 실패시킨다(시간대 실패 집계 확인용).
 
     python -m scripts.story_eval.fake_gemini --port 8023
 """
@@ -28,6 +31,7 @@ _counter = itertools.count(1)
 FRIDGE_A = ("흠흠, 그렇군.", "이 몸이 보기에 수상하네.", "자네 말에도 일리는 있지.", "허, 배짱 한번 좋군.", "좋네, 일단 두고 보세.", "쯧, 냉기부터 지키게.", "무슨 소리인가, 이 사람아.", "나쁘지 않은 판단일세.", "어허, 서두르지 말게.", "그래, 그 정도면 됐네.", "뭐라? 다시 말해 보게.", "음, 자네답군.")
 FRIDGE_B = ("문단속은 철저히 하게.", "오늘 일은 장부에 적어 두지.", "이 몸의 촉은 틀린 적이 없네.", "내일 아침에 다시 이야기하세.", "달걀은 맨 위 칸에 두게.", "전기요금 걱정은 접어 두게.", "창밖 소리에 귀를 기울이게.", "라면은 오늘까지만일세.", "손님이 오면 나부터 부르게.", "밤공기가 꽤 차갑군.", "자네 표정이 한결 낫군.", "서랍 속 영수증을 챙기게.")
 CLOUD_A = ("좋아, 바로 간다!", "엔진 소리 괜찮아.", "다들 꽉 잡아!", "바람이 방향을 바꿨어.", "밧줄 하나 더 가져와!", "등불을 앞으로 비춰!", "이쪽 길이 더 빨라.", "흔들려도 침착하게!", "연료는 아직 충분해.", "구름이 갈라지고 있어!", "내가 먼저 건너볼게.", "준비됐으면 출발이야!")
+PURUMA = ("우와, 선배 말 들으니까 힘이 나요!", "히히힝, 그렇게 해 볼게요.", "선배랑 같이라면 안 무서워요!", "정말요? 저 그거 메모해 둘게요.", "또각또각, 신나서 발굽이 들썩여요!", "선배 덕분에 오늘도 한 걸음 갔어요.", "그런 방법도 있었군요! 배워 갑니다.", "음, 조금 걱정되지만 해 볼게요.", "선배는 역시 든든해요.", "와, 캠퍼스가 조금 덜 넓게 느껴져요!", "좋아요, 오늘 할 일부터 정해요!", "선배, 다음에도 꼭 알려 주세요!")
 CLOUD_B = ("나도 같이 갈게.", "계기판 숫자 확인했어.", "무서우면 손 잡아.", "로켓은 아직 누르지 마!", "돛 줄 다시 묶을게.", "저기 주민이 손 흔들어.", "속도 조금만 줄이자.", "갑판 미끄러우니 조심해.", "지도에 표시해 둘게.", "다음 구름까지 금방이야.", "내 계산이 맞았어.", "배가 다시 떠올랐어!")
 
 
@@ -59,6 +63,15 @@ def story_reply(body: dict, *, violation_every: int, fail_every: int) -> str:
     corrected = CORRECTION in last_user or CORRECTION in prompt[-400:]
     polite = bool(violation_every) and key % violation_every == 0 and not corrected
     n = next(_counter)
+    props = schema.get("properties") or {}
+    if "attitude" in props:  # 푸르마
+        text = f"{PURUMA[n % len(PURUMA)]} {PURUMA[(n * 5 + key + 3) % len(PURUMA)]}" + (" www.example.com" if polite else "")
+        topics = (props.get("intent_id") or {}).get("enum") or ["topic_daily"]
+        attitudes = props["attitude"].get("enum") or ["중립"]
+        emotions = (props.get("emotion") or {}).get("enum") or ["happy"]
+        data = {"lines": [{"speaker": speakers[0], "text": text}], "reaction": "귀를 쫑긋 세운다",
+                "intent_id": topics[key % len(topics)], "attitude": attitudes[(key // 3) % len(attitudes)], "emotion": emotions[n % len(emotions)]}
+        return json.dumps(data, ensure_ascii=False)
     intents = list(dict.fromkeys(INTENT.findall(prompt)))
     # 서버의 반복 검사(이전 응답과 90% 이상 같으면 위반)를 피하도록 서로 다른 문장을 고른다.
     if len(speakers) == 1:
@@ -80,6 +93,8 @@ class Handler(BaseHTTPRequestHandler):
     violation_every = 4
     fail_every = 13
     status = 200
+    status_every = 0  # 0이면 status를 항상 적용(200이면 실패 없음)
+    _generate_count = itertools.count(1)
 
     def log_message(self, *args) -> None:  # 요청 본문을 출력하지 않는다
         pass
@@ -104,7 +119,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.endswith(":embedContent"):
             self._send(200, {"embedding": {"values": [0.1] * 8}})
             return
-        if self.status != 200:
+        nth = next(Handler._generate_count)
+        failing = self.status != 200 and (not self.status_every or nth % self.status_every == 0)
+        if failing:
             self._send(self.status, {"error": {"code": self.status, "status": "UNAVAILABLE", "message": "fake"}})
             return
         text = story_reply(body, violation_every=self.violation_every, fail_every=self.fail_every)
@@ -124,8 +141,10 @@ def main() -> None:
     parser.add_argument("--violation-every", type=int, default=4, help="0이면 위반 없음")
     parser.add_argument("--fail-every", type=int, default=13, help="0이면 대체 응답 없음")
     parser.add_argument("--status", type=int, default=200, help="생성 요청에 돌려줄 HTTP 상태(503 등 실패 재현)")
+    parser.add_argument("--status-every", type=int, default=0, help="N번째 생성 요청마다만 --status로 실패(0이면 매번)")
     args = parser.parse_args()
     Handler.violation_every, Handler.fail_every, Handler.status = args.violation_every, args.fail_every, args.status
+    Handler.status_every = args.status_every
     print(f"fake gemini on http://{args.host}:{args.port}/v1beta (실제 API 아님)")
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 

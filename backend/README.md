@@ -594,6 +594,20 @@ DATABASE_URL=sqlite+aiosqlite:///./data/eval.db GEMINI_CHAT_MODEL=<모델> GEMIN
 - 예상 호출 수(Qwen 끔, 생성 시도 2 × HTTP 재시도 2): 세 스위트 1회 170~680회, `--suites quality`만 18~72회. 냉장고 Qwen 하이브리드는 서버 `FRIDGE_QWEN_DIALOGUE_ENABLED=true`, 실행기 `--projects fridge --qwen true`로 194~485회(LLM 턴 97, 최소는 생성 97 + Qwen 97). `--qwen`·`--story-attempts`·`--http-attempts`는 예상 계산용이므로 서버 설정과 맞춘다. 다르면 리포트에 경고가 붙는다.
 - 검증: `tests/test_story_eval.py`(20건). 서버 Mock과 가짜 Gemini로 두 작품 3스위트 전체 실행을 확인했다. 실제 Gemini·Qwen 실행과 PostgreSQL에서의 메타데이터 조회는 아직 하지 않았다.
 
+### 2026-11-22 푸르마 스위트와 두 모델 번갈아 실행(ab)
+
+- 푸르마(`puruma_draft_v1`)를 세 스위트에 추가했다. quality는 10턴 고정 입력(홍보 R1~R3, CC 분기, 10턴 진로가 각각 한 번 이상), intent는 `data/tests/pruma_topic_classification_tests.json`(35건, 주제 라벨을 `cases/puruma_intent_map.json`으로 `topic_*`에 매핑)과 `pruma_attitude_classification_tests.json`(태도 31건, 위기 우선 override 1건은 `safety_notice`만 확인), behavior는 `cases/puruma_behavior.json`(11건, 모두 `eval_added`)이다. 서버 위기 판정에 걸리는 표본 `t_attitude_21`("너 혼자 해" → "자해" 오탐)은 채점에서 빼고 리포트에 사유를 남긴다.
+- `ab` 명령은 GEMINI_CHAT_MODEL만 다른 서버 두 개(기본 포트 8101·8102, DB 파일 분리)를 띄워 대화마다 A→B로 번갈아 실행한다. 두 서버의 GEMINI_THINKING_LEVEL·STORY_GENERATION_ATTEMPTS·GEMINI_HTTP_ATTEMPTS·LLM_TIMEOUT_SECONDS는 같은 값을 환경변수로 넘기고 Qwen·시작 점검·시드는 끈다(`backend/.env`는 수정하지 않는다). 호출 상한은 서버 로그로 센 실제 Gemini HTTP 요청 수로 지킨다. 한쪽이 상한·일일 할당량(`provider_quota_daily`/`unknown` 대체 사유)으로 멈추면 둘 다 멈추고 그때까지의 결과로 리포트를 쓴다.
+- 리포트 맨 위에 서버 설정을 적고, 503·429·시간 초과를 KST 시각과 10분 단위로 남긴다(서버 로그 기준 HTTP 시도와 고정 대사로 넘어간 턴을 따로). `compare.md`는 세 작품 각각과 합계를 보여 준다. `--quality-repeat`로 quality만 따로 반복한다.
+
+```bash
+.venv/bin/python -m scripts.story_eval ab --dry-run --quality-repeat 2
+.venv/bin/python -m scripts.story_eval ab --model-a gemini-3.1-flash-lite --model-b gemini-3.5-flash-lite --quality-repeat 2 --max-calls 480
+```
+
+- 예상 호출 수(모델당, 생성 시도 2 × HTTP 재시도 2): 세 작품 quality 2판 + intent + behavior 284~1136회. 2026-11-22 실측은 모델당 HTTP 요청 350·354회였다.
+- 검증: `tests/test_story_eval_puruma_ab.py`(16건). 서버 Mock과 가짜 Gemini(`--status 503 --status-every N`으로 간헐 503)로 세 작품 전체 흐름을 확인했다.
+
 ## 2026-11-22 푸르마 10턴 장면형 스토리
 
 푸르마는 `/api/story-chat`에서 `{"project": "puruma"}`로 대화를 만든다(장면 세트 `puruma_draft_v1`가 기본). 냉장고·구름섬과 같은 턴 처리(같은 request_id 재생, 응답 제어와 교정 재생성, AI 실패 시 고정 대사 `provider=fallback`, 위기 입력 차단)를 쓴다. 기존 `/api/chat`과 `seed_puruma.py`는 그대로 두었다.
