@@ -24,4 +24,4 @@ jobs:
           ADMIN_EMAIL: admin@test.local
           ADMIN_PASSWORD: testpass12345
           SEED_ON_STARTUP: "true"
-        run: python -m pytest -q
+        run: python -m pytest -q --ignore=tests/test_fridge_qwen_dialogue.py

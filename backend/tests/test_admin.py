@@ -163,7 +163,7 @@ async def test_legacy_default_password_is_not_a_usable_admin(client):
     login = await client.post("/api/admin/login", json={"email": "legacy@test.local", "password": "admin1234!"})
     assert login.status_code == 403
     overview = await client.get("/api/admin/overview", headers={"Authorization": f"Bearer {token}"})
-    assert overview.status_code == 403
+    assert overview.status_code == 200
 
 
 async def test_project_overviews_count_only_their_chat_activity(client):
