@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import routers
 from app.core.config import settings
 from app.core.logging import configure_failure_log, configure_logging
-from app.db.base import engine
+from app.db.base import engine, init_db
+from app.db.seed import seed_database
 from app.services.llm import ensure_llm_ready
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,11 @@ async def lifespan(app: FastAPI):
     logger.info("서비스 시작: %s v%s", settings.app_name, settings.app_version)
     if settings.llm_probe_on_startup:
         await ensure_llm_ready()
-    # 테이블 생성/시드는 Alembic 마이그레이션과 별도 명령으로 수행한다.
+    # 없는 테이블만 만든다(기존 테이블·데이터는 그대로, 새 칼럼 추가는 Alembic 몫).
+    # 빈 DB로 띄워도 바로 동작하게 하며, 이미 `alembic upgrade head`를 한 DB에서는 아무 일도 하지 않는다.
+    await init_db()
+    if settings.seed_on_startup:
+        await seed_database()
     yield
     await engine.dispose()
     logger.info("서비스 종료")
