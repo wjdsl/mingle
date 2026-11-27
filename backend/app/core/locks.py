@@ -13,6 +13,8 @@ except Exception:  # pragma: no cover
 
 
 class DistributedLock:
+    _local_locks: dict[str, asyncio.Lock] = {}
+
     def __init__(self, key: str, redis_url: str | None = None, ttl: int = 30) -> None:
         self.key = key
         self.redis_url = redis_url
@@ -20,7 +22,7 @@ class DistributedLock:
         self._redis: Any = None
         if redis_url and redis is not None:
             self._redis = redis.from_url(redis_url, decode_responses=True)
-        self._local = asyncio.Lock()
+        self._local = self._local_locks.setdefault(key, asyncio.Lock())
 
     async def __aenter__(self) -> "DistributedLock":
         if self._redis is not None:

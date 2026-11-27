@@ -13,6 +13,7 @@ from functools import lru_cache
 
 from app.core.config import settings
 from app.services.llm.base import LLMError, LLMProvider, LLMResult, fit_embedding
+from app.services.llm.cost_cap import CostCappedProvider
 from app.services.llm.gemini_provider import GeminiProvider
 from app.services.llm.mock import MockProvider
 from app.services.llm.openai_provider import OpenAIProvider
@@ -90,6 +91,7 @@ def _build_provider() -> LLMProvider:
 @lru_cache
 def get_llm() -> LLMProvider:
     provider = _build_provider()
+    provider = CostCappedProvider(provider)
     logger.info("LLM 공급자: %s (model=%s)", provider.name, provider.chat_model)
     return provider
 

@@ -22,11 +22,23 @@ async def health(db: AsyncSession = Depends(get_db)) -> dict:
     persona_count = int(
         (await db.scalar(select(func.count()).select_from(Persona))) or 0
     )
+    redis_status = "not_configured"
+    if settings.redis_url:
+        try:
+            import redis.asyncio as _redis
+
+            client = _redis.from_url(settings.redis_url, decode_responses=True)
+            await client.ping()
+            await client.aclose()
+            redis_status = "ok"
+        except Exception as exc:  # pragma: no cover
+            redis_status = f"error: {type(exc).__name__}"
     return {
         "status": "ok",
         "version": settings.app_version,
         "environment": settings.environment,
         "database": "postgresql" if settings.is_postgres else "sqlite",
+        "redis": redis_status,
         "llm": {
             "provider": llm.name,
             "chat_model": llm.chat_model,

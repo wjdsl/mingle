@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 700
     # 일일 LLM 비용 상한(USD). 0 이면 제한 없음.
     daily_llm_cost_cap_usd: float = 0.0
+    # 비용 추정용 1k 토큰당 가격(USD). 0이면 비용 추정 0.
+    llm_cost_per_1k_tokens_usd: float = 0.002
 
     # --- RAG ---
     embedding_dim: int = 1536

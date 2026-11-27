@@ -34,6 +34,9 @@ from app.services.llm.gemini_provider import GeminiHTTPError, GeminiQuotaError, 
 from app.services.story_judgement import judge_conversation
 from app.services.story_safety import SAFETY_MODEL, SAFETY_PROVIDER
 from app.services.story_scenes import get_project
+
+from app.core.config import settings
+from app.core.locks import DistributedLock
 from app.services.story_turn_service import (
     StorySafetyOutcome,
     StoryTurnError,
@@ -217,8 +220,10 @@ async def send_fixed_turn(
     db: AsyncSession = Depends(get_db),
 ) -> StoryTurnResponse:
     conversation = await get_owned_conversation(db, session.id, conversation_id)
+    lock = DistributedLock(f"mingle:turn:{conversation_id}", redis_url=settings.redis_url)
     try:
-        outcome = await process_fixed_turn(db, session, conversation, request_id=payload.request_id, turn=payload.turn)
+        async with lock:
+            outcome = await process_fixed_turn(db, session, conversation, request_id=payload.request_id, turn=payload.turn)
     except StoryTurnError as exc:
         await db.rollback()
         raise _http_error(exc) from exc
@@ -239,7 +244,7 @@ async def send_turn(
 ) -> StoryTurnResponse:
     # 한 서버 프로세스에서 동시 재전송이 같은 턴을 두 번 생성하지 않게 한다.
     # 여러 프로세스에서의 저장 중복은 story_turns의 고유 제약으로 막는다.
-    lock = _turn_locks.setdefault(conversation_id, asyncio.Lock())
+    lock = DistributedLock(f"mingle:turn:{conversation_id}", redis_url=settings.redis_url)
     try:
         async with lock:
             conversation = await get_owned_conversation(db, session.id, conversation_id)
