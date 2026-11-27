@@ -26,6 +26,13 @@ class CostCappedProvider(LLMProvider):
         self.max_tokens_limit = provider.max_tokens_limit
         self._spent: dict[str, float] = {}
 
+    def __getattr__(self, name: str) -> Any:
+        # 래퍼에 없는 공급자 속성(supports_json_schema, thinking_level, http_attempts 등)은
+        # 감싼 공급자의 값을 그대로 돌려준다. 호출 측은 getattr로 이 값을 확인한다.
+        if name == "_provider":
+            raise AttributeError(name)
+        return getattr(self._provider, name)
+
     def _today(self) -> str:
         return date.today().isoformat()
 
@@ -47,9 +54,12 @@ class CostCappedProvider(LLMProvider):
         if cap > 0 and self._spent_today() >= cap:
             raise DailyCostCapExceeded("일일 LLM 비용 상한에 도달했습니다.")
 
-    async def generate(self, messages, *, temperature=None, max_tokens=None, json_mode=False) -> LLMResult:
+    async def generate(self, messages, *, temperature=None, max_tokens=None, json_mode=False, **kwargs) -> LLMResult:
+        # json_schema처럼 공급자별 추가 인자는 그대로 넘긴다.
         self._check_cap()
-        result = await self._provider.generate(messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode)
+        result = await self._provider.generate(
+            messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode, **kwargs
+        )
         self._add_cost(result.prompt_tokens, result.completion_tokens)
         return result
 

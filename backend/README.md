@@ -312,7 +312,11 @@ Marketing Trigger(3개)와 CTA가 포함됩니다.
 | `RAG_TOP_K` | `4` | 검색 문서 수 |
 | `MEMORY_LLM_ENABLED` | `false` | LLM 기반 기억 추출 추가 |
 | `TRIGGER_LLM_JUDGE_ENABLED` | `false` | Trigger LLM 판정 추가 |
-| `SEED_ON_STARTUP` | `true` | 시작 시 시드 |
+| `SEED_ON_STARTUP` | `false` (docker-compose는 `true`) | 시작 시 시드(페르소나·`ADMIN_EMAIL`/`ADMIN_PASSWORD` 관리자). 비밀번호는 12자 이상이어야 계정이 만들어진다 |
+| `DAILY_LLM_COST_CAP_USD` | `0`(제한 없음) | 프로세스별 일일 LLM 비용 추정 상한 |
+| `REDIS_URL` | 비어 있음 | 설정하면 턴 처리 락을 Redis로 공유, 없으면 프로세스 내 락 |
+
+서버는 시작할 때 없는 테이블만 만든다(빈 DB로 바로 실행 가능). 기존 테이블에 새 칼럼은 추가하지 않는다. 현재 Alembic `0001_initial`도 같은 방식이라, 2026-11-24 이전에 만든 DB의 `share_cards`에는 `is_public`·`revoked`·`revoked_at`이 없다. 이 표는 서버 공유 카드 API(`/api/share/...`)만 쓰며 현재 프론트는 호출하지 않는다.
 
 ---
 
